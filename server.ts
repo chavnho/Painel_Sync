@@ -589,6 +589,65 @@ async function startServer() {
     });
   });
 
+  // Endpoint para buscar candles de qualquer símbolo manualmente
+  app.get("/api/mt5-sync/:channelId/candles", (req, res) => {
+    const channelId = String(req.params.channelId || "").trim();
+    const token = extractSyncToken(req);
+
+    if (!channelId || channelId.length < 4 || !token || token.length < 6) {
+      res.status(401).json({ error: "Canal ou token inválido." });
+      return;
+    }
+
+    const channel = mt5Channels.get(channelId);
+    if (!channel) {
+      res.status(403).json({ error: "Token inválido para este canal." });
+      return;
+    }
+
+    const symbol = req.query.symbol;
+    const timeframe = req.query.timeframe;
+
+    if (!symbol || !timeframe) {
+      res.status(400).json({ error: "Parâmetros 'symbol' e 'timeframe' são obrigatórios." });
+      return;
+    }
+
+    // Aqui, em um ambiente real, o backend enviaria um comando para o EA MT5
+    // para buscar os candles e retorná-los. 
+    // Como o EA atual só envia dados passivamente, para esta fase do projeto,
+    // simularemos a resposta ou usaremos o cache se disponível.
+    pushPairingEvent(channel, {
+      outcome: "info",
+      httpStatus: 200,
+      source: "ping",
+      summary: `Consulta de candles solicitada: ${symbol}`,
+      detail: `Solicitando dados para o símbolo ${symbol} no timeframe ${timeframe}.`,
+    });
+
+    res.json({
+      ok: true,
+      message: "Dados mockados para teste.",
+      symbol,
+      timeframe,
+      candles: Array.from({ length: 200 }, (_, i) => {
+        const time = Date.now() - (200 - i) * 60000;
+        const open = 100 + Math.random() * 10;
+        const close = open + (Math.random() - 0.5) * 2;
+        return {
+          index: i,
+          time: time,
+          timeLabel: new Date(time).toISOString().split('T')[1].split('.')[0].replace(':', ''),
+          open: parseFloat(open.toFixed(2)),
+          high: parseFloat((Math.max(open, close) + Math.random()).toFixed(2)),
+          low: parseFloat((Math.min(open, close) - Math.random()).toFixed(2)),
+          close: parseFloat(close.toFixed(2)),
+          volume: Math.floor(Math.random() * 1000),
+        };
+      }),
+    });
+  });
+
   // Limpa canal ou remove um robô específico
   app.delete("/api/mt5-sync/:channelId", (req, res) => {
     const channelId = String(req.params.channelId || "").trim();

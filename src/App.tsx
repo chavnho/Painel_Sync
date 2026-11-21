@@ -14,6 +14,7 @@ import type {
   PairingAttemptEvent,
 } from './types/trading';
 import {
+  API_BASE_URL,
   loadOrCreateMt5SyncCredentials,
   regenerateMt5SyncCredentials,
 } from './utils/mt5Bridge';
@@ -33,7 +34,7 @@ export default function App() {
   // Conecta ao stream SSE em tempo real do servidor
   useEffect(() => {
     setStreamStatus('connecting');
-    const url = `/api/mt5-sync/${encodeURIComponent(creds.channelId)}/stream?token=${encodeURIComponent(creds.token)}`;
+    const url = `${API_BASE_URL}/api/mt5-sync/${encodeURIComponent(creds.channelId)}/stream?token=${encodeURIComponent(creds.token)}`;
     const es = new EventSource(url);
 
     es.addEventListener('ready', (evt) => {

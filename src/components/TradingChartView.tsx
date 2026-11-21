@@ -35,7 +35,11 @@ import type {
   OpenPosition,
   RobotStream,
 } from '../types/trading';
-import { aggregateCandles } from '../utils/mt5Bridge';
+import {
+  aggregateCandles,
+  fetchManualCandles,
+  loadOrCreateMt5SyncCredentials,
+} from '../utils/mt5Bridge';
 import {
   computeBollinger,
   computeEMA,
@@ -166,13 +170,52 @@ export function TradingChartView({
 }: TradingChartViewProps) {
   const [selectedSymbol, setSelectedSymbol] = useState<string>('');
   const [selectedTf, setSelectedTf] = useState<ChartTf>('M5');
-  const [showEma, setShowEma] = useState<boolean>(true);
-  const [showVwap, setShowVwap] = useState<boolean>(true);
-  const [showBollinger, setShowBollinger] = useState<boolean>(false);
-  const [showMarkers, setShowMarkers] = useState<boolean>(true);
-  const [subPaneMode, setSubPaneMode] = useState<'volume' | 'rsi' | 'pnl'>('volume');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [manualCandles, setManualCandles] = useState<LiveCandle[] | null>(null);
+  const [manualError, setManualError] = useState<string | null>(null);
+  const [showEma, setShowEma] = useState(true);
+  const [showVwap, setShowVwap] = useState(true);
+  const [showBollinger, setShowBollinger] = useState(true);
+  const [showMarkers, setShowMarkers] = useState(true);
   const [hoveredTime, setHoveredTime] = useState<number | null>(null);
-  const [isScrolledAway, setIsScrolledAway] = useState<boolean>(false);
+  const [isScrolledAway, setIsScrolledAway] = useState(false);
+  const [subPaneMode, setSubPaneMode] = useState<'volume' | 'rsi' | 'pnl'>('volume');
+  const previousSymbolRef = useRef<string>('');
+
+  const handleSymbolChange = async (val: string) => {
+    const upper = val.toUpperCase();
+    setSelectedSymbol(upper);
+
+    if (upper === previousSymbolRef.current) return;
+
+    previousSymbolRef.current = upper;
+    setManualCandles(null);
+    setManualError(null);
+
+    if (upper === '') return;
+
+    setIsLoading(true);
+    try {
+      const { channelId, token } = loadOrCreateMt5SyncCredentials();
+      const result = await fetchManualCandles(
+        channelId,
+        token,
+        upper,
+        selectedTf
+      );
+
+      if (result && Array.isArray(result.candles)) {
+        setManualCandles(result.candles);
+      } else {
+        setManualError('Dados não encontrados');
+      }
+    } catch (error) {
+      console.error(error);
+      setManualError('Erro ao carregar dados');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -193,33 +236,22 @@ export function TradingChartView({
     [robots]
   );
 
-  // Ao selecionar um robô na barra lateral, foca o gráfico único do ativo correspondente
-  useEffect(() => {
-    if (selectedRobotId !== 'ALL') {
-      const found = robots.find((r) => r.robotId === selectedRobotId);
-      if (found) {
-        setSelectedSymbol(found.symbol);
-      }
-    }
-  }, [selectedRobotId, robots]);
-
+  // Ao digitar um ativo, ele assume o foco. Se for um robô selecionado, ele também define.
   const activeSymbol = useMemo(() => {
-    if (availableSymbols.length === 0) return '';
-    if (selectedSymbol && availableSymbols.includes(selectedSymbol)) {
-      return selectedSymbol;
-    }
+    if (selectedSymbol) return selectedSymbol;
     if (selectedRobotId !== 'ALL') {
       const found = robots.find((r) => r.robotId === selectedRobotId);
       if (found) return found.symbol;
     }
-    return availableSymbols[0];
+    if (availableSymbols.length > 0) return availableSymbols[0];
+    return '';
   }, [availableSymbols, selectedSymbol, selectedRobotId, robots]);
+   // Todos os robôs que operam o ativo ativo compartilham este mesmo gráfico
+   const symbolRobots = useMemo(
+     () => (activeSymbol ? robots.filter((r) => r.symbol === activeSymbol) : []),
+     [robots, activeSymbol]
+   );
 
-  // Todos os robôs que operam o ativo ativo compartilham este mesmo gráfico
-  const symbolRobots = useMemo(
-    () => (activeSymbol ? robots.filter((r) => r.symbol === activeSymbol) : []),
-    [robots, activeSymbol]
-  );
 
   // Sincroniza timeframe inicial quando troca de ativo
   useEffect(() => {
@@ -240,6 +272,9 @@ export function TradingChartView({
     masterRobot: RobotStream | null;
     isNativeTf: boolean;
   }>(() => {
+    if (manualCandles && manualCandles.length > 0) {
+      return { allCandles: manualCandles, masterRobot: null, isNativeTf: true };
+    }
     if (symbolRobots.length === 0) {
       return { allCandles: [], masterRobot: null, isNativeTf: true };
     }
@@ -296,7 +331,7 @@ export function TradingChartView({
       };
     }
     return { allCandles: [], masterRobot: symbolRobots[0], isNativeTf: false };
-  }, [symbolRobots, selectedTf]);
+  }, [symbolRobots, selectedTf, manualCandles]);
 
   const timedCandles = useMemo(
     () => buildTimedCandles(allCandles, TF_MINUTES[selectedTf] ?? 5),
@@ -976,7 +1011,7 @@ export function TradingChartView({
     });
   }, [hoveredTime, unifiedMarkers, timedCandles]);
 
-  if (!activeSymbol || symbolRobots.length === 0 || allCandles.length === 0) {
+  if (!activeSymbol) {
     return (
       <div className="flex-1 overflow-y-auto px-6 py-10">
         <div className="max-w-2xl mx-auto rounded-xl bg-[#11161D] border border-[#222B38] p-8 text-center space-y-3">
@@ -1003,124 +1038,52 @@ export function TradingChartView({
     <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
       <div className="max-w-7xl mx-auto space-y-4">
         {/* Barra Superior de Controles do Gráfico Único por Ativo */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-3">
-            <select
-              aria-label="Selecionar ativo do gráfico"
-              value={activeSymbol}
-              onChange={(e) => setSelectedSymbol(e.target.value)}
-              className="bg-[#11161D] border border-[#263040] focus:border-emerald-500 focus:outline-none rounded-lg px-3 py-1.5 text-sm font-semibold text-gray-100 cursor-pointer"
+<div className="flex flex-wrap items-center gap-3">
+      <div className="flex items-center gap-2 bg-[#11161D] border border-[#263040] rounded-lg px-3 py-1.5">
+        <span className="text-xs text-gray-400">Ativo:</span>
+            <input
+              type="text"
+              value={selectedSymbol}
+              onChange={(e) => handleSymbolChange(e.target.value)}
+              placeholder="Ex: PETR4, WIN..."
+              className="bg-transparent border-none focus:outline-none text-sm font-bold text-gray-100 w-32"
+            />
+            {isLoading && <span className="text-[10px] text-blue-400 animate-pulse">Carregando...</span>}
+            {manualError && <span className="text-[10px] text-red-400">{manualError}</span>}
+      </div>
+
+      {/* Seletor de Tempo Gráfico (M1 / M5 / M15 / H1) */}
+      <div
+        role="group"
+        aria-label="Tempo gráfico"
+        className="flex items-center bg-[#11161D] border border-[#222B38] rounded-lg p-0.5"
+      >
+        {TIMEFRAMES.map((tf) => {
+          const active = selectedTf === tf;
+          return (
+            <button
+              key={tf}
+              type="button"
+              onClick={() => setSelectedTf(tf)}
+              className={`px-2.5 py-1 rounded text-xs font-mono font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                active
+                  ? 'bg-[#1F2937] text-gray-100'
+                  : 'text-gray-400 hover:text-gray-200'
+              }`}
             >
-              {availableSymbols.map((sym) => {
-                const count = robots.filter((r) => r.symbol === sym).length;
-                return (
-                  <option key={sym} value={sym}>
-                    {sym} ({count} {count === 1 ? 'robô' : 'robôs'})
-                  </option>
-                );
-              })}
-            </select>
-
-            {/* Seletor de Tempo Gráfico (M1 / M5 / M15 / H1) */}
-            <div
-              role="group"
-              aria-label="Tempo gráfico"
-              className="flex items-center bg-[#11161D] border border-[#222B38] rounded-lg p-0.5"
-            >
-              {TIMEFRAMES.map((tf) => {
-                const active = selectedTf === tf;
-                return (
-                  <button
-                    key={tf}
-                    type="button"
-                    onClick={() => setSelectedTf(tf)}
-                    className={`px-2.5 py-1 rounded text-xs font-mono font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                      active
-                        ? 'bg-[#1F2937] text-gray-100'
-                        : 'text-gray-400 hover:text-gray-200'
-                    }`}
-                  >
-                    {tf}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="text-xs text-gray-400 hidden sm:block truncate max-w-md">
-              <span className="text-gray-500">Consolidando:</span>{' '}
-              <span className="text-gray-300">
-                {symbolRobots.map((r) => r.name).join(' · ')}
-              </span>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Toggles de Indicadores */}
-            <div className="flex items-center bg-[#11161D] border border-[#222B38] rounded-lg p-0.5 gap-0.5">
-              {[
-                { label: 'EMAs 9/21', active: showEma, toggle: () => setShowEma((v) => !v) },
-                { label: 'VWAP', active: showVwap, toggle: () => setShowVwap((v) => !v) },
-                { label: 'Bollinger', active: showBollinger, toggle: () => setShowBollinger((v) => !v) },
-                { label: 'Sinais C/V', active: showMarkers, toggle: () => setShowMarkers((v) => !v) },
-              ].map((btn) => (
-                <button
-                  key={btn.label}
-                  type="button"
-                  onClick={btn.toggle}
-                  className={`px-2.5 py-1 rounded text-xs font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                    btn.active
-                      ? 'bg-[#1F2937] text-gray-100'
-                      : 'text-gray-400 hover:text-gray-200'
-                  }`}
-                >
-                  {btn.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Controles de Zoom e Ajuste */}
-            <div className="flex items-center bg-[#11161D] border border-[#222B38] rounded-lg p-0.5">
-              <button
-                type="button"
-                title="Aproximar (Zoom In)"
-                aria-label="Aproximar gráfico"
-                onClick={() => handleZoom('in')}
-                className="p-1.5 rounded text-gray-400 hover:text-gray-100 hover:bg-[#1F2937] cursor-pointer transition-colors"
-              >
-                <ZoomIn className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                title="Ajustar tudo na tela"
-                aria-label="Ajustar gráfico"
-                onClick={handleFitContent}
-                className="p-1.5 rounded text-gray-400 hover:text-gray-100 hover:bg-[#1F2937] cursor-pointer transition-colors"
-              >
-                <Maximize2 className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                title="Afastar (Zoom Out)"
-                aria-label="Afastar gráfico"
-                onClick={() => handleZoom('out')}
-                className="p-1.5 rounded text-gray-400 hover:text-gray-100 hover:bg-[#1F2937] cursor-pointer transition-colors"
-              >
-                <ZoomOut className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            {isScrolledAway && (
-              <button
-                type="button"
-                onClick={handleScrollLive}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold text-white transition-colors cursor-pointer whitespace-nowrap shrink-0"
-              >
-                <span>Ao Vivo</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-        </div>
+              {tf}
+            </button>
+          );
+        })}
+      </div>
+      
+      <div className="text-xs text-gray-400 hidden sm:block truncate max-w-md">
+        <span className="text-gray-500">Consolidando:</span>{' '}
+        <span className="text-gray-300">
+          {symbolRobots.map((r) => r.name).join(' · ')}
+        </span>
+      </div>
+    </div>
 
         {/* Painel do Gráfico Principal (TradingView Lightweight Charts) */}
         <div className="rounded-xl bg-[#11161D] border border-[#222B38] overflow-hidden">
@@ -1196,8 +1159,20 @@ export function TradingChartView({
           </div>
 
           {/* Container HTML5 Canvas do Lightweight Charts (Pane 0: Preço + Overlays, Pane 1: Sub-painel) */}
-          <div className="bg-[#0B0E11] p-1">
+          <div className="bg-[#0B0E11] p-1 relative">
             <div ref={containerRef} className="w-full h-[520px]" />
+            {allCandles.length === 0 && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-6 pointer-events-none">
+                <CandlestickChart className="w-7 h-7 text-gray-500" />
+                <p className="text-xs text-gray-400">
+                  {isLoading
+                    ? `Buscando candles de ${activeSymbol}...`
+                    : manualError
+                      ? `Não foi possível carregar ${activeSymbol}: ${manualError}`
+                      : `Nenhum candle disponível para ${activeSymbol}.`}
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1294,11 +1269,11 @@ export function TradingChartView({
                       </span>
                     </div>
                   ))}
-              </div>
-            )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
-    </div>
   );
 }
