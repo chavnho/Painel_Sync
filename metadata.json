@@ -1,0 +1,8 @@
+{
+  "name": "Painel Sync",
+  "description": "Visualizador de Expert Advisors (robôs) em MQL5.\n20/11/26\n16:00",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
