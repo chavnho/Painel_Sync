@@ -37,7 +37,7 @@ import type {
 } from '../types/trading';
 import {
   aggregateCandles,
-  fetchManualCandles,
+  fetchCandles,
   loadOrCreateMt5SyncCredentials,
 } from '../utils/mt5Bridge';
 import {
@@ -197,15 +197,15 @@ export function TradingChartView({
     setIsLoading(true);
     try {
       const { channelId, token } = loadOrCreateMt5SyncCredentials();
-      const result = await fetchManualCandles(
+      const result = await fetchCandles(
         channelId,
         token,
         upper,
         selectedTf
       );
 
-      if (result && Array.isArray(result.candles)) {
-        setManualCandles(result.candles);
+      if (result.length > 0) {
+        setManualCandles(result);
       } else {
         setManualError('Dados não encontrados');
       }

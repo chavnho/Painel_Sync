@@ -46,7 +46,7 @@ export function regenerateMt5SyncCredentials(): Mt5SyncCredentials {
   return creds;
 }
 
-export async function fetchManualCandles(channelId: string, token: string, symbol: string, timeframe: string): Promise<any> {
+export async function fetchCandles(channelId: string, token: string, symbol: string, timeframe: string): Promise<LiveCandle[]> {
   const response = await fetch(`${API_BASE_URL}/api/mt5-sync/${channelId}/candles?symbol=${symbol}&timeframe=${timeframe}`, {
     headers: {
       "x-sync-token": token,
@@ -55,7 +55,8 @@ export async function fetchManualCandles(channelId: string, token: string, symbo
   if (!response.ok) {
     throw new Error(`Failed to fetch candles for ${symbol}: ${response.statusText}`);
   }
-  return response.json();
+  const data = await response.json();
+  return Array.isArray(data.candles) ? data.candles : [];
 }
 
 export function aggregateCandles(m1Candles: LiveCandle[], factor: number): LiveCandle[] {
@@ -108,6 +109,9 @@ export function buildPainelSyncMql5({
 #property link      "https://painelsync.com"
 #property version   "1.00"
 #property strict
+#include <indicators.mqh>
+#include <array.mqh>
+#include <String.mqh>
 
 //--- Inputs
 input int      InpMagicNumber = ${magicNumber};
@@ -141,6 +145,8 @@ void OnTick()
 {
    // Esta função é apenas para monitoramento visual. 
    // A lógica de envio de dados ocorre via WebRequest (implementado internamente)
+   if (Symbol() == "") return;
+   SendSyncData();
 }
 
 //+-----------------------------------------------------------------\\
@@ -148,9 +154,57 @@ void OnTick()
 //+-----------------------------------------------------------------\\
 void SendSyncData()
 {
+   string symbol = Symbol();
+   int period = Period();
+   MqlRates rates[100];
+   int total = CopyRates(symbol, period, 0, 100, rates);
+   if (total <= 0)
+   {
+      Print("PainelSync: CopyRates falhou para ", symbol, " ", period);
+      return;
+   }
+
+   string payload = BuildPayload(symbol, period, rates, total);
+   if (payload == "")
+      return;
+
    // Aqui entraria a lógica de WebRequest para enviar posições e lucro atual
    // para o endpoint: ${endpointUrl}
    // Usando o token: ${token}
+}
+
+//+-----------------------------------------------------------------\\
+//| Build JSON payload with candles, positions and pnl                      |
+//+-----------------------------------------------------------------\\
+string BuildPayload(string symbol, int period, MqlRates rates[], int total)
+{
+   ArraySetAsSeries(rates, 0);
+
+   string json = "";
+   json += "{";
+   json += "\"symbol\":\"" + symbol + "\"";
+   json += ",\"timeframe\":'" + IntegerToString(period) + "'";
+   json += ",\"candles\":";
+
+   for (int i = 0; i < total; i++)
+   {
+      json += (i > 0 ? "," : "");
+      json += "{";
+      json += "\"time\":[" + LongToString(rates[i].time) + ",\"timeLabel\":\"" + String(rates[i].timeLabel) + "\"]";
+      json += ",\"open\":[" + DoubleToString(rates[i].open) + "]";
+      json += ",\"high\":[" + DoubleToString(rates[i].high) + "]";
+      json += ",\"low\":[" + DoubleToString(rates[i].low) + "]";
+      json += ",\"close\":[" + DoubleToString(rates[i].close) + "]";
+      json += ",\"volume\":[" + LongToString(rates[i].volume) + "]";
+      json += "}";
+   }
+
+   json += "}";
+   json += ",\"positions\":[]";
+   json += ",\"pnl\":0";
+   json += "}";
+
+   return json;
 }
 `
   ].join('\n');
