@@ -17,12 +17,12 @@ export function DashboardHeader({ activeView, onViewChange }: DashboardHeaderPro
   return (
     <header className="h-14 shrink-0 bg-[#11161D] border-b border-[#222B38] px-6 flex items-center justify-between gap-8">
       {/* Zona 1: Wordmark em linha única */}
-      <button
+        <button
         type="button"
         onClick={() => onViewChange('overview')}
-        className="font-display text-lg font-bold tracking-tight text-gray-100 whitespace-nowrap shrink-0 cursor-pointer hover:text-white transition-colors"
-      >
+        className="font-display text-lg font-bold tracking-tight text-gray-100 whitespace-nowrap shrink-0 cursor-pointer hover:text-white transition-colors flex items-center gap-2">
         Painel Sync
+        <span className="text-[10px] font-normal text-gray-500">v0.1.0</span>
       </button>
 
       {/* Zona 2: Links de navegação limpos */}
