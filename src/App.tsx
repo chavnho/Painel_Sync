@@ -6,7 +6,9 @@ import { OverviewView } from './components/OverviewView';
 import { RobotSidebar } from './components/RobotSidebar';
 import { TradesLedgerView } from './components/TradesLedgerView';
 import { TradingChartView } from './components/TradingChartView';
+import { IndependentChartView } from './components/IndependentChartView';
 import { WeeklyMonthlyReportView } from './components/WeeklyMonthlyReportView';
+import { ConnectView } from './components/ConnectView';
 import type {
   DashboardTelemetry,
   DashboardView,
@@ -32,35 +34,53 @@ export default function App() {
   const [selectedRobotId, setSelectedRobotId] = useState<string | 'ALL'>('ALL');
 
   // Conecta ao stream SSE em tempo real do servidor
-  useEffect(() => {
-    setStreamStatus('connecting');
-    const url = `${API_BASE_URL}/api/mt5-sync/${encodeURIComponent(creds.channelId)}/stream?token=${encodeURIComponent(creds.token)}`;
-    const es = new EventSource(url);
+    useEffect(() => {
+      setStreamStatus('connecting');
+      const url = `${API_BASE_URL}/api/mt5-sync/${encodeURIComponent(creds.channelId)}/stream?token=${encodeURIComponent(creds.token)}`;
+      console.log('Attempting SSE connection to:', url);
+      const es = new EventSource(url);
+      console.log('EventSource instance created');
+
 
     es.addEventListener('ready', (evt) => {
+      console.log('SSE "ready" event received');
       setStreamStatus('listening');
       try {
         const data = JSON.parse((evt as MessageEvent).data) as {
           pairingEvents?: PairingAttemptEvent[];
+          robots?: any[];
+          account?: any;
+          serverReceivedAt?: string;
         };
+        console.log('Ready data:', data);
         if (Array.isArray(data.pairingEvents)) {
           setPairingEvents(data.pairingEvents);
         }
-      } catch {
-        // ignora payload vazio
+        if (data.robots) {
+          setTelemetry({
+            robots: data.robots,
+            account: data.account,
+            serverReceivedAt: data.serverReceivedAt ?? '',
+            channelId: creds.channelId,
+          });
+        }
+      } catch (e) {
+        console.error('Error parsing "ready" data:', e);
       }
     });
 
     es.addEventListener('telemetry', (evt) => {
+      console.log('SSE "telemetry" event received');
       try {
         const data = JSON.parse((evt as MessageEvent).data) as DashboardTelemetry;
+        console.log('Telemetry data:', data);
         setTelemetry(data);
         if (Array.isArray(data.pairingEvents)) {
           setPairingEvents(data.pairingEvents);
         }
         setStreamStatus('listening');
-      } catch {
-        // ignora payload malformado
+      } catch (e) {
+        console.error('Error parsing "telemetry" data:', e);
       }
     });
 
@@ -192,15 +212,18 @@ export default function App() {
             />
           )}
 
+          {activeView === 'market-chart' && (
+            <IndependentChartView
+              onNavigate={setActiveView}
+            />
+          )}
+
           {activeView === 'connect' && (
-            <Mt5BridgeView
-              creds={creds}
+            <ConnectView
               streamStatus={streamStatus}
+              telemetry={telemetry}
               pairingEvents={pairingEvents}
-              robots={robots}
-              lastSyncAt={telemetry?.serverReceivedAt ?? null}
-              onClearPairingLog={handleClearPairingLog}
-              onRegenerateToken={handleRegenerateToken}
+              creds={creds}
             />
           )}
         </main>

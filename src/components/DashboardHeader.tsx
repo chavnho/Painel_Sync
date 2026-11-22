@@ -10,7 +10,10 @@ const NAV_ITEMS: Array<{ id: DashboardView; label: string }> = [
   { id: 'charts', label: 'Gráficos' },
   { id: 'buy-sell', label: 'Compras & Vendas' },
   { id: 'operations', label: 'Operações' },
-  { id: 'reports', label: 'Relatórios' },
+{
+  id: 'market-chart',
+  label: 'Mercado'
+},
 ];
 
 export function DashboardHeader({ activeView, onViewChange }: DashboardHeaderProps) {

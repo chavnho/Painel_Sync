@@ -47,16 +47,104 @@ export function regenerateMt5SyncCredentials(): Mt5SyncCredentials {
 }
 
 export async function fetchCandles(channelId: string, token: string, symbol: string, timeframe: string): Promise<LiveCandle[]> {
-  const response = await fetch(`${API_BASE_URL}/api/mt5-sync/${channelId}/candles?symbol=${symbol}&timeframe=${timeframe}`, {
+  const url = `${API_BASE_URL}/api/mt5-sync/${channelId}/candles?symbol=${symbol}&timeframe=${timeframe}`;
+  console.log(`Fetching candles from: ${url}`);
+
+  const response = await fetch(url, {
     headers: {
       "x-sync-token": token,
     },
   });
+
   if (!response.ok) {
+    const errorBody = await response.text();
+    console.error(`Failed to fetch candles for ${symbol}. Status: ${response.status} ${response.statusText}`);
+    console.error(`Response body: ${errorBody}`);
     throw new Error(`Failed to fetch candles for ${symbol}: ${response.statusText}`);
   }
-  const data = await response.json();
-  return Array.isArray(data.candles) ? data.candles : [];
+
+  try {
+    const data = await response.json();
+    return Array.isArray(data.candles) ? data.candles : [];
+  } catch (e) {
+    console.error("Failed to parse JSON response from candles endpoint.");
+    throw new Error("Invalid JSON response from server");
+  }
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function tryFetchCandles(
+  channelId: string,
+  token: string,
+  symbol: string,
+  timeframe: string,
+  signal?: AbortSignal
+): Promise<LiveCandle[] | null> {
+  try {
+    const url = `${API_BASE_URL}/api/mt5-sync/${channelId}/candles?symbol=${encodeURIComponent(symbol)}&timeframe=${encodeURIComponent(timeframe)}`;
+    const response = await fetch(url, { headers: { "x-sync-token": token }, signal });
+    if (!response.ok) return null;
+    const data = await response.json();
+    return Array.isArray(data.candles) ? data.candles : [];
+  } catch {
+    return null;
+  }
+}
+
+export async function requestCandlesFromMt5(
+  channelId: string,
+  token: string,
+  symbol: string,
+  timeframe: string,
+  signal?: AbortSignal
+): Promise<void> {
+  const url = `${API_BASE_URL}/api/mt5-sync/${channelId}/request`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-sync-token": token,
+    },
+    body: JSON.stringify({ symbol, timeframe }),
+    signal,
+  });
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(`Falha ao solicitar candles (${response.status}): ${body}`);
+  }
+}
+
+export async function syncCandlesWithMt5(
+  channelId: string,
+  token: string,
+  symbol: string,
+  timeframe: string,
+  options: { timeoutMs?: number; intervalMs?: number; force?: boolean; signal?: AbortSignal } = {}
+): Promise<LiveCandle[]> {
+  const { timeoutMs = 15000, intervalMs = 1000, force = false, signal } = options;
+
+  if (signal?.aborted) return [];
+
+  if (!force) {
+    const cached = await tryFetchCandles(channelId, token, symbol, timeframe, signal);
+    if (cached && cached.length > 0) return cached;
+  }
+
+  await requestCandlesFromMt5(channelId, token, symbol, timeframe, signal);
+
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (signal?.aborted) return [];
+    await delay(intervalMs);
+    if (signal?.aborted) return [];
+    const candles = await tryFetchCandles(channelId, token, symbol, timeframe, signal);
+    if (candles && candles.length > 0) return candles;
+  }
+
+  return [];
 }
 
 export function aggregateCandles(m1Candles: LiveCandle[], factor: number): LiveCandle[] {
@@ -99,11 +187,11 @@ export function buildPainelSyncMql5({
   robotName: string;
 }): string {
   return [
-    `//+-----------------------------------------------------------------\\
-//|                                              PainelSync.mq5                |
-//|                                  Copyright © 2024, Painel Sync Team        |
-//|                                             https://painelsync.com           |
-//+-----------------------------------------------------------------\\
+  `//------------------------------------------------------------------------\\
+//|                                              PainelSync.mq5            |
+//|                                  Copyright © 2024, Painel Sync Team    |
+//|                                             https://painelsync.com     |
+//+-----------------------------------------------------------------------\\
 \\
 #property copyright "Copyright © 2024, Painel Sync Team"
 #property link      "https://painelsync.com"
@@ -120,9 +208,11 @@ input string   InpRobotName   = "${robotName}";
 //--- Global Variables
 string   g_endpointUrl = "${endpointUrl}";
 string   g_token       = "${token}";
+string   g_channelId   = "";
+string   g_jsonPayload = "";
 
 //+-----------------------------------------------------------------\\
-//| Expert initialization function                                            |
+//| Expert initialization function                                  \\
 //+-----------------------------------------------------------------\\
 int OnInit()
 {
@@ -131,7 +221,7 @@ int OnInit()
 }
 
 //+-----------------------------------------------------------------\\
-//| Expert deinitialization function                                          |
+//| Expert deinitialization function                                 |
 //+-----------------------------------------------------------------\\
 void OnDeinit(const int reason)
 {
@@ -139,7 +229,7 @@ void OnDeinit(const int reason)
 }
 
 //+-----------------------------------------------------------------\\
-//| Expert tick function                                                      |
+//| Expert tick function                                             |
 //+-----------------------------------------------------------------\\
 void OnTick()
 {
@@ -150,7 +240,7 @@ void OnTick()
 }
 
 //+-----------------------------------------------------------------\\
-//| Custom function to send data (Placeholder for actual WebRequest logic)  |
+//| Custom function to send data (Placeholder for actual WebRequest logic)     |
 //+-----------------------------------------------------------------\\
 void SendSyncData()
 {
@@ -168,13 +258,94 @@ void SendSyncData()
    if (payload == "")
       return;
 
-   // Aqui entraria a lógica de WebRequest para enviar posições e lucro atual
-   // para o endpoint: ${endpointUrl}
-   // Usando o token: ${token}
+   SendToServer(payload);
 }
 
 //+-----------------------------------------------------------------\\
-//| Build JSON payload with candles, positions and pnl                      |
+//| Envia o payload JSON gerado para o backend via WebRequest        |
+//+-----------------------------------------------------------------\\
+void SendToServer(string jsonPayload)
+{
+   string url = g_endpointUrl + "/api/mt5-sync/" + g_channelId;
+   string request =
+      "POST " + url + " HTTP/1.1\\r\\n" +
+      "Host: " + String(g_endpointUrl) + "\\r\\n" +
+      "Content-Type: application/json\\r\\n" +
+      "X-Sync-Token: " + g_token + "\\r\\n" +
+      "Content-Length: " + IntegerToString(StringToInteger(jsonPayload.Length())) + "\\r\\n" +
+      "\\r\\n" + jsonPayload;
+
+   int result = WebRequestSend(request, 0, 0, g_token);
+   if (result == 1)
+   {
+      Print("PainelSync: Payload enviado ao servidor.");
+   }
+   else if (result == 2)
+   {
+      Print("PainelSync: WebRequest não concluído (resultado 2).");
+   }
+   else
+   {
+      Print("PainelSync: Erro ao enviar payload (resultado ", result, ").");
+   }
+}
+
+//+-----------------------------------------------------------------\\
+//| WebRequestReceive - recebe resposta do servidor e imprime JSON   |
+//+-----------------------------------------------------------------\\
+void WebRequestReceive(int handle, long code, long code2, long code3)
+{
+   if (handle < 0) return;
+   if (code == 0 && code2 == 0 && code3 == 0)
+   {
+      long len = WebRequestReceiveString(handle);
+      if (len > 0)
+      {
+         Print("PainelSync: Resposta do servidor:");
+         Print(StringToText(WebRequestReceiveString(handle), 0, len));
+      }
+   }
+   WebRequestDestroy(handle);
+}
+
+//+-----------------------------------------------------------------\\
+//| WebRequestRequestSend - envia o payload JSON ao servidor         |
+//+-----------------------------------------------------------------\\
+int WebRequestRequestSend(int handle, long code, long code2, long code3)
+{
+   string payload = g_jsonPayload;
+   if (payload == "")
+      return 1;
+
+   int result = WebRequestSend(
+      "POST " + g_endpointUrl + "/api/mt5-sync/" + g_channelId + " HTTP/1.1\\r\\n" +
+      "Host: " + String(g_endpointUrl) + "\\r\\n" +
+      "Content-Type: application/json\\r\\n" +
+      "X-Sync-Token: " + g_token + "\\r\\n" +
+      "Content-Length: " + IntegerToString(StringToInteger(payload.Length())) + "\\r\\n" +
+      "\\r\\n" + payload,
+      0,
+      0,
+      g_token
+   );
+
+   if (result == 1)
+   {
+      Print("PainelSync: Payload enviado ao servidor.");
+   }
+   else if (result == 2)
+   {
+      Print("PainelSync: WebRequest não concluído (resultado 2).");
+   }
+   else
+   {
+      Print("PainelSync: Erro ao enviar payload (resultado ", result, ").");
+   }
+   return result;
+}
+
+//+-----------------------------------------------------------------\\
+//| Build JSON payload with candles, positions and pnl               |
 //+-----------------------------------------------------------------\\
 string BuildPayload(string symbol, int period, MqlRates rates[], int total)
 {

@@ -4,7 +4,8 @@ export type DashboardView =
   | 'buy-sell'
   | 'operations'
   | 'reports'
-  | 'connect';
+  | 'connect'
+  | 'market-chart';
 
 export type TradeSide = 'COMPRA' | 'VENDA';
 

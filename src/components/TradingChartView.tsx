@@ -180,42 +180,61 @@ export function TradingChartView({
   const [hoveredTime, setHoveredTime] = useState<number | null>(null);
   const [isScrolledAway, setIsScrolledAway] = useState(false);
   const [subPaneMode, setSubPaneMode] = useState<'volume' | 'rsi' | 'pnl'>('volume');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const previousSymbolRef = useRef<string>('');
 
-  const handleSymbolChange = async (val: string) => {
-    const upper = val.toUpperCase();
-    setSelectedSymbol(upper);
+    const handleSymbolChange = async (val: string) => {
+      const upper = val.toUpperCase();
+      setSearchQuery(val);
+      setSelectedSymbol(upper);
 
-    if (upper === previousSymbolRef.current) return;
-
-    previousSymbolRef.current = upper;
-    setManualCandles(null);
-    setManualError(null);
-
-    if (upper === '') return;
-
-    setIsLoading(true);
-    try {
-      const { channelId, token } = loadOrCreateMt5SyncCredentials();
-      const result = await fetchCandles(
-        channelId,
-        token,
-        upper,
-        selectedTf
-      );
-
-      if (result.length > 0) {
-        setManualCandles(result);
-      } else {
-        setManualError('Dados não encontrados');
+      if (upper === previousSymbolRef.current) {
+        setShowSuggestions(false);
+        return;
       }
-    } catch (error) {
-      console.error(error);
-      setManualError('Erro ao carregar dados');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+
+      previousSymbolRef.current = upper;
+      setManualCandles(null);
+      setManualError(null);
+
+      if (upper === '') {
+        setShowSuggestions(false);
+        return;
+      }
+
+      setShowSuggestions(true);
+      setIsLoading(true);
+      try {
+        const { channelId, token } = loadOrCreateMt5SyncCredentials();
+        
+        // Verifica se já temos dados suficientes na telemetria para evitar fetch desnecessário
+        const hasTelemetry = symbolRobots.some(r => r.symbol === upper && (r.candlesByTimeframe?.[selectedTf.toUpperCase()]?.length ?? 0) > 0);
+        
+        if (!hasTelemetry) {
+          const result = await fetchCandles(
+            channelId,
+            token,
+            upper,
+            selectedTf
+          );
+
+          if (result && result.length > 0) {
+            setManualCandles(result);
+          } else {
+            setManualError('Dados não encontrados');
+          }
+        }
+      } catch (error) {
+        console.error(error);
+        const hasTelemetry = symbolRobots.some(r => r.symbol === upper && (r.candlesByTimeframe?.[selectedTf.toUpperCase()]?.length ?? 0) > 0);
+        if (!hasTelemetry) {
+          setManualError('Erro ao carregar dados');
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -235,6 +254,11 @@ export function TradingChartView({
     () => Array.from(new Set(robots.map((r) => r.symbol))),
     [robots]
   );
+
+  const filteredSymbols = useMemo(() => {
+    const query = searchQuery.toUpperCase();
+    return availableSymbols.filter(s => s.toUpperCase().includes(query));
+  }, [searchQuery, availableSymbols]);
 
   // Ao digitar um ativo, ele assume o foco. Se for um robô selecionado, ele também define.
   const activeSymbol = useMemo(() => {
@@ -1039,17 +1063,38 @@ export function TradingChartView({
       <div className="max-w-7xl mx-auto space-y-4">
         {/* Barra Superior de Controles do Gráfico Único por Ativo */}
 <div className="flex flex-wrap items-center gap-3">
-      <div className="flex items-center gap-2 bg-[#11161D] border border-[#263040] rounded-lg px-3 py-1.5">
-        <span className="text-xs text-gray-400">Ativo:</span>
-            <input
-              type="text"
-              value={selectedSymbol}
-              onChange={(e) => handleSymbolChange(e.target.value)}
-              placeholder="Ex: PETR4, WIN..."
-              className="bg-transparent border-none focus:outline-none text-sm font-bold text-gray-100 w-32"
-            />
-            {isLoading && <span className="text-[10px] text-blue-400 animate-pulse">Carregando...</span>}
-            {manualError && <span className="text-[10px] text-red-400">{manualError}</span>}
+      <div className="relative">
+        <div className="flex items-center gap-2 bg-[#11161D] border border-[#222B38] rounded-lg px-3 py-1.5">
+          <span className="text-xs text-gray-400">Ativo:</span>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => handleSymbolChange(e.target.value)}
+            onFocus={() => setShowSuggestions(true)}
+            placeholder="Ex: PETR4, WIN..."
+            className="bg-transparent border-none focus:outline-none text-sm font-bold text-gray-100 w-32"
+          />
+          {isLoading && <span className="text-[10px] text-blue-400 animate-pulse">Carregando...</span>}
+          {manualError && <span className="text-[10px] text-red-400">{manualError}</span>}
+        </div>
+        {showSuggestions && filteredSymbols.length > 0 && (
+          <div className="absolute z-50 w-full mt-1 bg-[#11161D] border border-[#222B38] rounded-lg shadow-xl max-h-60 overflow-y-auto">
+            {filteredSymbols.map(s => (
+              <div
+                key={s}
+                className="px-3 py-2 text-xs hover:bg-[#1F2937] cursor-pointer text-gray-200"
+                onClick={() => {
+                  setSelectedSymbol(s);
+                  setSearchQuery(s);
+                  setShowSuggestions(false);
+                  handleSymbolChange(s);
+                }}
+              >
+                {s}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Seletor de Tempo Gráfico (M1 / M5 / M15 / H1) */}

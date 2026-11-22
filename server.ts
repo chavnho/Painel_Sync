@@ -2,20 +2,10 @@ import "dotenv/config";
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
+import { PendingRequest, PairingAttemptEvent, LiveSyncChannel, NormalizedCandle} from "./types";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-interface NormalizedCandle {
-  index: number;
-  time?: number;
-  timeLabel: string;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-}
 
 interface NormalizedPosition {
   id: string;
@@ -73,39 +63,75 @@ interface NormalizedRobot {
   dailyPnlBrl: number;
 }
 
-interface AccountSnapshot {
-  login?: string;
-  server?: string;
-  broker?: string;
-  mode: "DEMO" | "REAL";
-  balance: number;
-  equity: number;
-  margin: number;
-  freeMargin: number;
-  dailyPnlBrl: number;
+export const mt5Channels = new Map<string, LiveSyncChannel>();
+
+const requestQueue: PendingRequest[] = [];
+
+function addToQueue(request: PendingRequest) {
+  requestQueue.push(request);
+  requestQueue.sort((a, b) => a.timestamp - b.timestamp);
+  console.log(`[Queue] Pedido adicionado: ${request.id} para ${request.symbol}`);
 }
 
-interface PairingAttemptEvent {
-  id: string;
-  timestamp: string;
-  outcome: "success" | "error" | "info";
-  httpStatus: number;
-  source: "mt5" | "ping" | "unknown";
-  summary: string;
-  detail: string;
-  symbol?: string;
-  magicNumber?: number;
-  candlesCount?: number;
-  tradesCount?: number;
+function getNextRequest(): PendingRequest | null {
+  const request = requestQueue.find(r => r.status === "pending");
+  if (request) {
+    request.status = "processing";
+  }
+  return request || null;
 }
 
-interface LiveSyncChannel {
-  token: string;
-  updatedAtMs: number;
-  account: AccountSnapshot | null;
-  robots: Map<string, NormalizedRobot>;
-  pairingEvents: PairingAttemptEvent[];
-  subscribers: Set<express.Response>;
+function completeRequest(id: string, result: NormalizedCandle[]) {
+  const request = requestQueue.find(r => r.id === id);
+  if (request) {
+    request.status = "completed";
+    request.result = result;
+    console.log(`[Queue] Pedido concluído: ${id}`);
+  }
+}
+
+function failRequest(id: string, reason: string) {
+  const request = requestQueue.find(r => r.id === id);
+  if (request) {
+    request.status = "failed";
+    request.error = reason;
+    console.log(`[Queue] Pedido falhou: ${id} - ${reason}`);
+  }
+}
+
+function pushPairingEvent(
+  channel: LiveSyncChannel,
+  evt: Omit<PairingAttemptEvent, "id" | "timestamp">
+) {
+  const fullEvent: PairingAttemptEvent = {
+    id: `pe_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    timestamp: new Date().toISOString(),
+    ...evt,
+  };
+  channel.pairingEvents = [fullEvent, ...channel.pairingEvents].slice(0, 30);
+  const ssePayload = `event: pairing_event\ndata: ${JSON.stringify(fullEvent)}\n\n`;
+  for (const client of channel.subscribers) {
+    client.write(ssePayload);
+  }
+}
+
+function processQueue() {
+  const request = getNextRequest();
+  if (request) {
+    const channel = mt5Channels.get(request.channelId);
+    if (channel) {
+      pushPairingEvent(channel, {
+        outcome: "request",
+        httpStatus: 202,
+        source: "backend",
+        summary: `Processando solicitação: ${request.symbol}`,
+        detail: `Enviando solicitação ID ${request.id} para o robô.`,
+        requestId: request.id,
+        symbol: request.symbol,
+        timeframe: request.timeframe
+      });
+    }
+  }
 }
 
 function normalizeCandles(raw: unknown): NormalizedCandle[] {
@@ -298,25 +324,6 @@ async function startServer() {
 
   app.use(express.json({ limit: "3mb" }));
 
-  const mt5Channels = new Map<string, LiveSyncChannel>();
-
-  function pushPairingEvent(
-    channel: LiveSyncChannel,
-    evt: Omit<PairingAttemptEvent, "id" | "timestamp">
-  ) {
-    const fullEvent: PairingAttemptEvent = {
-      id: `pe_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      timestamp: new Date().toISOString(),
-      ...evt,
-    };
-    channel.pairingEvents = [fullEvent, ...channel.pairingEvents].slice(0, 30);
-    const ssePayload = `event: pairing_event\ndata: ${JSON.stringify(fullEvent)}\n\n`;
-    for (const client of channel.subscribers) {
-      client.write(ssePayload);
-    }
-  }
-
-  // Captura erros de JSON malformado enviados pelo MT5 ou scripts externos
   app.use(
     (
       err: unknown,
@@ -387,7 +394,8 @@ async function startServer() {
     return "";
   }
 
-  // Probe público para o navegador testar alcance externo sem cookies
+  // --- API ROUTES (Registered first) ---
+
   app.get("/api/mt5-sync/:channelId/probe", (req, res) => {
     const channelId = String(req.params.channelId || "").trim();
     const channel = mt5Channels.get(channelId);
@@ -402,15 +410,60 @@ async function startServer() {
     });
   });
 
-  // Recebe telemetria de 1 ou múltiplos robôs MT5 (MQL5 EA)
+  app.get("/api/mt5-sync/:channelId/candles", (req, res) => {
+    console.log(`[API Hit] Requesting candles for channel: ${req.params.channelId}`);
+    const channelId = String(req.params.channelId || "").trim();
+    const token = extractSyncToken(req);
+    const symbol = req.query.symbol ? String(req.query.symbol).trim() : "";
+    const timeframe = req.query.timeframe ? String(req.query.timeframe).trim() : "";
+
+    if (!channelId || channelId.length < 4 || !token || token.length < 6) {
+      res.status(401).json({ error: "Canal ou token inválido." });
+      return;
+    }
+
+    const channel = mt5Channels.get(channelId);
+    if (!channel) {
+      res.status(403).json({ error: "Token inválido para este canal." });
+      return;
+    }
+
+    if (channel.token !== token) {
+      res.status(403).json({ error: "Token não confere com o canal registrado." });
+      return;
+    }
+
+    const robot = Array.from(channel.robots.values()).find(
+      (r) => r.symbol.toUpperCase() === symbol.toUpperCase() &&
+      (timeframe === "" || r.timeframe.toUpperCase() === timeframe.toUpperCase())
+    );
+
+    if (!robot) {
+      res.status(404).json({ error: `Robô para ${symbol} no timeframe ${timeframe} não encontrado.` });
+      return;
+    }
+
+    let candles = robot.candles;
+    if (timeframe && robot.candlesByTimeframe) {
+      const tfKey = timeframe.toUpperCase();
+      if (robot.candlesByTimeframe[tfKey]) {
+        candles = robot.candlesByTimeframe[tfKey];
+      }
+    }
+
+    res.json({
+      ok: true,
+      candles,
+    });
+  });
+
   app.post("/api/mt5-sync/:channelId", (req, res) => {
     const channelId = String(req.params.channelId || "").trim();
     const token = extractSyncToken(req);
-    const existingChannel = mt5Channels.get(channelId);
 
     if (!channelId || channelId.length < 4 || !token || token.length < 6) {
-      if (existingChannel) {
-        pushPairingEvent(existingChannel, {
+      if (mt5Channels.get(channelId)) {
+        pushPairingEvent(mt5Channels.get(channelId)!, {
           outcome: "error",
           httpStatus: 401,
           source: "unknown",
@@ -424,8 +477,8 @@ async function startServer() {
 
     const channel = getOrCreateChannel(channelId, token);
     if (!channel) {
-      if (existingChannel) {
-        pushPairingEvent(existingChannel, {
+      if (mt5Channels.get(channelId)) {
+        pushPairingEvent(mt5Channels.get(channelId)!, {
           outcome: "error",
           httpStatus: 403,
           source: "unknown",
@@ -452,7 +505,6 @@ async function startServer() {
 
     const serverReceivedAt = new Date().toISOString();
 
-    // Ping de diagnóstico para validar canal + token + SSE sem alterar os robôs ativos
     if (body.pingTest === true) {
       pushPairingEvent(channel, {
         outcome: "success",
@@ -513,6 +565,18 @@ async function startServer() {
       return;
     }
 
+    if (body.requestId) {
+      const requestId = String(body.requestId);
+      const request = requestQueue.find(r => r.id === requestId);
+      if (request) {
+        if (normalizedList.length > 0 && normalizedList[0].candles.length > 0) {
+          completeRequest(requestId, normalizedList[0].candles);
+        } else {
+          failRequest(requestId, "Robô retornou lista de candles vazia.");
+        }
+      }
+    }
+
     channel.updatedAtMs = Date.now();
     const snapshot = buildSnapshotResponse(channelId, channel);
     const sseData = `event: telemetry\ndata: ${JSON.stringify(snapshot)}\n\n`;
@@ -544,7 +608,6 @@ async function startServer() {
     });
   });
 
-  // Stream SSE em tempo real para o painel
   app.get("/api/mt5-sync/:channelId/stream", (req, res) => {
     const channelId = String(req.params.channelId || "").trim();
     const token = extractSyncToken(req);
@@ -589,8 +652,7 @@ async function startServer() {
     });
   });
 
-  // Endpoint para buscar candles de qualquer símbolo manualmente
-  app.get("/api/mt5-sync/:channelId/candles", (req, res) => {
+  app.get("/api/mt5-sync/:channelId/pending", (req, res) => {
     const channelId = String(req.params.channelId || "").trim();
     const token = extractSyncToken(req);
 
@@ -605,50 +667,80 @@ async function startServer() {
       return;
     }
 
-    const symbol = req.query.symbol;
-    const timeframe = req.query.timeframe;
+    const pending = requestQueue.filter(r => r.channelId === channelId && r.status === "pending");
+    const responseRequests = pending.map(r => ({ ...r }));
 
+    for (const request of pending) {
+      request.status = "processing";
+      pushPairingEvent(channel, {
+        outcome: "request",
+        httpStatus: 202,
+        source: "backend",
+        summary: `Processando solicitação: ${request.symbol}`,
+        detail: `Enviando solicitação ID ${request.id} para o robô.`,
+        requestId: request.id,
+        symbol: request.symbol,
+        timeframe: request.timeframe,
+      });
+    }
+
+    res.json({
+      ok: true,
+      requests: responseRequests
+    });
+  });
+
+  app.post("/api/mt5-sync/:channelId/request", (req, res) => {
+    const channelId = String(req.params.channelId || "").trim();
+    const token = extractSyncToken(req);
+
+    if (!channelId || channelId.length < 4 || !token || token.length < 6) {
+      res.status(401).json({ error: "Canal ou token inválido." });
+      return;
+    }
+
+    const channel = mt5Channels.get(channelId);
+    if (!channel) {
+      res.status(403).json({ error: "Token inválido para este canal." });
+      return;
+    }
+
+    const { symbol, timeframe } = req.body;
     if (!symbol || !timeframe) {
       res.status(400).json({ error: "Parâmetros 'symbol' e 'timeframe' são obrigatórios." });
       return;
     }
 
-    // Aqui, em um ambiente real, o backend enviaria um comando para o EA MT5
-    // para buscar os candles e retorná-los. 
-    // Como o EA atual só envia dados passivamente, para esta fase do projeto,
-    // simularemos a resposta ou usaremos o cache se disponível.
+    const requestId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const newRequest: PendingRequest = {
+      id: requestId,
+      channelId,
+      symbol: String(symbol).trim(),
+      timeframe: String(timeframe).trim(),
+      timestamp: Date.now(),
+      status: "pending"
+    };
+
+    addToQueue(newRequest);
+
     pushPairingEvent(channel, {
-      outcome: "info",
-      httpStatus: 200,
-      source: "ping",
-      summary: `Consulta de candles solicitada: ${symbol}`,
-      detail: `Solicitando dados para o símbolo ${symbol} no timeframe ${timeframe}.`,
+      outcome: "request",
+      httpStatus: 202,
+      source: "backend",
+      summary: `Solicitação de dados: ${newRequest.symbol}`,
+      detail: `Solicitação ID ${requestId} para buscar dados de ${newRequest.symbol} no timeframe ${newRequest.timeframe}.`,
+      requestId,
+      symbol: newRequest.symbol,
+      timeframe: newRequest.timeframe
     });
 
     res.json({
       ok: true,
-      message: "Dados mockados para teste.",
-      symbol,
-      timeframe,
-      candles: Array.from({ length: 200 }, (_, i) => {
-        const time = Date.now() - (200 - i) * 60000;
-        const open = 100 + Math.random() * 10;
-        const close = open + (Math.random() - 0.5) * 2;
-        return {
-          index: i,
-          time: time,
-          timeLabel: new Date(time).toISOString().split('T')[1].split('.')[0].replace(':', ''),
-          open: parseFloat(open.toFixed(2)),
-          high: parseFloat((Math.max(open, close) + Math.random()).toFixed(2)),
-          low: parseFloat((Math.min(open, close) - Math.random()).toFixed(2)),
-          close: parseFloat(close.toFixed(2)),
-          volume: Math.floor(Math.random() * 1000),
-        };
-      }),
+      requestId,
+      message: "Solicitação adicionada à fila e enviada ao robô."
     });
   });
 
-  // Limpa canal ou remove um robô específico
   app.delete("/api/mt5-sync/:channelId", (req, res) => {
     const channelId = String(req.params.channelId || "").trim();
     const token = extractSyncToken(req);
@@ -683,6 +775,8 @@ async function startServer() {
     }
     res.json({ ok: true });
   });
+
+  // --- Static Files and Vite Middleware (Last) ---
 
   if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");
