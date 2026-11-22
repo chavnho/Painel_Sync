@@ -9,6 +9,7 @@ import { TradingChartView } from './components/TradingChartView';
 import { IndependentChartView } from './components/IndependentChartView';
 import { WeeklyMonthlyReportView } from './components/WeeklyMonthlyReportView';
 import { ConnectView } from './components/ConnectView';
+import { LiveLogView } from './components/LiveLogView';
 import type {
   DashboardTelemetry,
   DashboardView,
@@ -34,13 +35,12 @@ export default function App() {
   const [selectedRobotId, setSelectedRobotId] = useState<string | 'ALL'>('ALL');
 
   // Conecta ao stream SSE em tempo real do servidor
-    useEffect(() => {
-      setStreamStatus('connecting');
-      const url = `${API_BASE_URL}/api/mt5-sync/${encodeURIComponent(creds.channelId)}/stream?token=${encodeURIComponent(creds.token)}`;
-      console.log('Attempting SSE connection to:', url);
-      const es = new EventSource(url);
-      console.log('EventSource instance created');
-
+  useEffect(() => {
+    setStreamStatus('connecting');
+    const url = `${API_BASE_URL}/api/mt5-sync/${encodeURIComponent(creds.channelId)}/stream?token=${encodeURIComponent(creds.token)}`;
+    console.log('Attempting SSE connection to:', url);
+    const es = new EventSource(url);
+    console.log('EventSource instance created');
 
     es.addEventListener('ready', (evt) => {
       console.log('SSE "ready" event received');
@@ -228,6 +228,7 @@ export default function App() {
           )}
         </main>
       </div>
+      <LiveLogView events={pairingEvents} />
     </div>
   );
 }
