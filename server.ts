@@ -66,6 +66,8 @@ interface NormalizedRobot {
 export const mt5Channels = new Map<string, LiveSyncChannel>();
 
 const requestQueue: PendingRequest[] = [];
+const chartCandlesCache = new Map<string, NormalizedCandle[]>();
+
 
 function addToQueue(request: PendingRequest) {
   requestQueue.push(request);
@@ -445,15 +447,30 @@ async function startServer() {
       return;
     }
 
+    const symKey = symbol.toUpperCase();
+    const tfKey = timeframe.toUpperCase();
+    const cachedChart =
+      chartCandlesCache.get(`${channelId}:${symKey}:${tfKey}`) ||
+      chartCandlesCache.get(`${channelId}:${symKey}:`);
+
+    if (cachedChart && cachedChart.length > 0) {
+      res.json({
+        ok: true,
+        candles: cachedChart,
+      });
+      return;
+    }
+
     const robot = Array.from(channel.robots.values()).find(
-      (r) => r.symbol.toUpperCase() === symbol.toUpperCase() &&
-      (timeframe === "" || r.timeframe.toUpperCase() === timeframe.toUpperCase())
+      (r) => r.symbol.toUpperCase() === symKey &&
+      (tfKey === "" || r.timeframe.toUpperCase() === tfKey)
     );
 
     if (!robot) {
-      res.status(404).json({ error: `Robô para ${symbol} no timeframe ${timeframe} não encontrado.` });
+      res.status(404).json({ error: `Candles para ${symbol} (${timeframe}) ainda não disponíveis.` });
       return;
     }
+
 
     let candles = robot.candles;
     if (timeframe && robot.candlesByTimeframe) {
@@ -603,9 +620,43 @@ async function startServer() {
       return;
     }
 
+    if (body.isChartRequest === true) {
+      const chartCandles = normalizeCandles(body.candles);
+      const chartSymbol = String(body.symbol || "").trim().toUpperCase();
+      const chartTf = String(body.timeframe || "M5").trim().toUpperCase();
+
+      if (chartSymbol) {
+        mergeChannelSymbols(channel, [chartSymbol]);
+        if (chartCandles.length > 0) {
+          chartCandlesCache.set(`${channelId}:${chartSymbol}:${chartTf}`, chartCandles);
+          chartCandlesCache.set(`${channelId}:${chartSymbol}:`, chartCandles);
+        }
+      }
+
+      if (body.requestId) {
+        const requestId = String(body.requestId);
+        if (chartCandles.length > 0) {
+          completeRequest(requestId, chartCandles);
+        } else {
+          failRequest(requestId, "MT5 retornou lista de candles vazia.");
+        }
+      }
+
+      channel.updatedAtMs = Date.now();
+      res.json({
+        ok: true,
+        isChartRequest: true,
+        candlesCount: chartCandles.length,
+        serverReceivedAt,
+      });
+      return;
+    }
+
+
     const incomingRobots: Array<Record<string, unknown>> = Array.isArray(body.robots)
       ? body.robots
       : (body.isManualRequest ? [] : [body as Record<string, unknown>]);
+
 
     if (body.isManualRequest !== undefined) {
       console.log(`[Debug] isManualRequest is ${body.isManualRequest}`);

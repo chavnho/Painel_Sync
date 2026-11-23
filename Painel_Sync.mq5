@@ -1,440 +1,502 @@
-  //+------------------------------------------------------------------+
-  //|                                               PainelSync_Gen.mq5 |
-  //|                               Copyright © 2024, Painel Sync Team |
-  //|                                           https://painelsync.com |
-  //+------------------------------------------------------------------+
-  #property copyright "Copyright © 2024, Painel Sync Team"
-  #property link      "https://painelsync.com"
-  #property version   "1.01"
-
-  //--- Inputs
-  input int      InpMagicNumber = 12345;
-  input string   InpRobotName   = "Robot Demo";
-  input string   InpEndpointUrl = "http://127.0.0.1:3000";
-  input string   InpToken       = "tk_test_1234567890";
-  input string   InpChannelId   = "ps_c9a2rn8qcr"; // ID do Canal
-  input bool     InpDebug       = true;            // Exibir logs detalhados de depuração
-
-  //--- Global Variables
-  string g_endpointUrl = "";
-  string g_token       = "";
-  string g_channelId   = "";
-  datetime g_lastSymbolsReport = 0;
-  int      g_symbolsReportInterval = 60; // segundos
-
-  //+------------------------------------------------------------------+
-  //| Expert initialization function                                   |
-  //+------------------------------------------------------------------+
-  int OnInit()
-  {
-     g_endpointUrl = InpEndpointUrl;
-     g_token       = InpToken;
-     g_channelId   = InpChannelId;
-
-     Print("PainelSync: Iniciando no canal ", g_channelId, "...");
-     if(InpDebug)
-     {
-        Print("PainelSync [DEBUG] Endpoint: ", g_endpointUrl);
-        Print("PainelSync [DEBUG] Token: ", (StringLen(g_token) > 8 ? StringSubstr(g_token, 0, 4) + "***" + StringSubstr(g_token, StringLen(g_token) - 4) : g_token));
-     }
-
-     if(!EventSetTimer(2))
-     {
-        Print("PainelSync: Falha ao configurar o Timer.");
-        return(INIT_FAILED);
-     }
-
-     return(INIT_SUCCEEDED);
-  }
-
-  //+------------------------------------------------------------------+
-  //| Expert deinitialization function                                 |
-  //+------------------------------------------------------------------+
-  void OnDeinit(const int reason)
-  {
-     EventKillTimer();
-     Print("PainelSync: Finalizado.");
-  }
-
-  //+------------------------------------------------------------------+
-  //| Expert tick function                                             |
-  //+------------------------------------------------------------------+
-  void OnTick()
-  {
-     // O sincronismo ocorre no OnTimer() para não travar a thread de ticks
-  }
-
-  //+------------------------------------------------------------------+
-  //| Timer function (roda a cada 2 segundos)                          |
-  //+------------------------------------------------------------------+
-  void OnTimer()
-  {
-     FetchPendingRequest();
-
-     if(TimeCurrent() - g_lastSymbolsReport >= g_symbolsReportInterval)
-     {
-        g_lastSymbolsReport = TimeCurrent();
-        SendSymbolsReport();
-     }
-  }
-
-  //+------------------------------------------------------------------+
-  //| Busca requisições pendentes no backend via GET                   |
-  //+------------------------------------------------------------------+
-  void FetchPendingRequest()
-  {
-     string url = g_endpointUrl + "/api/mt5-sync/" + g_channelId + "/pending";
-     string headers = "X-Sync-Token: " + g_token + "\r\n";
-
-     char data[];
-     char result[];
-     string resultHeaders = "";
-
-     ResetLastError();
-     int res = WebRequest("GET", url, headers, 3000, data, result, resultHeaders);
-
-     if(res == -1)
-     {
-        int err = GetLastError();
-        Print("PainelSync: Erro no WebRequest GET (", err, "). Verifique se ", g_endpointUrl, " está permitida no MT5 (Ctrl+O).");
-        return;
-     }
-
-     string response = CharArrayToString(result, 0, WHOLE_ARRAY, CP_UTF8);
-
-     if(InpDebug)
-        Print("PainelSync [DEBUG] GET /pending -> HTTP ", res, " | Body: ", response);
-
-     if(res != 200)
-     {
-        Print("PainelSync: /pending retornou HTTP ", res, " - ", response);
-        return;
-     }
-
-     if(ArraySize(result) <= 0)
-     {
-        if(InpDebug)
-           Print("PainelSync [DEBUG] Resposta vazia do servidor.");
-        return;
-     }
-
-     string reqSymbol    = ExtractJsonString(response, "symbol");
-     string reqTimeframe = ExtractJsonString(response, "timeframe");
-     string requestId    = ExtractJsonString(response, "requestId");
-     if(requestId == "")
-        requestId = ExtractJsonString(response, "id");
-
-     if(reqSymbol == "")
-     {
-        if(InpDebug)
-           Print("PainelSync [DEBUG] Nenhuma solicitação pendente.");
-        return;
-     }
-
-     ProcessPendingRequests(response);
-  }
-
-  //+------------------------------------------------------------------+
-  //| Processa todos os pedidos do array "requests" da resposta        |
-  //+------------------------------------------------------------------+
-  void ProcessPendingRequests(const string response)
-  {
-     int pos = StringFind(response, "\"requests\":[");
-     if(pos < 0)
-     {
-        if(InpDebug)
-           Print("PainelSync [DEBUG] Campo 'requests' não encontrado na resposta.");
-        return;
-     }
-
-     pos += StringLen("\"requests\":[");
-     int len = StringLen(response);
-     int processed = 0;
-
-     while(pos < len)
-     {
-        int objStart = StringFind(response, "{", pos);
-        if(objStart < 0) break;
-
-        int objEnd = StringFind(response, "}", objStart);
-        if(objEnd < 0) break;
-
-        string obj = StringSubstr(response, objStart, objEnd - objStart + 1);
-
-        string reqSymbol    = ExtractJsonString(obj, "symbol");
-        string reqTimeframe = ExtractJsonString(obj, "timeframe");
-        string requestId    = ExtractJsonString(obj, "requestId");
-        if(requestId == "")
-           requestId = ExtractJsonString(obj, "id");
-
-        if(reqSymbol != "")
-        {
-           ENUM_TIMEFRAMES tf = StringToTimeframe(reqTimeframe);
-           Print("PainelSync: Pedido recebido do painel -> Ativo: ", reqSymbol, " | TF: ", EnumToString(tf), " | ID: ", requestId);
-           SendSyncData(reqSymbol, tf, requestId);
-           processed++;
-        }
-
-        pos = objEnd + 1;
-     }
-
-     if(processed == 0 && InpDebug)
-        Print("PainelSync [DEBUG] Nenhuma solicitação pendente.");
-  }
-
-  //+------------------------------------------------------------------+
-  //| Coleta candles de qualquer ativo e envia para o servidor         |
-  //+------------------------------------------------------------------+
-  void SendSyncData(const string symbol, const ENUM_TIMEFRAMES period, const string requestId)
-  {
-     if(!SymbolSelect(symbol, true))
-     {
-        Print("PainelSync: Ativo não encontrado na corretora: ", symbol);
-        return;
-     }
-
-     MqlRates rates[];
-     ArraySetAsSeries(rates, false);
-
-     int total = CopyRates(symbol, period, 0, 100, rates);
-     if(total <= 0)
-     {
-        Print("PainelSync: Aguardando histórico de ", symbol, " (", EnumToString(period), ")...");
-        return;
-     }
-
-     string payload = BuildPayload(symbol, period, rates, total, requestId);
-     if(payload == "")
-        return;
-
-     // LOG DE DEPURAÇÃO: Mostra o JSON exato no terminal do MetaTrader
-     Print("PainelSync [DEBUG] Enviando Payload: ", payload);
-
-     SendToServer(payload);
-  }
-
-  //+------------------------------------------------------------------+
-  //| Envia o payload JSON gerado para o backend via POST              |
-  //+------------------------------------------------------------------+
-  void SendToServer(const string jsonPayload)
-  {
-     string url = g_endpointUrl + "/api/mt5-sync/" + g_channelId;
-     string headers = "Content-Type: application/json\r\n" +
-                      "X-Sync-Token: " + g_token + "\r\n";
-
-     char data[];
-     int len = StringToCharArray(jsonPayload, data, 0, WHOLE_ARRAY, CP_UTF8);
-     if(len > 0)
-        ArrayResize(data, len - 1);
-
-     char result[];
-     string resultHeaders = "";
-
-     ResetLastError();
-     int res = WebRequest("POST", url, headers, 3000, data, result, resultHeaders);
-
-     if(res == -1)
-     {
-        int err = GetLastError();
-        Print("PainelSync: Erro ao enviar payload (", err, ").");
-        return;
-     }
-
-     if(res >= 200 && res < 300)
-     {
-        Print("PainelSync: Payload enviado com sucesso (HTTP ", res, ").");
-     }
-     else
-     {
-        string errBody = CharArrayToString(result, 0, WHOLE_ARRAY, CP_UTF8);
-        Print("PainelSync: Servidor retornou HTTP ", res, " - ", errBody);
-     }
-  }
-
-  //+------------------------------------------------------------------+
-  //| Envia a lista de ativos disponíveis (Market Watch) ao backend    |
-  //+------------------------------------------------------------------+
-  void SendSymbolsReport()
-  {
-     string payload = BuildSymbolsPayload();
-     if(payload == "")
-        return;
-
-     if(InpDebug)
-        Print("PainelSync [DEBUG] Enviando lista de ativos ao painel...");
-
-     SendToServer(payload);
-  }
-
-  //+------------------------------------------------------------------+
-  //| Monta o payload JSON com a lista de ativos (symbols[])           |
-  //+------------------------------------------------------------------+
-  string BuildSymbolsPayload()
-  {
-     // Envia todos os ativos disponíveis na corretora (não apenas o Market Watch)
-     bool useMarketWatch = false;
-     int total = SymbolsTotal(false);
-
-     if(total <= 0)
-     {
-        useMarketWatch = true;
-        total = SymbolsTotal(true);
-     }
-
-     if(total <= 0)
-     {
-        if(InpDebug)
-           Print("PainelSync [DEBUG] Nenhum ativo disponível para reportar.");
-        return "";
-     }
-
-     if(total > 5000)
-        total = 5000;
-
-     string json = "{\"symbols\":[";
-     int count = 0;
-
-     for(int i = 0; i < total; i++)
-     {
-        string name = SymbolName(i, useMarketWatch);
-        if(name == "")
-           continue;
-
-        if(count > 0)
-           json += ",";
-        json += "\"" + name + "\"";
-        count++;
-     }
-
-     json += "]";
-     json += ",\"magicNumber\":" + IntegerToString(InpMagicNumber);
-     json += ",\"robotName\":\"" + InpRobotName + "\"";
-     json += ",\"status\":\"Lista de ativos\"";
-     json += "}";
-
-     return json;
-  }
-
-  //+------------------------------------------------------------------+
-  //| Monta o payload JSON válido com candles, posições e PnL          |
-  //+------------------------------------------------------------------+
-  string BuildPayload(const string symbol, const ENUM_TIMEFRAMES period, const MqlRates &rates[], const int total, const
-  string requestId)
-  {
-     int digits = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
-
-     string json = "{";
-     json += "\"symbol\":\"" + symbol + "\"";
-     if(requestId != "")
-        json += ",\"requestId\":\"" + requestId + "\"";
-
-     json += ",\"magicNumber\":" + IntegerToString(InpMagicNumber);
-     json += ",\"robotName\":\"" + InpRobotName + "\"";
-     json += ",\"timeframe\":\"" + TimeframeToShortString(period) + "\"";
-     json += ",\"status\":\"Monitorando\"";
-     json += ",\"lastUpdate\":\"" + TimeToString(TimeCurrent(), TIME_DATE|TIME_MINUTES) + "\"";
-     json += ",\"candles\":[";
-
-     for(int i = 0; i < total; i++)
-     {
-        if(i > 0) json += ",";
-        json += "{";
-        json += "\"time\":" + IntegerToString((long)rates[i].time);
-        json += ",\"timeLabel\":\"" + TimeToString(rates[i].time, TIME_DATE | TIME_MINUTES) + "\"";
-        json += ",\"open\":" + DoubleToString(rates[i].open, digits);
-        json += ",\"high\":" + DoubleToString(rates[i].high, digits);
-        json += ",\"low\":" + DoubleToString(rates[i].low, digits);
-        json += ",\"close\":" + DoubleToString(rates[i].close, digits);
-        json += ",\"volume\":" + IntegerToString(rates[i].tick_volume);
-        json += "}";
-     }
-
-     json += "],";
-     json += "\"positions\":[],";
-     json += "\"trades\":[],";
-     json += "\"realizedPnlBrl\":0.0,";
-     json += "\"floatingPnlBrl\":0.0,";
-     json += "\"dailyPnlBrl\":0.0";
-     json += "}";
-
-     return json;
-  }
-
-  //+------------------------------------------------------------------+
-  //| Extrai o valor de uma chave string de um JSON simples            |
-  //+------------------------------------------------------------------+
-  string ExtractJsonString(const string json, const string key)
-  {
-     string pattern = "\"" + key + "\"";
-     int pos = StringFind(json, pattern);
-     if(pos == -1) return "";
-
-     int start = pos + StringLen(pattern);
-     int len = StringLen(json);
-
-     // Pula espaços até o caractere ':' e depois até o início do valor
-     while(start < len && StringGetCharacter(json, start) != ':')
-     {
-        ushort c = StringGetCharacter(json, start);
-        if(c != ' ' && c != '\t' && c != '\r' && c != '\n')
-           return "";
-        start++;
-     }
-     if(start >= len) return "";
-     start++; // pula ':'
-
-     while(start < len)
-     {
-        ushort c = StringGetCharacter(json, start);
-        if(c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '"')
-           start++;
-        else
-           break;
-     }
-
-     int end = start;
-     while(end < len && StringGetCharacter(json, end) != '"' && StringGetCharacter(json, end) != ',' &&
-           StringGetCharacter(json, end) != '}')
-        end++;
-
-     string val = StringSubstr(json, start, end - start);
-     StringTrimLeft(val);
-     StringTrimRight(val);
-     if(val == "null" || val == "false") return "";
-     return val;
-  }
-
-  //+------------------------------------------------------------------+
-  //| Converte string ("M5", "PERIOD_M5", "H1") para ENUM_TIMEFRAMES   |
-  //+------------------------------------------------------------------+
-  ENUM_TIMEFRAMES StringToTimeframe(string tf)
-  {
-     StringToUpper(tf);
-     StringReplace(tf, "PERIOD_", "");
-
-     if(tf == "M1")  return PERIOD_M1;
-     if(tf == "M2")  return PERIOD_M2;
-     if(tf == "M3")  return PERIOD_M3;
-     if(tf == "M5")  return PERIOD_M5;
-     if(tf == "M10") return PERIOD_M10;
-     if(tf == "M15") return PERIOD_M15;
-     if(tf == "M30") return PERIOD_M30;
-     if(tf == "H1")  return PERIOD_H1;
-     if(tf == "H2")  return PERIOD_H2;
-     if(tf == "H4")  return PERIOD_H4;
-     if(tf == "D1")  return PERIOD_D1;
-     if(tf == "W1")  return PERIOD_W1;
-     if(tf == "MN1") return PERIOD_MN1;
-
-     return _Period;
-  }
-
-  //+------------------------------------------------------------------+
-  //| Converte ENUM_TIMEFRAMES para formato curto ("M5", "H1", etc.)   |
-  //+------------------------------------------------------------------+
-  string TimeframeToShortString(const ENUM_TIMEFRAMES tf)
-  {
-     string s = EnumToString(tf);
-     StringReplace(s, "PERIOD_", "");
-     return s;
-  }
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// ------------------------------------------- Parte 1 ---------------------------------------------------//
+// ------------------------------------------- $parte1 = @' ----------------------------------------------//
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+//+------------------------------------------------------------------+
+//|                                                  Painel_Sync.mq5 |
+//|                               Copyright (c) 2026, Painel Sync    |
+//+------------------------------------------------------------------+
+#property copyright "Painel Sync"
+#property version   "2.00"
+#property strict
+
+input string   InpEndpointUrl      = "http://127.0.0.1:3000";
+input string   InpToken            = "tk_test_1234567890";
+input string   InpChannelId        = "ps_c9a2rn8qcr";
+input int      InpSyncIntervalSec  = 2;
+input bool     InpIncludeManual    = true;
+input bool     InpDebug            = false;
+
+struct RobotSummary
+{
+   long     magic;
+   string   robotId;
+   string   name;
+   string   symbol;
+   bool     hasPosition;
+   string   posJson;
+   string   tradesJson;
+   int      tradesCount;
+   double   realizedPnl;
+   double   floatingPnl;
+};
+
+datetime g_lastSymbolsReport = 0;
+
+int OnInit()
+{
+   Print("PainelSync v2.0: Iniciando no canal ", InpChannelId);
+   if(!EventSetTimer(MathMax(1, InpSyncIntervalSec)))
+      return(INIT_FAILED);
+
+   SendAccountAndRobotsTelemetry();
+   return(INIT_SUCCEEDED);
+}
+
+void OnDeinit(const int reason)
+{
+   EventKillTimer();
+}
+
+void OnTick() {}
+
+void OnTimer()
+{
+   FetchPendingRequest();
+   SendAccountAndRobotsTelemetry();
+
+   if(TimeCurrent() - g_lastSymbolsReport >= 60)
+   {
+      g_lastSymbolsReport = TimeCurrent();
+      SendSymbolsReport();
+   }
+}
+
+void SendAccountAndRobotsTelemetry()
+{
+   RobotSummary robots[];
+   int robotCount = 0;
+
+   int posTotal = PositionsTotal();
+   for(int i = 0; i < posTotal; i++)
+   {
+      ulong ticket = PositionGetTicket(i);
+      if(ticket == 0) continue;
+
+      long magic = PositionGetInteger(POSITION_MAGIC);
+      if(magic == 0 && !InpIncludeManual) continue;
+
+      string symbol  = PositionGetString(POSITION_SYMBOL);
+      string comment = PositionGetString(POSITION_COMMENT);
+      int idx = EnsureRobotEntry(robots, robotCount, magic, symbol, comment);
+
+      long posType     = PositionGetInteger(POSITION_TYPE);
+      string side      = (posType == POSITION_TYPE_BUY) ? "COMPRA" : "VENDA";
+      double volume    = PositionGetDouble(POSITION_VOLUME);
+      double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
+      double currPrice = PositionGetDouble(POSITION_PRICE_CURRENT);
+      double sl        = PositionGetDouble(POSITION_SL);
+      double tp        = PositionGetDouble(POSITION_TP);
+      double profit    = PositionGetDouble(POSITION_PROFIT) + PositionGetDouble(POSITION_SWAP);
+      datetime openDt  = (datetime)PositionGetInteger(POSITION_TIME);
+      int digits       = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
+      double point     = SymbolInfoDouble(symbol, SYMBOL_POINT);
+      double ptsOpen   = (point > 0) ? ((posType == POSITION_TYPE_BUY ? (currPrice - openPrice) : (openPrice - currPrice)) / point) : 0.0;
+
+      robots[idx].floatingPnl += profit;
+
+      if(!robots[idx].hasPosition)
+      {
+         robots[idx].hasPosition = true;
+         robots[idx].posJson = "{"
+            + "\"id\":\"" + IntegerToString((long)ticket) + "\""
+            + ",\"robotId\":\"" + robots[idx].robotId + "\""
+            + ",\"robotName\":\"" + EscapeJson(robots[idx].name) + "\""
+            + ",\"magicNumber\":" + IntegerToString(magic)
+            + ",\"symbol\":\"" + symbol + "\""
+            + ",\"side\":\"" + side + "\""
+            + ",\"volume\":" + DoubleToString(volume, 2)
+            + ",\"entryPrice\":" + DoubleToString(openPrice, digits)
+            + ",\"currentPrice\":" + DoubleToString(currPrice, digits)
+            + ",\"sl\":" + DoubleToString(sl, digits)
+            + ",\"tp\":" + DoubleToString(tp, digits)
+            + ",\"floatingPnlBrl\":" + DoubleToString(profit, 2)
+            + ",\"openTime\":\"" + TimeToString(openDt, TIME_DATE|TIME_MINUTES) + "\""
+            + ",\"pointsOpen\":" + DoubleToString(ptsOpen, 1)
+            + "}";
+      }
+   }
+
+   MqlDateTime dtNow;
+   TimeToStruct(TimeCurrent(), dtNow);
+   dtNow.hour = 0; dtNow.min = 0; dtNow.sec = 0;
+   datetime startOfDay = StructToTime(dtNow);
+   double totalDailyPnl = 0.0;
+
+   if(HistorySelect(startOfDay, TimeCurrent()))
+   {
+      int dealsTotal = HistoryDealsTotal();
+      for(int i = 0; i < dealsTotal; i++)
+      {
+         ulong dealTicket = HistoryDealGetTicket(i);
+         if(dealTicket == 0) continue;
+
+         long entryType = HistoryDealGetInteger(dealTicket, DEAL_ENTRY);
+         if(entryType != DEAL_ENTRY_OUT && entryType != DEAL_ENTRY_OUT_BY)
+            continue;
+
+         long dealType = HistoryDealGetInteger(dealTicket, DEAL_TYPE);
+         if(dealType != DEAL_TYPE_BUY && dealType != DEAL_TYPE_SELL)
+            continue;
+
+         long magic = HistoryDealGetInteger(dealTicket, DEAL_MAGIC);
+         if(magic == 0 && !InpIncludeManual) continue;
+
+         string symbol  = HistoryDealGetString(dealTicket, DEAL_SYMBOL);
+         string comment = HistoryDealGetString(dealTicket, DEAL_COMMENT);
+         int idx = EnsureRobotEntry(robots, robotCount, magic, symbol, comment);
+
+         string side      = (dealType == DEAL_TYPE_SELL) ? "COMPRA" : "VENDA";
+         double volume    = HistoryDealGetDouble(dealTicket, DEAL_VOLUME);
+         double exitPrice = HistoryDealGetDouble(dealTicket, DEAL_PRICE);
+         double pnl       = HistoryDealGetDouble(dealTicket, DEAL_PROFIT)
+                          + HistoryDealGetDouble(dealTicket, DEAL_SWAP)
+                          + HistoryDealGetDouble(dealTicket, DEAL_COMMISSION);
+         datetime exitDt  = (datetime)HistoryDealGetInteger(dealTicket, DEAL_TIME);
+         int digits       = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
+
+         long posId = HistoryDealGetInteger(dealTicket, DEAL_POSITION_ID);
+         double entryPrice = exitPrice;
+         datetime entryDt  = exitDt;
+         FindEntryDealInfo(posId, dealTicket, entryPrice, entryDt);
+
+         double point = SymbolInfoDouble(symbol, SYMBOL_POINT);
+         double pts   = (point > 0) ? ((side == "COMPRA" ? (exitPrice - entryPrice) : (entryPrice - exitPrice)) / point) : 0.0;
+
+         robots[idx].realizedPnl += pnl;
+         totalDailyPnl += pnl;
+
+         string tradeObj = "{"
+            + "\"id\":\"" + IntegerToString((long)dealTicket) + "\""
+            + ",\"robotId\":\"" + robots[idx].robotId + "\""
+            + ",\"robotName\":\"" + EscapeJson(robots[idx].name) + "\""
+            + ",\"magicNumber\":" + IntegerToString(magic)
+            + ",\"symbol\":\"" + symbol + "\""
+            + ",\"side\":\"" + side + "\""
+            + ",\"entryDate\":\"" + TimeToString(entryDt, TIME_DATE) + "\""
+            + ",\"exitDate\":\"" + TimeToString(exitDt, TIME_DATE) + "\""
+            + ",\"entryTime\":\"" + TimeToString(entryDt, TIME_MINUTES|TIME_SECONDS) + "\""
+            + ",\"exitTime\":\"" + TimeToString(exitDt, TIME_MINUTES|TIME_SECONDS) + "\""
+            + ",\"entryPrice\":" + DoubleToString(entryPrice, digits)
+            + ",\"exitPrice\":" + DoubleToString(exitPrice, digits)
+            + ",\"volume\":" + DoubleToString(volume, 2)
+            + ",\"points\":" + DoubleToString(pts, 1)
+            + ",\"pnlBrl\":" + DoubleToString(pnl, 2)
+            + ",\"reason\":\"" + EscapeJson(comment != "" ? comment : "Fechamento MT5") + "\""
+            + "}";
+
+         if(robots[idx].tradesCount > 0)
+            robots[idx].tradesJson += ",";
+         robots[idx].tradesJson += tradeObj;
+         robots[idx].tradesCount++;
+      }
+   }
+
+//'@
+//Set-Content -Path "Painel_Sync.mq5" -Value $parte1 -Encoding UTF8
+//Write-Host "Parte 1 gravada com sucesso!" -ForegroundColor Green
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// ----------------------------- Parte 2 -----------------------------------------------------------------//
+// ----------------------------- $parte2 = @' ------------------------------------------------------------//
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+   long login       = AccountInfoInteger(ACCOUNT_LOGIN);
+   string server    = AccountInfoString(ACCOUNT_SERVER);
+   string broker    = AccountInfoString(ACCOUNT_COMPANY);
+   string modeStr   = (AccountInfoInteger(ACCOUNT_TRADE_MODE) == ACCOUNT_TRADE_MODE_REAL) ? "REAL" : "DEMO";
+   double balance   = AccountInfoDouble(ACCOUNT_BALANCE);
+   double equity    = AccountInfoDouble(ACCOUNT_EQUITY);
+   double margin    = AccountInfoDouble(ACCOUNT_MARGIN);
+   double freeMarg  = AccountInfoDouble(ACCOUNT_MARGIN_FREE);
+   double totalFloat = equity - balance;
+
+   string json = "{";
+   json += "\"account\":{";
+   json += "\"login\":\"" + IntegerToString(login) + "\"";
+   json += ",\"server\":\"" + EscapeJson(server) + "\"";
+   json += ",\"broker\":\"" + EscapeJson(broker) + "\"";
+   json += ",\"mode\":\"" + modeStr + "\"";
+   json += ",\"balance\":" + DoubleToString(balance, 2);
+   json += ",\"equity\":" + DoubleToString(equity, 2);
+   json += ",\"margin\":" + DoubleToString(margin, 2);
+   json += ",\"freeMargin\":" + DoubleToString(freeMarg, 2);
+   json += ",\"dailyPnlBrl\":" + DoubleToString(totalDailyPnl + totalFloat, 2);
+   json += "}";
+
+   json += ",\"robots\":[";
+   string nowStr = TimeToString(TimeCurrent(), TIME_DATE|TIME_MINUTES|TIME_SECONDS);
+
+   for(int i = 0; i < robotCount; i++)
+   {
+      if(i > 0) json += ",";
+      double botDaily = robots[i].realizedPnl + robots[i].floatingPnl;
+      string statusStr = robots[i].hasPosition ? "Posicionado" : "Monitorando";
+
+      json += "{";
+      json += "\"robotId\":\"" + robots[i].robotId + "\"";
+      json += ",\"robotName\":\"" + EscapeJson(robots[i].name) + "\"";
+      json += ",\"name\":\"" + EscapeJson(robots[i].name) + "\"";
+      json += ",\"magicNumber\":" + IntegerToString(robots[i].magic);
+      json += ",\"symbol\":\"" + robots[i].symbol + "\"";
+      json += ",\"timeframe\":\"" + TimeframeToShortString(_Period) + "\"";
+      json += ",\"status\":\"" + statusStr + "\"";
+      json += ",\"lastUpdate\":\"" + nowStr + "\"";
+      json += ",\"position\":" + (robots[i].hasPosition ? robots[i].posJson : "null");
+      json += ",\"candles\":[]";
+      json += ",\"trades\":[" + robots[i].tradesJson + "]";
+      json += ",\"realizedPnlBrl\":" + DoubleToString(robots[i].realizedPnl, 2);
+      json += ",\"floatingPnlBrl\":" + DoubleToString(robots[i].floatingPnl, 2);
+      json += ",\"dailyPnlBrl\":" + DoubleToString(botDaily, 2);
+      json += "}";
+   }
+   json += "]}";
+
+   if(InpDebug)
+      Print("PainelSync [DEBUG] Telemetria: ", json);
+
+   SendToServer(json);
+}
+
+int EnsureRobotEntry(RobotSummary &robots[], int &count, const long magic, const string symbol, const string comment)
+{
+   string rId = "mt5_magic_" + IntegerToString(magic);
+   for(int i = 0; i < count; i++)
+   {
+      if(robots[i].robotId == rId)
+      {
+         if(robots[i].symbol == "" && symbol != "")
+            robots[i].symbol = symbol;
+         return i;
+      }
+   }
+
+   ArrayResize(robots, count + 1);
+   robots[count].magic       = magic;
+   robots[count].robotId     = rId;
+   robots[count].symbol      = symbol;
+   robots[count].hasPosition = false;
+   robots[count].posJson     = "null";
+   robots[count].tradesJson  = "";
+   robots[count].tradesCount = 0;
+   robots[count].realizedPnl = 0.0;
+   robots[count].floatingPnl = 0.0;
+
+   if(magic == 0)
+      robots[count].name = "Operacao Manual";
+   else if(comment != "" && StringFind(comment, "[") != 0)
+      robots[count].name = comment + " (#" + IntegerToString(magic) + ")";
+   else
+      robots[count].name = "Robo #" + IntegerToString(magic);
+
+   count++;
+   return count - 1;
+}
+
+void FindEntryDealInfo(const long posId, const ulong outTicket, double &entryPrice, datetime &entryDt)
+{
+   if(posId <= 0) return;
+   int total = HistoryDealsTotal();
+   for(int i = 0; i < total; i++)
+   {
+      ulong t = HistoryDealGetTicket(i);
+      if(t == 0 || t == outTicket) continue;
+      if(HistoryDealGetInteger(t, DEAL_POSITION_ID) == posId &&
+         HistoryDealGetInteger(t, DEAL_ENTRY) == DEAL_ENTRY_IN)
+      {
+         entryPrice = HistoryDealGetDouble(t, DEAL_PRICE);
+         entryDt    = (datetime)HistoryDealGetInteger(t, DEAL_TIME);
+         return;
+      }
+   }
+}
+
+void FetchPendingRequest()
+{
+   string url = InpEndpointUrl + "/api/mt5-sync/" + InpChannelId + "/pending";
+   string headers = "X-Sync-Token: " + InpToken + "\r\n";
+
+   char data[];
+   char result[];
+   string resultHeaders = "";
+
+   int res = WebRequest("GET", url, headers, 3000, data, result, resultHeaders);
+   if(res != 200 || ArraySize(result) <= 0) return;
+
+   string response = CharArrayToString(result, 0, WHOLE_ARRAY, CP_UTF8);
+   int pos = StringFind(response, "\"requests\":[");
+   if(pos < 0) return;
+
+   pos += StringLen("\"requests\":[");
+   int len = StringLen(response);
+
+   while(pos < len)
+   {
+      int objStart = StringFind(response, "{", pos);
+      if(objStart < 0) break;
+      int objEnd = StringFind(response, "}", objStart);
+      if(objEnd < 0) break;
+
+      string obj = StringSubstr(response, objStart, objEnd - objStart + 1);
+      string reqSymbol    = ExtractJsonString(obj, "symbol");
+      string reqTimeframe = ExtractJsonString(obj, "timeframe");
+      string requestId    = ExtractJsonString(obj, "requestId");
+      if(requestId == "") requestId = ExtractJsonString(obj, "id");
+
+      if(reqSymbol != "")
+      {
+         ENUM_TIMEFRAMES tf = StringToTimeframe(reqTimeframe);
+         SendCandlesData(reqSymbol, tf, requestId);
+      }
+      pos = objEnd + 1;
+   }
+}
+
+void SendCandlesData(const string symbol, const ENUM_TIMEFRAMES period, const string requestId)
+{
+   if(!SymbolSelect(symbol, true)) return;
+
+   MqlRates rates[];
+   ArraySetAsSeries(rates, false);
+   int total = CopyRates(symbol, period, 0, 120, rates);
+   if(total <= 0) return;
+
+   int digits = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
+   string json = "{";
+   json += "\"symbol\":\"" + symbol + "\"";
+   if(requestId != "") json += ",\"requestId\":\"" + requestId + "\"";
+   json += ",\"robotId\":\"chart_" + symbol + "_" + TimeframeToShortString(period) + "\"";
+   json += ",\"robotName\":\"Grafico " + symbol + "\"";
+   json += ",\"magicNumber\":0";
+   json += ",\"timeframe\":\"" + TimeframeToShortString(period) + "\"";
+   json += ",\"status\":\"Grafico\"";
+   json += ",\"lastUpdate\":\"" + TimeToString(TimeCurrent(), TIME_DATE|TIME_MINUTES) + "\"";
+   json += ",\"candles\":[";
+
+   for(int i = 0; i < total; i++)
+   {
+      if(i > 0) json += ",";
+      json += "{\"time\":" + IntegerToString((long)rates[i].time)
+            + ",\"timeLabel\":\"" + TimeToString(rates[i].time, TIME_DATE|TIME_MINUTES) + "\""
+            + ",\"open\":" + DoubleToString(rates[i].open, digits)
+            + ",\"high\":" + DoubleToString(rates[i].high, digits)
+            + ",\"low\":" + DoubleToString(rates[i].low, digits)
+            + ",\"close\":" + DoubleToString(rates[i].close, digits)
+            + ",\"volume\":" + IntegerToString(rates[i].tick_volume)
+            + "}";
+   }
+   json += "]}";
+   SendToServer(json);
+}
+
+void SendSymbolsReport()
+{
+   int total = SymbolsTotal(false);
+   bool useMarketWatch = false;
+   if(total <= 0) { useMarketWatch = true; total = SymbolsTotal(true); }
+   if(total <= 0) return;
+   if(total > 5000) total = 5000;
+
+   string json = "{\"symbols\":[";
+   int count = 0;
+   for(int i = 0; i < total; i++)
+   {
+      string name = SymbolName(i, useMarketWatch);
+      if(name == "") continue;
+      if(count > 0) json += ",";
+      json += "\"" + EscapeJson(name) + "\"";
+      count++;
+   }
+   json += "]}";
+   SendToServer(json);
+}
+
+void SendToServer(const string jsonPayload)
+{
+   string url = InpEndpointUrl + "/api/mt5-sync/" + InpChannelId;
+   string headers = "Content-Type: application/json\r\nX-Sync-Token: " + InpToken + "\r\n";
+
+   char data[];
+   int len = StringToCharArray(jsonPayload, data, 0, WHOLE_ARRAY, CP_UTF8);
+   if(len > 0) ArrayResize(data, len - 1);
+
+   char result[];
+   string resultHeaders = "";
+
+   ResetLastError();
+   int res = WebRequest("POST", url, headers, 3000, data, result, resultHeaders);
+   if(res == -1)
+   {
+      Print("PainelSync: Erro WebRequest (", GetLastError(), "). Libere ", InpEndpointUrl, " em Ferramentas > Opcoes > Expert Advisors.");
+   }
+   else if(res >= 400)
+   {
+      Print("PainelSync: HTTP ", res, " -> ", CharArrayToString(result, 0, WHOLE_ARRAY, CP_UTF8));
+   }
+}
+
+string EscapeJson(string s)
+{
+   StringReplace(s, "\\", "\\\\");
+   StringReplace(s, "\"", "\\\"");
+   StringReplace(s, "\r", " ");
+   StringReplace(s, "\n", " ");
+   return s;
+}
+
+string ExtractJsonString(const string json, const string key)
+{
+   string pattern = "\"" + key + "\"";
+   int pos = StringFind(json, pattern);
+   if(pos == -1) return "";
+   int start = pos + StringLen(pattern);
+   int len = StringLen(json);
+   while(start < len && StringGetCharacter(json, start) != ':') start++;
+   start++;
+   while(start < len && (StringGetCharacter(json, start) == ' ' || StringGetCharacter(json, start) == '"')) start++;
+   int end = start;
+   while(end < len && StringGetCharacter(json, end) != '"' && StringGetCharacter(json, end) != ',' && StringGetCharacter(json, end) != '}') end++;
+   return StringSubstr(json, start, end - start);
+}
+
+ENUM_TIMEFRAMES StringToTimeframe(string tf)
+{
+   StringToUpper(tf);
+   if(tf == "M1")  return PERIOD_M1;
+   if(tf == "M2")  return PERIOD_M2;
+   if(tf == "M3")  return PERIOD_M3;
+   if(tf == "M5")  return PERIOD_M5;
+   if(tf == "M15") return PERIOD_M15;
+   if(tf == "M30") return PERIOD_M30;
+   if(tf == "H1")  return PERIOD_H1;
+   if(tf == "H4")  return PERIOD_H4;
+   if(tf == "D1")  return PERIOD_D1;
+   return PERIOD_M5;
+}
+
+string TimeframeToShortString(ENUM_TIMEFRAMES period)
+{
+   switch(period)
+   {
+      case PERIOD_M1:  return "M1";
+      case PERIOD_M2:  return "M2";
+      case PERIOD_M3:  return "M3";
+      case PERIOD_M5:  return "M5";
+      case PERIOD_M15: return "M15";
+      case PERIOD_M30: return "M30";
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// ------------------------------------------- Parte 3 ---------------------------------------------------//
+// ------------------------------------------- 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+      case PERIOD_H1:  return "H1";
+      case PERIOD_H4:  return "H4";
+      case PERIOD_D1:  return "D1";
+      default:         return "M5";
+   }
+}
+//'@
+//Add-Content -Path "Painel_Sync.mq5" -Value $parte2 -Encoding UTF8
+//Write-Host "Painel_Sync.mq5 finalizado com sucesso!" -ForegroundColor Green
