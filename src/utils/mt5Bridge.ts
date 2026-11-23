@@ -72,6 +72,27 @@ export async function fetchCandles(channelId: string, token: string, symbol: str
   }
 }
 
+export async function fetchSymbols(
+  channelId: string,
+  token: string,
+  signal?: AbortSignal
+): Promise<string[]> {
+  const url = `${API_BASE_URL}/api/mt5-sync/${encodeURIComponent(channelId)}/symbols`;
+  const response = await fetch(url, {
+    headers: { "x-sync-token": token },
+    signal,
+  });
+  if (!response.ok) return [];
+  try {
+    const data = await response.json();
+    return Array.isArray(data.symbols)
+      ? data.symbols.map((s: unknown) => String(s)).filter(Boolean)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

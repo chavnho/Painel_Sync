@@ -19,6 +19,8 @@
   string g_endpointUrl = "";
   string g_token       = "";
   string g_channelId   = "";
+  datetime g_lastSymbolsReport = 0;
+  int      g_symbolsReportInterval = 60; // segundos
 
   //+------------------------------------------------------------------+
   //| Expert initialization function                                   |
@@ -68,6 +70,12 @@
   void OnTimer()
   {
      FetchPendingRequest();
+
+     if(TimeCurrent() - g_lastSymbolsReport >= g_symbolsReportInterval)
+     {
+        g_lastSymbolsReport = TimeCurrent();
+        SendSymbolsReport();
+     }
   }
 
   //+------------------------------------------------------------------+
@@ -241,6 +249,70 @@
         string errBody = CharArrayToString(result, 0, WHOLE_ARRAY, CP_UTF8);
         Print("PainelSync: Servidor retornou HTTP ", res, " - ", errBody);
      }
+  }
+
+  //+------------------------------------------------------------------+
+  //| Envia a lista de ativos disponíveis (Market Watch) ao backend    |
+  //+------------------------------------------------------------------+
+  void SendSymbolsReport()
+  {
+     string payload = BuildSymbolsPayload();
+     if(payload == "")
+        return;
+
+     if(InpDebug)
+        Print("PainelSync [DEBUG] Enviando lista de ativos ao painel...");
+
+     SendToServer(payload);
+  }
+
+  //+------------------------------------------------------------------+
+  //| Monta o payload JSON com a lista de ativos (symbols[])           |
+  //+------------------------------------------------------------------+
+  string BuildSymbolsPayload()
+  {
+     // Envia todos os ativos disponíveis na corretora (não apenas o Market Watch)
+     bool useMarketWatch = false;
+     int total = SymbolsTotal(false);
+
+     if(total <= 0)
+     {
+        useMarketWatch = true;
+        total = SymbolsTotal(true);
+     }
+
+     if(total <= 0)
+     {
+        if(InpDebug)
+           Print("PainelSync [DEBUG] Nenhum ativo disponível para reportar.");
+        return "";
+     }
+
+     if(total > 5000)
+        total = 5000;
+
+     string json = "{\"symbols\":[";
+     int count = 0;
+
+     for(int i = 0; i < total; i++)
+     {
+        string name = SymbolName(i, useMarketWatch);
+        if(name == "")
+           continue;
+
+        if(count > 0)
+           json += ",";
+        json += "\"" + name + "\"";
+        count++;
+     }
+
+     json += "]";
+     json += ",\"magicNumber\":" + IntegerToString(InpMagicNumber);
+     json += ",\"robotName\":\"" + InpRobotName + "\"";
+     json += ",\"status\":\"Lista de ativos\"";
+     json += "}";
+
+     return json;
   }
 
   //+------------------------------------------------------------------+

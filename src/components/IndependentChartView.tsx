@@ -33,9 +33,11 @@ import type {
   OpenPosition,
 } from '../types/trading';
 import {
+  fetchSymbols,
   loadOrCreateMt5SyncCredentials,
   syncCandlesWithMt5,
 } from '../utils/mt5Bridge';
+import { SymbolAutocomplete } from './SymbolAutocomplete';
 import {
   computeBollinger,
   computeEMA,
@@ -59,6 +61,32 @@ const TF_MINUTES: Record<string, number> = {
   M30: 30,
   H1: 60,
 };
+
+const SYMBOLS_CACHE_PREFIX = 'painel_sync_symbols_v1_';
+
+function readCachedSymbols(channelId: string): string[] {
+  try {
+    const raw = localStorage.getItem(`${SYMBOLS_CACHE_PREFIX}${channelId}`);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as { symbols?: unknown };
+    return Array.isArray(parsed.symbols)
+      ? parsed.symbols.map((s) => String(s)).filter(Boolean)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeCachedSymbols(channelId: string, symbols: string[]) {
+  try {
+    localStorage.setItem(
+      `${SYMBOLS_CACHE_PREFIX}${channelId}`,
+      JSON.stringify({ symbols, savedAt: Date.now() })
+    );
+  } catch {
+    // ignora falha de quota/storage
+  }
+}
 
 function getSymbolPriceFormat(symbol: string): {
   type: 'price';
@@ -156,17 +184,45 @@ export function IndependentChartView({
   const [hoveredTime, setHoveredTime] = useState<number | null>(null);
   const [isScrolledAway, setIsScrolledAway] = useState(false);
   const [subPaneMode, setSubPaneMode] = useState<'volume' | 'rsi' | 'pnl'>('volume');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [symbols, setSymbols] = useState<string[]>([]);
   const [reloadToken, setReloadToken] = useState(0);
   const loadSeqRef = useRef(0);
 
-  const handleSymbolChange = (val: string) => {
-    const upper = val.toUpperCase();
-    setSearchQuery(val);
+  const handleSelectSymbol = (symbol: string) => {
+    const upper = symbol.trim().toUpperCase();
+    if (!upper) return;
     setSelectedSymbol(upper);
-    setShowSuggestions(upper !== '');
   };
+
+  useEffect(() => {
+    let cancelled = false;
+    const controller = new AbortController();
+    const { channelId, token } = loadOrCreateMt5SyncCredentials();
+
+    const cached = readCachedSymbols(channelId);
+    if (cached.length > 0) setSymbols(cached);
+
+    const loadSymbols = async () => {
+      try {
+        const list = await fetchSymbols(channelId, token, controller.signal);
+        if (!cancelled && list.length > 0) {
+          setSymbols(list);
+          writeCachedSymbols(channelId, list);
+        }
+      } catch {
+        // ignora falha momentânea; mantém cache/última lista
+      }
+    };
+
+    loadSymbols();
+    const intervalId = window.setInterval(loadSymbols, 30000);
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+      window.clearInterval(intervalId);
+    };
+  }, []);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -196,7 +252,7 @@ export function IndependentChartView({
     setManualError(null);
     setIsLoading(true);
 
-    const timer = setTimeout(async () => {
+    (async () => {
       try {
         const { channelId, token } = loadOrCreateMt5SyncCredentials();
         const result = await syncCandlesWithMt5(
@@ -221,10 +277,9 @@ export function IndependentChartView({
       } finally {
         if (seq === loadSeqRef.current && !controller.signal.aborted) setIsLoading(false);
       }
-    }, 700);
+    })();
 
     return () => {
-      clearTimeout(timer);
       controller.abort();
     };
   }, [selectedSymbol, selectedTf, reloadToken]);
@@ -542,28 +597,16 @@ export function IndependentChartView({
     <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
       <div className="max-w-7xl mx-auto space-y-4">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="relative">
-            <div className="flex items-center gap-2 bg-[#11161D] border border-[#222B38] rounded-lg px-3 py-1.5">
-              <span className="text-xs text-gray-400">Ativo Independente:</span>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => handleSymbolChange(e.target.value)}
-                onFocus={() => setShowSuggestions(true)}
-                placeholder="Ex: PETR4, WIN..."
-                className="bg-transparent border-none focus:outline-none text-sm font-bold text-gray-100 w-32"
-              />
-              {isLoading && <span className="text-[10px] text-blue-400 animate-pulse">Carregando...</span>}
-              {manualError && <span className="text-[10px] text-red-400">{manualError}</span>}
-            </div>
-            {showSuggestions && selectedSymbol !== '' && (
-              <div className="absolute z-50 w-full mt-1 bg-[#11161D] border border-[#222B38] rounded-lg shadow-xl max-h-60 overflow-y-auto">
-                <div className="px-3 py-2 text-xs text-gray-400">
-                  Dica: Use o seletor para buscar qualquer par disponível no MetaTrader 5.
-                </div>
-              </div>
-            )}
-          </div>
+          <SymbolAutocomplete
+            symbols={symbols}
+            selectedSymbol={selectedSymbol}
+            onSelect={handleSelectSymbol}
+            placeholder="Selecione um ativo..."
+          />
+          {isLoading && (
+            <span className="text-[10px] text-blue-400 animate-pulse">Carregando...</span>
+          )}
+          {manualError && <span className="text-[10px] text-red-400">{manualError}</span>}
 
           <div
             role="group"

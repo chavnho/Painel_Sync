@@ -13,12 +13,12 @@ Permitir que o painel solicite candles de qualquer ativo ao EA (MetaTrader 5) so
 - [x] Correções de tipagem (`server.ts`, `TradingChartView`) com `lint` e `build` limpos.
 - [x] Autocomplete real na aba Gráficos baseado nos símbolos dos robôs.
 
-## 🚧 Em andamento (implementação atual)
-- [ ] EA reportar a lista de símbolos (Market Watch via `SymbolsTotal(true)`/`SymbolName`) ao backend.
-- [ ] Backend armazenar a lista por canal e expor `GET /api/mt5-sync/:channelId/symbols`.
-- [ ] Aba Mercado usar `SymbolAutocomplete` alimentado pela lista vinda do MT5.
-- [ ] Só disparar o pedido ao selecionar um item da lista (remover o debounce de 700 ms por digitação).
-- [ ] Fallback quando a lista ainda não chegou: mensagem clara, sem disparar pedidos parciais.
+## ✅ Implementado nesta etapa
+- [x] EA reporta a lista de símbolos (Market Watch via `SymbolsTotal(true)`/`SymbolName`) ao backend a cada 60 s.
+- [x] Backend armazena a lista por canal e expõe `GET /api/mt5-sync/:channelId/symbols`.
+- [x] Aba Mercado usa `SymbolAutocomplete` alimentado pela lista vinda do MT5 (atualizada a cada 15 s).
+- [x] O pedido de candles só é disparado ao selecionar um item da lista (debounce de 700 ms removido).
+- [x] Fallback quando a lista ainda não chegou: mensagem clara no dropdown, sem disparar pedidos parciais.
 
 ## 🔮 Futuro
 - [ ] Filtrar símbolos por sufixo da corretora / categorias.

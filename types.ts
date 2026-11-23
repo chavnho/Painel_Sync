@@ -53,6 +53,7 @@ export interface LiveSyncChannel {
   updatedAtMs: number;
   account: any;
   robots: Map<string, any>;
+  symbols: string[];
   pairingEvents: PairingAttemptEvent[];
   subscribers: Set<any>;
 }

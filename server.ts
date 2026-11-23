@@ -296,6 +296,16 @@ function normalizeRobotPayload(
   };
 }
 
+function mergeChannelSymbols(channel: LiveSyncChannel, incoming: unknown) {
+  if (!Array.isArray(incoming)) return;
+  const set = new Set(channel.symbols);
+  for (const item of incoming) {
+    const symbol = String(item ?? "").trim().toUpperCase();
+    if (symbol) set.add(symbol);
+  }
+  channel.symbols = Array.from(set).sort((a, b) => a.localeCompare(b));
+}
+
 function buildSnapshotResponse(channelId: string, channel: LiveSyncChannel) {
   const robots = Array.from(channel.robots.values());
   const totalDailyPnl = robots.reduce((acc, r) => acc + r.dailyPnlBrl, 0);
@@ -313,6 +323,7 @@ function buildSnapshotResponse(channelId: string, channel: LiveSyncChannel) {
     channelId,
     account,
     robots,
+    symbols: channel.symbols,
     serverReceivedAt: new Date(channel.updatedAtMs).toISOString(),
     pairingEvents: channel.pairingEvents,
   };
@@ -377,6 +388,7 @@ async function startServer() {
       updatedAtMs: Date.now(),
       account: null,
       robots: new Map(),
+      symbols: [],
       pairingEvents: [],
       subscribers: new Set(),
     };
@@ -457,6 +469,33 @@ async function startServer() {
     });
   });
 
+  app.get("/api/mt5-sync/:channelId/symbols", (req, res) => {
+    const channelId = String(req.params.channelId || "").trim();
+    const token = extractSyncToken(req);
+
+    if (!channelId || channelId.length < 4 || !token || token.length < 6) {
+      res.status(401).json({ error: "Canal ou token inválido." });
+      return;
+    }
+
+    const channel = mt5Channels.get(channelId);
+    if (!channel) {
+      res.status(403).json({ error: "Token inválido para este canal." });
+      return;
+    }
+
+    if (channel.token !== token) {
+      res.status(403).json({ error: "Token não confere com o canal registrado." });
+      return;
+    }
+
+    res.json({
+      ok: true,
+      symbols: channel.symbols,
+      updatedAt: new Date(channel.updatedAtMs).toISOString(),
+    });
+  });
+
   app.post("/api/mt5-sync/:channelId", (req, res) => {
     const channelId = String(req.params.channelId || "").trim();
     const token = extractSyncToken(req);
@@ -523,6 +562,7 @@ async function startServer() {
 
     if (body.replaceAll === true) {
       channel.robots.clear();
+      channel.symbols = [];
     }
 
     if (body.account && typeof body.account === "object") {
@@ -539,6 +579,28 @@ async function startServer() {
       };
     }
 
+    mergeChannelSymbols(channel, body.symbols);
+
+    const hasRobotPayload =
+      Array.isArray(body.robots) ||
+      (typeof body.symbol === "string" && body.symbol.trim() !== "") ||
+      Array.isArray(body.candles);
+
+    if (!hasRobotPayload) {
+      channel.updatedAtMs = Date.now();
+      const symbolsSnapshot = buildSnapshotResponse(channelId, channel);
+      const symbolsSse = `event: telemetry\ndata: ${JSON.stringify(symbolsSnapshot)}\n\n`;
+      for (const client of channel.subscribers) {
+        client.write(symbolsSse);
+      }
+      res.json({
+        ok: true,
+        symbolsCount: channel.symbols.length,
+        serverReceivedAt,
+      });
+      return;
+    }
+
     const incomingRobots: Array<Record<string, unknown>> = Array.isArray(body.robots)
       ? body.robots
       : [body as Record<string, unknown>];
@@ -549,6 +611,7 @@ async function startServer() {
       const normalized = normalizeRobotPayload(rawBot, serverReceivedAt);
       if (normalized) {
         channel.robots.set(normalized.robotId, normalized);
+        mergeChannelSymbols(channel, [normalized.symbol]);
         normalizedList.push(normalized);
       }
     }

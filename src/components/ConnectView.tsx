@@ -12,6 +12,7 @@ import type {
   DashboardTelemetry,
   PairingAttemptEvent
 } from '../types/trading';
+import painelSyncSource from '../../Painel_Sync.mq5?raw';
 
 interface ConnectViewProps {
   streamStatus: 'connecting' | 'listening' | 'error';
@@ -29,11 +30,28 @@ export function ConnectView({
   pairingEvents,
   creds
 }: ConnectViewProps) {
-  const [copiedField, setCopiedField] = React.useState<'channelId' | 'token' | 'endpoint' | null>(null);
+  const [copiedField, setCopiedField] = React.useState<'channelId' | 'token' | 'endpoint' | 'eaCode' | null>(null);
 
   const endpointUrl = window.location.origin;
 
-  const copyValue = (field: 'channelId' | 'token' | 'endpoint', value: string) => {
+  const eaCode = React.useMemo(() => {
+    const escapeMql = (value: string) => value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    return painelSyncSource
+      .replace(
+        /(input\s+string\s+InpEndpointUrl\s*=\s*")[^"]*(")/,
+        (_m, start, end) => `${start}${escapeMql(endpointUrl)}${end}`
+      )
+      .replace(
+        /(input\s+string\s+InpToken\s*=\s*")[^"]*(")/,
+        (_m, start, end) => `${start}${escapeMql(creds.token)}${end}`
+      )
+      .replace(
+        /(input\s+string\s+InpChannelId\s*=\s*")[^"]*(")/,
+        (_m, start, end) => `${start}${escapeMql(creds.channelId)}${end}`
+      );
+  }, [endpointUrl, creds.token, creds.channelId]);
+
+  const copyValue = (field: 'channelId' | 'token' | 'endpoint' | 'eaCode', value: string) => {
     navigator.clipboard.writeText(value);
     setCopiedField(field);
     window.setTimeout(() => setCopiedField(null), 1500);
@@ -121,6 +139,20 @@ export function ConnectView({
                 </div>
               </div>
             </div>
+            <button
+              type="button"
+              onClick={() => copyValue('eaCode', eaCode)}
+              className="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold text-white transition-colors cursor-pointer"
+            >
+              {copiedField === 'eaCode' ? (
+                <Check className="w-3.5 h-3.5" />
+              ) : (
+                <Copy className="w-3.5 h-3.5" />
+              )}
+              {copiedField === 'eaCode'
+                ? 'Código copiado!'
+                : 'Copiar código do EA (Painel_Sync.mq5)'}
+            </button>
           </div>
           <div className="p-6 rounded-xl bg-[#11161D] border border-[#222B38]">
             <h3 className="text-sm font-semibold text-gray-300 mb-2">Status do Stream</h3>
