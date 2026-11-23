@@ -30,6 +30,7 @@ export interface PendingRequest {
   status: "pending" | "processing" | "completed" | "failed";
   result?: NormalizedCandle[];
   error?: string;
+  isManualRequest?: boolean;
 }
 
 export interface PairingAttemptEvent {

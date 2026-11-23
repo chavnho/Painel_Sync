@@ -64,15 +64,17 @@ interface TimedCandle {
   utcTime: UTCTimestamp;
 }
 
-const TIMEFRAMES = ['M1', 'M5', 'M15', 'H1'] as const;
+const TIMEFRAMES = ['M1', 'M5', 'M15', 'H1', 'D', 'W', 'M'] as const;
 type ChartTf = (typeof TIMEFRAMES)[number];
 
 const TF_MINUTES: Record<string, number> = {
-  M1: 1,
-  M5: 5,
-  M15: 15,
-  M30: 30,
-  H1: 60,
+  'M1': 1,
+  'M5': 5,
+  'M15': 15,
+  'H1': 60,
+  'D': 1440,
+  'W': 10080,
+  'M': 43200,
 };
 
 function getSymbolPriceFormat(symbol: string): {
@@ -964,10 +966,11 @@ export function TradingChartView({
     // Na primeira carga do ativo/timeframe, mostra os últimos ~70 candles confortavelmente
     if (!initialFitDoneRef.current) {
       const total = timedCandles.length;
-      if (total > 75) {
+      if (total > 300) {
+        const viewWindow = selectedTf === 'D' ? 365 : (selectedTf === 'W' ? 1000 : 300);
         chart.timeScale().setVisibleLogicalRange({
-          from: total - 70,
-          to: total + 4,
+          from: total - viewWindow,
+          to: total,
         });
       } else {
         chart.timeScale().fitContent();
@@ -1198,7 +1201,7 @@ export function TradingChartView({
 
           {/* Container HTML5 Canvas do Lightweight Charts (Pane 0: Preço + Overlays, Pane 1: Sub-painel) */}
           <div className="bg-[#0B0E11] p-1 relative">
-            <div ref={containerRef} className="w-full h-[520px]" />
+            <div ref={containerRef} className="w-full h-[650px]" />
             {allCandles.length === 0 && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-6 pointer-events-none">
                 <CandlestickChart className="w-7 h-7 text-gray-500" />

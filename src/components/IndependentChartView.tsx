@@ -51,15 +51,16 @@ interface IndependentChartViewProps {
   onNavigate: (view: DashboardView) => void;
 }
 
-const TIMEFRAMES = ['M1', 'M5', 'M15', 'H1'] as const;
+const TIMEFRAMES = ['M1', 'M5', 'M15', 'H1', 'D', 'W', 'M'] as const;
 type ChartTf = (typeof TIMEFRAMES)[number];
-
 const TF_MINUTES: Record<string, number> = {
-  M1: 1,
-  M5: 5,
-  M15: 15,
-  M30: 30,
-  H1: 60,
+  'M1': 1,
+  'M5': 5,
+  'M15': 15,
+  'H1': 60,
+  'D': 1440,
+  'W': 10080,
+  'M': 43200,
 };
 
 const SYMBOLS_CACHE_PREFIX = 'painel_sync_symbols_v1_';
@@ -260,7 +261,7 @@ export function IndependentChartView({
           token,
           selectedSymbol,
           selectedTf,
-          { force: reloadToken > 0, signal: controller.signal }
+          { force: reloadToken > 0, signal: controller.signal, isManualRequest: true }
         );
 
         if (seq !== loadSeqRef.current || controller.signal.aborted) return;
@@ -581,10 +582,11 @@ export function IndependentChartView({
 
     if (!initialFitDoneRef.current) {
       const total = timedCandles.length;
-      if (total > 75) {
+      if (total > 300) {
+        const viewWindow = selectedTf === 'D' ? 365 : (selectedTf === 'W' ? 1000 : 300);
         chart.timeScale().setVisibleLogicalRange({
-          from: total - 70,
-          to: total + 4,
+          from: total - viewWindow,
+          to: total,
         });
       } else {
         chart.timeScale().fitContent();
@@ -697,7 +699,7 @@ export function IndependentChartView({
           </div>
 
           <div className="bg-[#0B0E11] p-1 relative">
-            <div ref={containerRef} className="w-full h-[520px]" />
+            <div ref={containerRef} className="w-full h-[650px]" />
             {(!manualCandles || manualCandles.length === 0) && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-6 pointer-events-none">
                 <CandlestickChart className="w-7 h-7 text-gray-500" />

@@ -63,11 +63,6 @@ export function ConnectView({
     error: 'text-red-400',
   } as const;
 
-  const statusIcon = {
-    connecting: <Activity className="w-5 h-5 animate-pulse" />,
-    listening: <CheckCircle2 className="w-5 h-5" />,
-    error: <AlertCircle className="w-5 h-5" />,
-  } as const;
 
   return (
     <div className="flex-1 flex flex-col p-8 space-y-8 bg-[#0B0E11] text-gray-100">
@@ -165,7 +160,6 @@ export function ConnectView({
             </p>
           </div>
         </div>
-
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="p-6 rounded-xl bg-[#11161D] border border-[#222B38] space-y-4">
             <h2 className="text-lg font-semibold flex items-center gap-2">

@@ -530,6 +530,8 @@ async function startServer() {
     }
 
     const body = req.body;
+    console.log("[Debug] Request Body:", JSON.stringify(body));
+
     if (!body || typeof body !== "object") {
       pushPairingEvent(channel, {
         outcome: "error",
@@ -603,7 +605,13 @@ async function startServer() {
 
     const incomingRobots: Array<Record<string, unknown>> = Array.isArray(body.robots)
       ? body.robots
-      : [body as Record<string, unknown>];
+      : (body.isManualRequest ? [] : [body as Record<string, unknown>]);
+
+    if (body.isManualRequest !== undefined) {
+      console.log(`[Debug] isManualRequest is ${body.isManualRequest}`);
+    } else {
+      console.log(`[Debug] isManualRequest is undefined`);
+    }
 
     const normalizedList: NormalizedRobot[] = [];
     for (const rawBot of incomingRobots) {

@@ -120,6 +120,7 @@ export async function requestCandlesFromMt5(
   token: string,
   symbol: string,
   timeframe: string,
+  isManualRequest?: boolean,
   signal?: AbortSignal
 ): Promise<void> {
   const url = `${API_BASE_URL}/api/mt5-sync/${channelId}/request`;
@@ -129,7 +130,7 @@ export async function requestCandlesFromMt5(
       "Content-Type": "application/json",
       "x-sync-token": token,
     },
-    body: JSON.stringify({ symbol, timeframe }),
+    body: JSON.stringify({ symbol, timeframe, isManualRequest }),
     signal,
   });
   if (!response.ok) {
@@ -143,9 +144,9 @@ export async function syncCandlesWithMt5(
   token: string,
   symbol: string,
   timeframe: string,
-  options: { timeoutMs?: number; intervalMs?: number; force?: boolean; signal?: AbortSignal } = {}
+  options: { timeoutMs?: number; intervalMs?: number; force?: boolean; signal?: AbortSignal; isManualRequest?: boolean } = {}
 ): Promise<LiveCandle[]> {
-  const { timeoutMs = 15000, intervalMs = 1000, force = false, signal } = options;
+ const { timeoutMs = 15000, intervalMs = 1000, force = false, signal, isManualRequest } = options;
 
   if (signal?.aborted) return [];
 
@@ -154,7 +155,7 @@ export async function syncCandlesWithMt5(
     if (cached && cached.length > 0) return cached;
   }
 
-  await requestCandlesFromMt5(channelId, token, symbol, timeframe, signal);
+ await requestCandlesFromMt5(channelId, token, symbol, timeframe, isManualRequest, signal);
 
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {

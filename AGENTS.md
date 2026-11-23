@@ -10,7 +10,7 @@
 # Proibição de Processos Bloqueantes (Servidores)
 - NUNCA execute comandos de servidor de desenvolvimento ou processos contínuos (como `npm run dev`, `yarn start`, `vite`, `next dev`, `python app.py`, `uvicorn`, `docker compose up` sem `-d`).
 - Se precisar testar a aplicação, rode apenas builds rápidos (`npm run build`), testes unitários que encerram sozinhos, ou peça ao usuário para iniciar o servidor manualmente em outro terminal.
-- **Uso de Python para Edições Complexas:** Quando a ferramenta `edit` falhar ou quando o conteúdo contiver caracteres que possam ser interpretados incorretamente pelo shell (como colchetes `[]` em Markdown), use scripts Python via `bash` para realizar a substituição de texto de forma segura.
+ - Responda perguntas de forma objetiva e não realize alterações de código sem solicitação explícita do usuário.
 # Arquitetura Bidirecional (Site <-> EA MQL5)
 - O fluxo atual é bidirecional sob demanda (não apenas envio passivo do ativo do gráfico).
 - O EA faz polling periódicos via `WebRequest("GET", ...)` em `/pending` para verificar se o frontend solicitou algum ativo/timeframe específico.
