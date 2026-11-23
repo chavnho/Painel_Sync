@@ -39,6 +39,7 @@ import {
   aggregateCandles,
   fetchCandles,
   loadOrCreateMt5SyncCredentials,
+  syncCandlesWithMt5,
 } from '../utils/mt5Bridge';
 import {
   computeBollinger,
@@ -175,9 +176,9 @@ export function TradingChartView({
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [manualCandles, setManualCandles] = useState<LiveCandle[] | null>(null);
   const [manualError, setManualError] = useState<string | null>(null);
-  const [showEma, setShowEma] = useState(true);
-  const [showVwap, setShowVwap] = useState(true);
-  const [showBollinger, setShowBollinger] = useState(true);
+  const [showEma, setShowEma] = useState(false);
+  const [showVwap, setShowVwap] = useState(false);
+  const [showBollinger, setShowBollinger] = useState(false);
   const [showMarkers, setShowMarkers] = useState(true);
   const [hoveredTime, setHoveredTime] = useState<number | null>(null);
   const [isScrolledAway, setIsScrolledAway] = useState(false);
@@ -185,6 +186,25 @@ export function TradingChartView({
   const [searchQuery, setSearchQuery] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const previousSymbolRef = useRef<string>('');
+
+  useEffect(() => {
+    if (selectedRobotId !== 'ALL') {
+      const found = robots.find((r) => r.robotId === selectedRobotId);
+      const nextSym = found?.symbol?.toUpperCase();
+      if (nextSym && nextSym !== previousSymbolRef.current) {
+        setSelectedSymbol(nextSym);
+        setSearchQuery(nextSym);
+        previousSymbolRef.current = nextSym;
+        setManualCandles(null);
+        setManualError(null);
+      }
+    } else if (!previousSymbolRef.current && robots.length > 0 && robots[0].symbol) {
+      const firstSym = robots[0].symbol.toUpperCase();
+      setSelectedSymbol(firstSym);
+      setSearchQuery(firstSym);
+      previousSymbolRef.current = firstSym;
+    }
+  }, [selectedRobotId, robots]);
 
     const handleSymbolChange = async (val: string) => {
       const upper = val.toUpperCase();
@@ -272,11 +292,16 @@ export function TradingChartView({
     if (availableSymbols.length > 0) return availableSymbols[0];
     return '';
   }, [availableSymbols, selectedSymbol, selectedRobotId, robots]);
-   // Todos os robôs que operam o ativo ativo compartilham este mesmo gráfico
-   const symbolRobots = useMemo(
-     () => (activeSymbol ? robots.filter((r) => r.symbol === activeSymbol) : []),
-     [robots, activeSymbol]
-   );
+
+  // Se um robô específico estiver selecionado, mostra apenas ele; se for 'ALL', consolida os do ativo
+   const symbolRobots = useMemo(() => {
+     if (!activeSymbol) return [];
+     if (selectedRobotId !== 'ALL') {
+       const single = robots.find((r) => r.robotId === selectedRobotId);
+       return single ? [single] : [];
+     }
+     return robots.filter((r) => r.symbol === activeSymbol);
+   }, [robots, activeSymbol, selectedRobotId]);
 
 
   // Sincroniza timeframe inicial quando troca de ativo
@@ -291,6 +316,62 @@ export function TradingChartView({
     setHoveredTime(null);
     initialFitDoneRef.current = false;
   }, [activeSymbol]);
+ 
+  // Carrega automaticamente (solicitando ao MT5 se necessário) e atualiza em tempo real
+  useEffect(() => {
+    if (!activeSymbol) return;
+    const controller = new AbortController();
+
+    const loadLiveCandles = async (isFirstLoad: boolean) => {
+      if (isFirstLoad) {
+        setIsLoading(true);
+        setManualError(null);
+      }
+      try {
+        const { channelId, token } = loadOrCreateMt5SyncCredentials();
+        const result = await syncCandlesWithMt5(
+          channelId,
+          token,
+          activeSymbol,
+          selectedTf,
+          {
+            force: true,
+            timeoutMs: 8000,
+            intervalMs: 800,
+            signal: controller.signal,
+          }
+        );
+        if (!controller.signal.aborted) {
+          if (result && result.length > 0) {
+            setManualCandles(result);
+            setManualError(null);
+          } else if (isFirstLoad) {
+            setManualError('Aguardando resposta do MetaTrader 5...');
+          }
+        }
+      } catch (err) {
+        if (!controller.signal.aborted && isFirstLoad) {
+          console.error('[TradingChartView] Falha ao sincronizar candles:', err);
+          setManualError('Erro ao solicitar velas ao MT5');
+        }
+      } finally {
+        if (!controller.signal.aborted && isFirstLoad) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadLiveCandles(true);
+    const interval = setInterval(() => {
+      loadLiveCandles(false);
+    }, 3000);
+
+    return () => {
+      controller.abort();
+      clearInterval(interval);
+    };
+  }, [activeSymbol, selectedTf]);
+ 
 
   // Seleciona a melhor série mestre de candles para o ativo + timeframe escolhido
   const { allCandles, masterRobot, isNativeTf } = useMemo<{
@@ -666,98 +747,6 @@ export function TradingChartView({
     };
   }, [activeSymbol, selectedTf]);
 
-  // 2. Gerencia a série do sub-painel inferior (Volume / IFR 14 / P&L Dia)
-  useEffect(() => {
-    const chart = chartRef.current;
-    if (!chart) return;
-
-    if (subSeriesRef.current) {
-      for (const pl of subPriceLinesRef.current) {
-        subSeriesRef.current.removePriceLine(pl);
-      }
-      subPriceLinesRef.current = [];
-      chart.removeSeries(subSeriesRef.current);
-      subSeriesRef.current = null;
-    }
-
-    if (subPaneMode === 'volume') {
-      subSeriesRef.current = chart.addSeries(
-        HistogramSeries,
-        {
-          priceFormat: { type: 'volume' },
-          priceScaleId: 'right',
-          lastValueVisible: false,
-        },
-        1
-      );
-    } else if (subPaneMode === 'rsi') {
-      const rsiSeries = chart.addSeries(
-        LineSeries,
-        {
-          color: '#38BDF8',
-          lineWidth: 2,
-          priceFormat: { type: 'price', precision: 1, minMove: 0.1 },
-          lastValueVisible: true,
-        },
-        1
-      );
-      subPriceLinesRef.current = [
-        rsiSeries.createPriceLine({
-          price: 70,
-          color: '#475569',
-          lineWidth: 1,
-          lineStyle: LineStyle.Dashed,
-          axisLabelVisible: true,
-          title: '70',
-        }),
-        rsiSeries.createPriceLine({
-          price: 30,
-          color: '#475569',
-          lineWidth: 1,
-          lineStyle: LineStyle.Dashed,
-          axisLabelVisible: true,
-          title: '30',
-        }),
-      ];
-      subSeriesRef.current = rsiSeries;
-    } else {
-      const pnlSeries = chart.addSeries(
-        AreaSeries,
-        {
-          lineColor: totalSymbolDailyPnl >= 0 ? '#10B981' : '#EF4444',
-          topColor:
-            totalSymbolDailyPnl >= 0
-              ? 'rgba(16, 185, 129, 0.28)'
-              : 'rgba(239, 68, 68, 0.05)',
-          bottomColor:
-            totalSymbolDailyPnl >= 0
-              ? 'rgba(16, 185, 129, 0.02)'
-              : 'rgba(239, 68, 68, 0.28)',
-          lineWidth: 2,
-          priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
-          lastValueVisible: true,
-        },
-        1
-      );
-      subPriceLinesRef.current = [
-        pnlSeries.createPriceLine({
-          price: 0,
-          color: '#334155',
-          lineWidth: 1,
-          lineStyle: LineStyle.Dashed,
-          axisLabelVisible: false,
-        }),
-      ];
-      subSeriesRef.current = pnlSeries;
-    }
-
-    const panes = chart.panes();
-    if (panes.length >= 2) {
-      panes[0].setStretchFactor(0.76);
-      panes[1].setStretchFactor(0.24);
-    }
-  }, [subPaneMode, activeSymbol, selectedTf]);
-
   // 3. Atualiza os dados em tempo real (candles, indicadores, marcadores, posições e sub-painel)
   useEffect(() => {
     const chart = chartRef.current;
@@ -835,6 +824,7 @@ export function TradingChartView({
     );
 
     // Marcadores consolidados de todos os robôs no ativo (ordenados por timestamp)
+    // Marcadores consolidados de todos os robôs no ativo + posição aberta em tempo real
     if (markersPluginRef.current) {
       const seriesMarkers: SeriesMarker<Time>[] = unifiedMarkers
         .map((m) => {
@@ -866,9 +856,47 @@ export function TradingChartView({
             text: symbolRobots.length > 1 ? `S (${m.robotName})` : 'Saída',
           };
         })
-        .filter((x): x is NonNullable<typeof x> => x !== null)
-        .sort((a, b) => Number(a.time) - Number(b.time));
+        .filter((x): x is NonNullable<typeof x> => x !== null);
 
+      // Adiciona seta automática na vela de entrada de cada posição aberta
+      for (const pos of openPositions) {
+        if (!pos.openTime || timedCandles.length === 0) continue;
+
+        // Converte "YYYY.MM.DD HH:MM" (horário do servidor MT5) para epoch UTC
+        const match = /^(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})/.exec(pos.openTime.trim());
+        let targetCandle = timedCandles[timedCandles.length - 1];
+
+        if (match) {
+          const openEpochSec = Math.floor(
+            Date.UTC(
+              Number(match[1]),
+              Number(match[2]) - 1,
+              Number(match[3]),
+              Number(match[4]),
+              Number(match[5])
+            ) / 1000
+          );
+
+          // Encontra a vela cujo timestamp é menor ou igual ao horário de abertura
+          for (let i = timedCandles.length - 1; i >= 0; i--) {
+            if (Number(timedCandles[i].utcTime) <= openEpochSec) {
+              targetCandle = timedCandles[i];
+              break;
+            }
+          }
+        }
+
+        const isBuy = pos.side === 'COMPRA';
+        seriesMarkers.push({
+          time: targetCandle.utcTime,
+          position: isBuy ? ('belowBar' as const) : ('aboveBar' as const),
+          shape: isBuy ? ('arrowUp' as const) : ('arrowDown' as const),
+          color: isBuy ? '#10B981' : '#EF4444',
+          text: `${isBuy ? 'C' : 'V'} ${pos.volume}x @ ${formatPrice(pos.entryPrice, activeSymbol)}`,
+        });
+      }
+
+      seriesMarkers.sort((a, b) => Number(a.time) - Number(b.time));
       markersPluginRef.current.setMarkers(seriesMarkers);
     }
 
@@ -917,51 +945,6 @@ export function TradingChartView({
       }
     }
     priceLinesRef.current = nextPriceLines;
-
-    // Atualiza dados do sub-painel (Volume / IFR 14 / P&L Dia)
-    if (subSeriesRef.current) {
-      if (subPaneMode === 'volume') {
-        (subSeriesRef.current as ISeriesApi<'Histogram'>).setData(
-          timedCandles.map((tc) => ({
-            time: tc.utcTime,
-            value: tc.candle.volume,
-            color:
-              tc.candle.close >= tc.candle.open
-                ? 'rgba(16, 185, 129, 0.5)'
-                : 'rgba(239, 68, 68, 0.5)',
-          }))
-        );
-      } else if (subPaneMode === 'rsi') {
-        (subSeriesRef.current as ISeriesApi<'Line'>).setData(
-          timedCandles
-            .map((tc, i) =>
-              rsi14[i] !== null && rsi14[i] !== undefined
-                ? { time: tc.utcTime, value: rsi14[i] as number }
-                : null
-            )
-            .filter((d): d is { time: UTCTimestamp; value: number } => d !== null)
-        );
-      } else {
-        const area = subSeriesRef.current as ISeriesApi<'Area'>;
-        area.applyOptions({
-          lineColor: totalSymbolDailyPnl >= 0 ? '#10B981' : '#EF4444',
-          topColor:
-            totalSymbolDailyPnl >= 0
-              ? 'rgba(16, 185, 129, 0.28)'
-              : 'rgba(239, 68, 68, 0.05)',
-          bottomColor:
-            totalSymbolDailyPnl >= 0
-              ? 'rgba(16, 185, 129, 0.02)'
-              : 'rgba(239, 68, 68, 0.28)',
-        });
-        area.setData(
-          timedCandles.map((tc, i) => ({
-            time: tc.utcTime,
-            value: pnlCurve[i] ?? 0,
-          }))
-        );
-      }
-    }
 
     // Na primeira carga do ativo/timeframe, mostra os últimos ~70 candles confortavelmente
     if (!initialFitDoneRef.current) {
@@ -1023,12 +1006,14 @@ export function TradingChartView({
   };
 
   const activeCandle = useMemo(() => {
+    if (allCandles.length === 0) return null;
     if (hoveredTime !== null) {
-      const found = candleByTimeMap.get(hoveredTime);
-      if (found) return found;
+      const hovered = candleByTimeMap.get(hoveredTime);
+      if (hovered) return hovered;
     }
-    return allCandles.length > 0 ? allCandles[allCandles.length - 1] : null;
-  }, [hoveredTime, candleByTimeMap, allCandles]);
+    return allCandles[allCandles.length - 1];
+  }, [allCandles, hoveredTime, candleByTimeMap]);
+
 
   const hoveredMarkers = useMemo(() => {
     if (hoveredTime === null) return [];
@@ -1057,85 +1042,17 @@ export function TradingChartView({
   return (
     <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
       <div className="max-w-7xl mx-auto space-y-4">
-        {/* Barra Superior de Controles do Gráfico Único por Ativo */}
-<div className="flex flex-wrap items-center gap-3">
-      <div className="relative">
-        <div className="flex items-center gap-2 bg-[#11161D] border border-[#222B38] rounded-lg px-3 py-1.5">
-          <span className="text-xs text-gray-400">Ativo:</span>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => handleSymbolChange(e.target.value)}
-            onFocus={() => setShowSuggestions(true)}
-            placeholder="Ex: PETR4, WIN..."
-            className="bg-transparent border-none focus:outline-none text-sm font-bold text-gray-100 w-32"
-          />
-          {isLoading && <span className="text-[10px] text-blue-400 animate-pulse">Carregando...</span>}
-          {manualError && <span className="text-[10px] text-red-400">{manualError}</span>}
-        </div>
-        {showSuggestions && filteredSymbols.length > 0 && (
-          <div className="absolute z-50 w-full mt-1 bg-[#11161D] border border-[#222B38] rounded-lg shadow-xl max-h-60 overflow-y-auto">
-            {filteredSymbols.map(s => (
-              <div
-                key={s}
-                className="px-3 py-2 text-xs hover:bg-[#1F2937] cursor-pointer text-gray-200"
-                onClick={() => {
-                  setSelectedSymbol(s);
-                  setSearchQuery(s);
-                  setShowSuggestions(false);
-                  handleSymbolChange(s);
-                }}
-              >
-                {s}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Seletor de Tempo Gráfico (M1 / M5 / M15 / H1) */}
-      <div
-        role="group"
-        aria-label="Tempo gráfico"
-        className="flex items-center bg-[#11161D] border border-[#222B38] rounded-lg p-0.5"
-      >
-        {TIMEFRAMES.map((tf) => {
-          const active = selectedTf === tf;
-          return (
-            <button
-              key={tf}
-              type="button"
-              onClick={() => setSelectedTf(tf)}
-              className={`px-2.5 py-1 rounded text-xs font-mono font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                active
-                  ? 'bg-[#1F2937] text-gray-100'
-                  : 'text-gray-400 hover:text-gray-200'
-              }`}
-            >
-              {tf}
-            </button>
-          );
-        })}
-      </div>
-      
-      <div className="text-xs text-gray-400 hidden sm:block truncate max-w-md">
-        <span className="text-gray-500">Consolidando:</span>{' '}
-        <span className="text-gray-300">
-          {symbolRobots.map((r) => r.name).join(' · ')}
-        </span>
-      </div>
-    </div>
-
         {/* Painel do Gráfico Principal (TradingView Lightweight Charts) */}
         <div className="rounded-xl bg-[#11161D] border border-[#222B38] overflow-hidden">
-          {/* Barra OHLC & Seletor de Sub-painel */}
-          <div className="px-4 py-2.5 border-b border-[#1E2633] flex flex-wrap items-center justify-between gap-3 text-xs">
-            <div className="flex flex-wrap items-center gap-3 min-w-0">
-              {activeCandle && (
-                <div className="flex flex-wrap items-center gap-3 font-mono tabular-nums text-[11px]">
-                  <span className="font-semibold text-gray-100">
-                    {activeSymbol} · {selectedTf}
-                  </span>
+          {/* Barra OHLC Fixa */}
+          <div className="px-4 py-2 border-b border-[#1E2633] bg-[#0E131A] flex flex-wrap items-center justify-between gap-3 text-xs min-h-[38px]">
+            {/* Bloco da Esquerda: Ativo + OHLC + Volume */}
+            <div className="flex flex-wrap items-center gap-3 min-w-0 font-mono">
+              <span className="font-semibold text-gray-100">
+                {activeSymbol} · {selectedTf}
+              </span>
+              {activeCandle ? (
+                <>
                   <span className="text-gray-400">{activeCandle.timeLabel}</span>
                   <span className="text-gray-400">
                     A <strong className="text-gray-200">{formatPrice(activeCandle.open, activeSymbol)}</strong>
@@ -1171,33 +1088,21 @@ export function TradingChartView({
                       · {m.label}
                     </span>
                   ))}
-                </div>
+                </>
+              ) : (
+                <span className="text-gray-500">Carregando cotação...</span>
               )}
             </div>
 
-            <div className="flex items-center bg-[#0B0E11] border border-[#222B38] rounded-md p-0.5">
-              {(
-                [
-                  { id: 'volume', label: 'Volume' },
-                  { id: 'pnl', label: 'P&L Dia (R$)' },
-                  { id: 'rsi', label: 'IFR (14)' },
-                ] as const
-              ).map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setSubPaneMode(tab.id)}
-                  className={`px-2.5 py-1 text-[11px] font-medium rounded transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                    subPaneMode === tab.id
-                      ? 'bg-[#1F2937] text-gray-100'
-                      : 'text-gray-400 hover:text-gray-200'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
+            {/* Bloco da Direita: Nome do Robô */}
+            {symbolRobots.length > 0 && (
+              <div className="ml-auto text-xs font-medium text-gray-300 truncate">
+                {symbolRobots.map((r) => r.name).join(' · ')}
+              </div>
+            )}
           </div>
+
+
 
           {/* Container HTML5 Canvas do Lightweight Charts (Pane 0: Preço + Overlays, Pane 1: Sub-painel) */}
           <div className="bg-[#0B0E11] p-1 relative">

@@ -67,6 +67,7 @@ export const mt5Channels = new Map<string, LiveSyncChannel>();
 
 const requestQueue: PendingRequest[] = [];
 const chartCandlesCache = new Map<string, NormalizedCandle[]>();
+const lastChannelSignature = new Map<string, string>();
 
 
 function addToQueue(request: PendingRequest) {
@@ -711,17 +712,28 @@ async function startServer() {
     const totalTrades = normalizedList.reduce((acc, r) => acc + r.trades.length, 0);
     const firstBot = normalizedList[0];
 
-    pushPairingEvent(channel, {
-      outcome: "success",
-      httpStatus: 200,
-      source: "mt5",
-      summary: `EA MT5 sincronizado · ${firstBot.symbol}`,
-      detail: `${normalizedList.length} robô(s) · ${totalCandles} candles · ${totalTrades} negócios recentes`,
-      symbol: normalizedList.length === 1 ? firstBot.symbol : `${normalizedList.length} ativos`,
-      magicNumber: normalizedList.length === 1 ? firstBot.magicNumber : undefined,
-      candlesCount: totalCandles,
-      tradesCount: totalTrades,
-    });
+    const currentSignature = normalizedList
+      .map(
+        (r) =>
+          `${r.robotId}:${r.status}:${r.position ? `${r.position.id}@${r.position.sl}/${r.position.tp}` : "none"}:${r.trades.length}`
+      )
+      .sort()
+      .join("|");
+
+    if (lastChannelSignature.get(channelId) !== currentSignature) {
+      lastChannelSignature.set(channelId, currentSignature);
+      pushPairingEvent(channel, {
+        outcome: "success",
+        httpStatus: 200,
+        source: "mt5",
+        summary: `Estado atualizado · ${normalizedList.length} robô(s)`,
+        detail: `${normalizedList.map((r) => `${r.name} (${r.status})`).join(" · ")} · ${totalTrades} negócio(s) hoje`,
+        symbol: normalizedList.length === 1 ? firstBot.symbol : `${normalizedList.length} ativos`,
+        magicNumber: normalizedList.length === 1 ? firstBot.magicNumber : undefined,
+        candlesCount: totalCandles,
+        tradesCount: totalTrades,
+      });
+    }
 
     res.json({
       ok: true,

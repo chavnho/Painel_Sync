@@ -219,16 +219,19 @@ export default function App() {
           )}
 
           {activeView === 'connect' && (
-            <ConnectView
-              streamStatus={streamStatus}
-              telemetry={telemetry}
-              pairingEvents={pairingEvents}
-              creds={creds}
-            />
+            <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
+              <ConnectView
+                streamStatus={streamStatus}
+                telemetry={telemetry}
+                pairingEvents={pairingEvents}
+                creds={creds}
+              />
+              <LiveLogView events={pairingEvents} />
+            </div>
           )}
+
         </main>
       </div>
-      <LiveLogView events={pairingEvents} />
     </div>
   );
 }
