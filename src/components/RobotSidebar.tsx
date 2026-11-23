@@ -1,4 +1,4 @@
-import { PlugZap, Radio, Trash2 } from 'lucide-react';
+import { Radio, Trash2 } from 'lucide-react';
 import type { AccountSnapshot, DashboardView, RobotStream } from '../types/trading';
 import { formatBrl } from '../utils/tradingMath';
 
@@ -134,17 +134,10 @@ export function RobotSidebar({
         </div>
 
         {robots.length === 0 ? (
-          <div className="px-3 py-6 text-center space-y-2">
+          <div className="px-3 py-6 text-center">
             <p className="text-xs text-gray-400 leading-relaxed">
               Nenhum robô enviando dados no momento.
             </p>
-            <button
-              type="button"
-              onClick={() => onViewChange('connect')}
-              className="text-xs font-medium text-emerald-400 hover:text-emerald-300 underline cursor-pointer"
-            >
-              Ver instruções de pareamento
-            </button>
           </div>
         ) : (
           robots.map((bot) => {
@@ -230,17 +223,8 @@ export function RobotSidebar({
           </div>
         )}
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => onViewChange('connect')}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#1A222D] hover:bg-[#232D3B] border border-[#2C3747] text-xs font-medium text-gray-100 transition-colors cursor-pointer whitespace-nowrap"
-          >
-            <PlugZap className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span>Conectar MT5</span>
-          </button>
-
-          {robots.length > 0 && (
+        {robots.length > 0 && (
+          <div className="flex justify-end">
             <button
               type="button"
               onClick={onClearSession}
@@ -250,8 +234,8 @@ export function RobotSidebar({
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </aside>
   );

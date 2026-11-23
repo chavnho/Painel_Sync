@@ -96,13 +96,6 @@ export function TradesLedgerView({
           <p className="text-xs text-gray-400 leading-relaxed">
             Conecte seu MetaTrader 5 para acompanhar posições abertas e o livro completo de compras e vendas em tempo real.
           </p>
-          <button
-            type="button"
-            onClick={() => onNavigate('connect')}
-            className="mt-2 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold text-white transition-colors cursor-pointer"
-          >
-            Conectar MetaTrader 5
-          </button>
         </div>
       </div>
     );

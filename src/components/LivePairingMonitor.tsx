@@ -23,7 +23,6 @@ interface LivePairingMonitorProps {
   lastSyncAt: string | null;
   onClearPairingLog: () => void;
   compact?: boolean;
-  onOpenConnect?: () => void;
 }
 
 type ProbeState =
@@ -45,7 +44,6 @@ export function LivePairingMonitor({
   lastSyncAt,
   onClearPairingLog,
   compact = false,
-  onOpenConnect,
 }: LivePairingMonitorProps) {
   const [probe, setProbe] = useState<ProbeState>({ status: 'checking' });
   const [isSendingPing, setIsSendingPing] = useState(false);
@@ -219,16 +217,6 @@ export function LivePairingMonitor({
               className="p-2 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#263040] text-gray-400 hover:text-gray-200 transition-colors cursor-pointer shrink-0"
             >
               <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          )}
-
-          {compact && onOpenConnect && (
-            <button
-              type="button"
-              onClick={onOpenConnect}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold text-white transition-colors cursor-pointer whitespace-nowrap shrink-0"
-            >
-              <span>Abrir Conector</span>
             </button>
           )}
         </div>

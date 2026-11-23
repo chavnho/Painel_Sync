@@ -3,7 +3,6 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   CandlestickChart,
-  PlugZap,
   TrendingDown,
   TrendingUp,
 } from 'lucide-react';
@@ -120,17 +119,6 @@ export function OverviewView({
                 </p>
               </div>
             </div>
-
-            <div className="flex flex-wrap items-center gap-3 pt-1">
-              <button
-                type="button"
-                onClick={() => onNavigate('connect')}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-sm font-semibold text-white transition-colors cursor-pointer"
-              >
-                <PlugZap className="w-4 h-4 shrink-0" />
-                <span>Conectar MetaTrader 5</span>
-              </button>
-            </div>
           </div>
 
           <LivePairingMonitor
@@ -141,7 +129,6 @@ export function OverviewView({
             lastSyncAt={lastSyncAt}
             onClearPairingLog={onClearPairingLog}
             compact
-            onOpenConnect={() => onNavigate('connect')}
           />
         </div>
       </div>

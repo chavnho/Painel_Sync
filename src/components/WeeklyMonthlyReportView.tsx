@@ -73,13 +73,6 @@ export function WeeklyMonthlyReportView({
           <p className="text-xs text-gray-400 leading-relaxed">
             Conecte seu MetaTrader 5 para analisar a taxa de acerto (Win Rate) e o fator de lucro (Profit Factor) semanal e mensal de cada robô.
           </p>
-          <button
-            type="button"
-            onClick={() => onNavigate('connect')}
-            className="mt-2 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold text-white transition-colors cursor-pointer"
-          >
-            Conectar MetaTrader 5
-          </button>
         </div>
       </div>
     );
