@@ -2,7 +2,9 @@ import React from 'react';
 import {
   Activity,
   AlertCircle,
+  Check,
   CheckCircle2,
+  Copy,
   WifiOff,
   Info
 } from 'lucide-react';
@@ -27,6 +29,16 @@ export function ConnectView({
   pairingEvents,
   creds
 }: ConnectViewProps) {
+  const [copiedField, setCopiedField] = React.useState<'channelId' | 'token' | 'endpoint' | null>(null);
+
+  const endpointUrl = window.location.origin;
+
+  const copyValue = (field: 'channelId' | 'token' | 'endpoint', value: string) => {
+    navigator.clipboard.writeText(value);
+    setCopiedField(field);
+    window.setTimeout(() => setCopiedField(null), 1500);
+  };
+
   const statusColor = {
     connecting: 'text-blue-400',
     listening: 'text-emerald-400',
@@ -51,25 +63,64 @@ export function ConnectView({
           <div className="p-6 rounded-xl bg-[#11161D] border border-[#222B38] space-y-4">
             <h3 className="text-sm font-semibold text-gray-300">Dados de Conexão</h3>
             <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-gray-500 text-xs">Channel ID:</span>
-                <code className="text-emerald-400 text-xs font-mono">{creds.channelId}</code>
+              <div className="flex justify-between items-center gap-2">
+                <span className="text-gray-500 text-xs">Endpoint:</span>
+                <div className="flex items-center gap-2 min-w-0">
+                  <code className="text-emerald-400 text-xs font-mono truncate">{endpointUrl}</code>
+                  <button
+                    type="button"
+                    onClick={() => copyValue('endpoint', endpointUrl)}
+                    title="Copiar Endpoint"
+                    aria-label="Copiar Endpoint"
+                    className="p-1 hover:bg-gray-800 rounded transition-colors text-gray-400 hover:text-emerald-400 shrink-0"
+                  >
+                    {copiedField === 'endpoint' ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                </div>
               </div>
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center gap-2">
+                <span className="text-gray-500 text-xs">Channel ID:</span>
+                <div className="flex items-center gap-2 min-w-0">
+                  <code className="text-emerald-400 text-xs font-mono truncate">{creds.channelId}</code>
+                  <button
+                    type="button"
+                    onClick={() => copyValue('channelId', creds.channelId)}
+                    title="Copiar Channel ID"
+                    aria-label="Copiar Channel ID"
+                    className="p-1 hover:bg-gray-800 rounded transition-colors text-gray-400 hover:text-emerald-400 shrink-0"
+                  >
+                    {copiedField === 'channelId' ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                </div>
+              </div>
+              <div className="flex justify-between items-center gap-2">
                 <span className="text-gray-500 text-xs">Auth Token:</span>
-                <code className="text-emerald-400 text-xs font-mono">{creds.token}</code>
+                <div className="flex items-center gap-2 min-w-0">
+                  <code className="text-emerald-400 text-xs font-mono truncate">{creds.token}</code>
+                  <button
+                    type="button"
+                    onClick={() => copyValue('token', creds.token)}
+                    title="Copiar Auth Token"
+                    aria-label="Copiar Auth Token"
+                    className="p-1 hover:bg-gray-800 rounded transition-colors text-gray-400 hover:text-emerald-400 shrink-0"
+                  >
+                    {copiedField === 'token' ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
-            <button
-              onClick={() => {
-                const text = `g_endpointUrl = "http://localhost:3000";\ng_token = "${creds.token}";\ng_channelId = "${creds.channelId}";`;
-                navigator.clipboard.writeText(text);
-                alert("Credenciais copiadas!");
-              }}
-              className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 rounded-lg text-xs font-bold transition-colors"
-            >
-              Copiar Variáveis para o EA
-            </button>
           </div>
           <div className="p-6 rounded-xl bg-[#11161D] border border-[#222B38]">
             <h3 className="text-sm font-semibold text-gray-300 mb-2">Status do Stream</h3>
