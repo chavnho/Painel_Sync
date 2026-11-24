@@ -3,6 +3,7 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import { PendingRequest, PairingAttemptEvent, LiveSyncChannel, NormalizedCandle} from "./types";
+import { persistExecutedTrades, loadPersistedTradesForAccount } from "./src/db/tradesDb";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -347,7 +348,22 @@ function mergeChannelSymbols(channel: LiveSyncChannel, incoming: unknown) {
 }
 
 function buildSnapshotResponse(channelId: string, channel: LiveSyncChannel) {
-  const robots = Array.from(channel.robots.values());
+  const accountKey = channel.account?.login || channelId;
+  const persistedAll = loadPersistedTradesForAccount(accountKey);
+  const robots = Array.from(channel.robots.values()).map((bot) => {
+    const botPersisted = persistedAll.filter(
+      (t) => t.magicNumber === bot.magicNumber && t.symbol === bot.symbol
+    );
+    if (botPersisted.length === 0) return bot;
+    const mergedMap = new Map<string, NormalizedTrade>();
+    for (const pt of botPersisted) mergedMap.set(pt.id, pt);
+    for (const ht of bot.historyTrades ?? []) mergedMap.set(ht.id, ht);
+    for (const dt of bot.trades) mergedMap.set(dt.id, dt);
+    return {
+      ...bot,
+      historyTrades: Array.from(mergedMap.values()),
+    };
+  });
   const totalDailyPnl = robots.reduce((acc, r) => acc + r.dailyPnlBrl, 0);
   const account = channel.account
     ? {
