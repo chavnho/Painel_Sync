@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BuySellAnalyticsView } from './components/BuySellAnalyticsView';
 import { DashboardHeader } from './components/DashboardHeader';
 import { Mt5BridgeView } from './components/Mt5BridgeView';
@@ -33,6 +33,34 @@ export default function App() {
   const [telemetry, setTelemetry] = useState<DashboardTelemetry | null>(null);
   const [pairingEvents, setPairingEvents] = useState<PairingAttemptEvent[]>([]);
   const [selectedRobotId, setSelectedRobotId] = useState<string | 'ALL'>('ALL');
+  const [magicAliases, setMagicAliases] = useState<Record<number, string>>(() => {
+    try {
+      const raw = localStorage.getItem('painel_sync_magic_aliases_v1');
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const handleRenameMagic = useCallback((magicNumber: number, nextName: string) => {
+    setMagicAliases((prev) => {
+      const updated = { ...prev };
+      const trimmed = nextName.trim();
+      if (trimmed) {
+        updated[magicNumber] = trimmed;
+      } else {
+        delete updated[magicNumber];
+      }
+      try {
+        localStorage.setItem('painel_sync_magic_aliases_v1', JSON.stringify(updated));
+      } catch {
+        // ignora erro de quota
+      }
+      return updated;
+    });
+  }, []);
 
   // Conecta ao stream SSE em tempo real do servidor
   useEffect(() => {
@@ -110,7 +138,20 @@ export default function App() {
     };
   }, [creds.channelId, creds.token]);
 
-  const robots = telemetry?.robots ?? [];
+  const robots = useMemo(() => {
+    const raw = telemetry?.robots ?? [];
+    return raw.map((bot) => {
+      const alias = magicAliases[bot.magicNumber];
+      if (!alias) return bot;
+      return {
+        ...bot,
+        name: alias,
+        trades: Array.isArray(bot.trades)
+          ? bot.trades.map((t) => ({ ...t, robotName: alias }))
+          : bot.trades,
+      };
+    });
+  }, [telemetry?.robots, magicAliases]);
 
   useEffect(() => {
     if (
@@ -155,6 +196,7 @@ export default function App() {
           robots={robots}
           selectedRobotId={selectedRobotId}
           onSelectRobot={setSelectedRobotId}
+          onRenameMagic={handleRenameMagic}
           account={telemetry?.account ?? null}
           streamStatus={streamStatus}
           lastSyncAt={telemetry?.serverReceivedAt ?? null}

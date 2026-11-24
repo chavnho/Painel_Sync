@@ -159,7 +159,7 @@ export function WeeklyMonthlyReportView({
               type="button"
               onClick={() =>
                 exportReportCsv(
-                  [...fullFleetReport.rows, fullFleetReport.consolidated],
+                  [...report.rows, report.consolidated],
                   activePeriodMeta.label
                 )
               }
@@ -350,7 +350,7 @@ export function WeeklyMonthlyReportView({
               </p>
             </div>
             <span className="text-xs font-mono text-gray-500">
-              {fullFleetReport.rows.length} robôs no período
+              {report.rows.length} robôs no período
             </span>
           </div>
 
@@ -371,7 +371,7 @@ export function WeeklyMonthlyReportView({
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#1B222D] font-mono tabular-nums">
-                {fullFleetReport.rows.map((row) => {
+                {report.rows.map((row) => {
                   const status = profitFactorStatus(row.profitFactor, row.totalTrades);
                   const isSelected = selectedRobotId === row.robotId;
 
@@ -449,48 +449,48 @@ export function WeeklyMonthlyReportView({
               <tfoot className="bg-[#0E1319] border-t border-[#263040] font-mono tabular-nums text-xs">
                 <tr>
                   <td className="px-4 py-3 font-sans font-bold text-gray-100">
-                    Total Consolidado ({fullFleetReport.rows.length} robôs)
+                    Total Consolidado ({report.rows.length} robôs)
                   </td>
                   <td className="px-4 py-3 text-gray-400">—</td>
                   <td className="px-4 py-3 text-right font-semibold text-gray-200">
-                    {fullFleetReport.consolidated.totalTrades}{' '}
+                    {report.consolidated.totalTrades}{' '}
                     <span className="text-[11px] text-gray-500">
-                      ({fullFleetReport.consolidated.wins}/{fullFleetReport.consolidated.losses})
+                      ({report.consolidated.wins}/{report.consolidated.losses})
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right font-bold text-gray-100">
-                    {fullFleetReport.consolidated.winRatePct}%
+                    {report.consolidated.winRatePct}%
                   </td>
                   <td
                     className={`px-4 py-3 text-right font-bold ${
                       profitFactorStatus(
-                        fullFleetReport.consolidated.profitFactor,
-                        fullFleetReport.consolidated.totalTrades
+                        report.consolidated.profitFactor,
+                        report.consolidated.totalTrades
                       ).colorClass
                     }`}
                   >
-                    {fullFleetReport.consolidated.profitFactor.toFixed(2)}
+                    {report.consolidated.profitFactor.toFixed(2)}
                   </td>
                   <td className="px-4 py-3 text-right font-semibold text-gray-200">
-                    {fullFleetReport.consolidated.payoffRatio.toFixed(2)}x
+                    {report.consolidated.payoffRatio.toFixed(2)}x
                   </td>
                   <td className="px-4 py-3 text-right font-semibold text-emerald-400">
-                    +{formatBrl(fullFleetReport.consolidated.grossProfitBrl, false)}
+                    +{formatBrl(report.consolidated.grossProfitBrl, false)}
                   </td>
                   <td className="px-4 py-3 text-right font-semibold text-red-400">
-                    -{formatBrl(fullFleetReport.consolidated.grossLossBrl, false)}
+                    -{formatBrl(report.consolidated.grossLossBrl, false)}
                   </td>
                   <td className="px-4 py-3 text-right font-semibold text-amber-400">
-                    {formatBrl(-fullFleetReport.consolidated.maxDrawdownBrl, false)}
+                    {formatBrl(-report.consolidated.maxDrawdownBrl, false)}
                   </td>
                   <td
                     className={`px-4 py-3 text-right font-bold ${
-                      fullFleetReport.consolidated.netPnlBrl >= 0
+                      report.consolidated.netPnlBrl >= 0
                         ? 'text-emerald-400'
                         : 'text-red-400'
                     }`}
                   >
-                    {formatBrl(fullFleetReport.consolidated.netPnlBrl)}
+                    {formatBrl(report.consolidated.netPnlBrl)}
                   </td>
                 </tr>
               </tfoot>

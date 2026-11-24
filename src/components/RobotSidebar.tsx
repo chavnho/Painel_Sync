@@ -1,4 +1,5 @@
-import { Radio, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { Check, Pencil, Radio, Trash2, X } from 'lucide-react';
 import type { AccountSnapshot, DashboardView, RobotStream } from '../types/trading';
 import { formatBrl } from '../utils/tradingMath';
 
@@ -6,6 +7,7 @@ interface RobotSidebarProps {
   robots: RobotStream[];
   selectedRobotId: string | 'ALL';
   onSelectRobot: (robotId: string | 'ALL') => void;
+  onRenameMagic: (magicNumber: number, nextName: string) => void;
   account: AccountSnapshot | null;
   streamStatus: 'connecting' | 'listening' | 'error';
   lastSyncAt: string | null;
@@ -18,6 +20,7 @@ export function RobotSidebar({
   robots,
   selectedRobotId,
   onSelectRobot,
+  onRenameMagic,
   account,
   streamStatus,
   lastSyncAt,
@@ -25,6 +28,8 @@ export function RobotSidebar({
   activeView,
   onViewChange,
 }: RobotSidebarProps) {
+  const [editingMagic, setEditingMagic] = useState<number | null>(null);
+  const [draftName, setDraftName] = useState('');
   const totalDailyPnl = robots.reduce((acc, r) => acc + r.dailyPnlBrl, 0);
   const totalTrades = robots.reduce((acc, r) => acc + r.trades.length, 0);
   const totalOpen = robots.filter((r) => r.position !== null).length;
@@ -146,32 +151,103 @@ export function RobotSidebar({
             const winRate =
               bot.trades.length > 0 ? Math.round((wins / bot.trades.length) * 100) : 0;
 
+            const isEditing = editingMagic === bot.magicNumber;
+
             return (
-              <button
+              <div
                 key={bot.robotId}
-                type="button"
-                onClick={() => onSelectRobot(bot.robotId)}
-                className={`w-full text-left px-3 py-2.5 rounded-lg border transition-colors cursor-pointer ${
+                role="button"
+                tabIndex={0}
+                onClick={() => {
+                  if (!isEditing) onSelectRobot(bot.robotId);
+                }}
+                onKeyDown={(e) => {
+                  if (!isEditing && (e.key === 'Enter' || e.key === ' ')) {
+                    e.preventDefault();
+                    onSelectRobot(bot.robotId);
+                  }
+                }}
+                className={`group w-full text-left px-3 py-2.5 rounded-lg border transition-colors cursor-pointer ${
                   selected
                     ? 'bg-[#18202B] border-[#334155]'
                     : 'bg-transparent border-transparent hover:bg-[#161C25]'
                 }`}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-gray-100 truncate">
-                    {bot.name}
-                  </span>
-                  <span
-                    className={`text-xs font-mono font-semibold tabular-nums shrink-0 ${
-                      bot.dailyPnlBrl > 0
-                        ? 'text-emerald-400'
-                        : bot.dailyPnlBrl < 0
-                          ? 'text-red-400'
-                          : 'text-gray-300'
-                    }`}
-                  >
-                    {formatBrl(bot.dailyPnlBrl)}
-                  </span>
+                  {isEditing ? (
+                    <div
+                      className="flex-1 flex items-center gap-1 min-w-0"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        type="text"
+                        value={draftName}
+                        onChange={(e) => setDraftName(e.target.value)}
+                        onKeyDown={(e) => {
+                          e.stopPropagation();
+                          if (e.key === 'Enter') {
+                            onRenameMagic(bot.magicNumber, draftName);
+                            setEditingMagic(null);
+                          } else if (e.key === 'Escape') {
+                            setEditingMagic(null);
+                          }
+                        }}
+                        placeholder={`Robô #${bot.magicNumber}`}
+                        autoFocus
+                        className="w-full bg-[#0B0E11] border border-[#334155] rounded px-1.5 py-0.5 text-xs font-semibold text-gray-100 focus:outline-none focus:border-emerald-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onRenameMagic(bot.magicNumber, draftName);
+                          setEditingMagic(null);
+                        }}
+                        title="Salvar nome"
+                        className="p-1 text-emerald-400 hover:bg-[#1E2633] rounded cursor-pointer"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingMagic(null)}
+                        title="Cancelar"
+                        className="p-1 text-gray-400 hover:bg-[#1E2633] rounded cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-xs font-semibold text-gray-100 truncate">
+                          {bot.name}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingMagic(bot.magicNumber);
+                            setDraftName(bot.name);
+                          }}
+                          title="Renomear robô"
+                          className="opacity-0 group-hover:opacity-100 focus:opacity-100 p-0.5 text-gray-400 hover:text-gray-200 rounded transition-opacity cursor-pointer"
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                      </div>
+                      <span
+                        className={`text-xs font-mono font-semibold tabular-nums shrink-0 ${
+                          bot.dailyPnlBrl > 0
+                            ? 'text-emerald-400'
+                            : bot.dailyPnlBrl < 0
+                              ? 'text-red-400'
+                              : 'text-gray-300'
+                        }`}
+                      >
+                        {formatBrl(bot.dailyPnlBrl)}
+                      </span>
+                    </>
+                  )}
                 </div>
 
                 <div className="mt-1 flex items-center justify-between text-[11px] text-gray-400 font-mono tabular-nums">
@@ -198,7 +274,7 @@ export function RobotSidebar({
                     {bot.trades.length} ops · {winRate}%
                   </span>
                 </div>
-              </button>
+              </div>
             );
           })
         )}

@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AreaSeries,
   CandlestickSeries,
@@ -1163,14 +1163,92 @@ export function TradingChartView({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-      <div className="max-w-7xl mx-auto space-y-4">
-        {/* Painel do Gráfico Principal (TradingView Lightweight Charts) */}
-        <div className="rounded-xl bg-[#11161D] border border-[#222B38] overflow-hidden">
-          {/* Barra OHLC Fixa */}
-          <div className="px-4 py-2 border-b border-[#1E2633] bg-[#0E131A] flex flex-wrap items-center justify-between gap-3 text-xs min-h-[38px]">
-            {/* Bloco da Esquerda: Ativo + OHLC + Volume */}
-            <div className="flex flex-wrap items-center gap-3 min-w-0 font-mono">
+    <div className="flex-1 flex flex-col min-h-0 px-6 py-4 gap-3 overflow-hidden">
+      <div className="w-full flex-1 flex flex-col min-h-0 gap-3">
+        <div className="shrink-0 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <div
+              role="group"
+              aria-label="Tempo gráfico"
+              className="flex items-center bg-[#11161D] border border-[#222B38] rounded-lg p-0.5"
+            >
+              {TIMEFRAMES.map((tf) => {
+                const active = selectedTf === tf;
+                return (
+                  <button
+                    key={tf}
+                    type="button"
+                    onClick={() => setSelectedTf(tf)}
+                    className={`px-2.5 py-1 rounded text-xs font-mono font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                      active
+                        ? 'bg-[#1F2937] text-gray-100'
+                        : 'text-gray-400 hover:text-gray-200'
+                    }`}
+                  >
+                    {tf}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setShowMarkers((v) => !v)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
+                  showMarkers
+                    ? 'bg-[#1F2937] border-[#374151] text-gray-100'
+                    : 'bg-[#11161D] border-[#222B38] text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                Execuções
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowEma((v) => !v)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
+                  showEma
+                    ? 'bg-[#1F2937] border-[#374151] text-gray-100'
+                    : 'bg-[#11161D] border-[#222B38] text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                EMA 9/21
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowVwap((v) => !v)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
+                  showVwap
+                    ? 'bg-[#1F2937] border-[#374151] text-gray-100'
+                    : 'bg-[#11161D] border-[#222B38] text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                VWAP
+              </button>
+            </div>
+          </div>
+
+          {openPositions.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
+              {openPositions.map((pos) => (
+                <span
+                  key={pos.id}
+                  className={`px-2.5 py-1 rounded-lg border ${
+                    pos.side === 'COMPRA'
+                      ? 'bg-amber-950/40 border-amber-700/50 text-amber-300'
+                      : 'bg-emerald-950/40 border-emerald-700/50 text-emerald-300'
+                  }`}
+                >
+                  {pos.side} {pos.volume}x · {formatBrl(pos.floatingPnlBrl)}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex-1 flex flex-col min-h-0 rounded-xl bg-[#11161D] border border-[#222B38] overflow-hidden">
+          <div className="shrink-0 px-4 py-2.5 border-b border-[#1E2633] flex flex-wrap items-center justify-between gap-3 text-xs min-h-[38px]">
+            <div className="flex flex-wrap items-center gap-3 min-w-0 font-mono tabular-nums text-[11px]">
               <span className="font-semibold text-gray-100">
                 {activeSymbol} · {selectedTf}
               </span>
@@ -1217,7 +1295,6 @@ export function TradingChartView({
               )}
             </div>
 
-            {/* Bloco da Direita: Nome do Robô */}
             {symbolRobots.length > 0 && (
               <div className="ml-auto text-xs font-medium text-gray-300 truncate">
                 {symbolRobots.map((r) => r.name).join(' · ')}
@@ -1225,11 +1302,8 @@ export function TradingChartView({
             )}
           </div>
 
-
-
-          {/* Container HTML5 Canvas do Lightweight Charts (Pane 0: Preço + Overlays, Pane 1: Sub-painel) */}
-          <div className="bg-[#0B0E11] p-1 relative">
-            <div ref={containerRef} className="w-full h-[650px]" />
+          <div className="flex-1 min-h-0 bg-[#0B0E11] relative">
+            <div ref={containerRef} className="w-full h-full" />
             {allCandles.length === 0 && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-6 pointer-events-none">
                 <CandlestickChart className="w-7 h-7 text-gray-500" />
@@ -1244,106 +1318,7 @@ export function TradingChartView({
             )}
           </div>
         </div>
-
-        {/* Faixa de Posições Abertas e Últimas Execuções do Ativo */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="rounded-xl bg-[#11161D] border border-[#222B38] p-4 space-y-2.5">
-            <div className="flex items-center justify-between text-xs text-gray-400">
-              <span>
-                Posições em {activeSymbol} ({openPositions.length})
-              </span>
-              <Layers className="w-3.5 h-3.5 text-gray-500" />
-            </div>
-            {openPositions.length > 0 ? (
-              <div className="space-y-2.5">
-                {openPositions.map((pos) => (
-                  <div
-                    key={pos.id}
-                    className="space-y-1 border-t border-[#1E2633] pt-2 first:border-t-0 first:pt-0"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span
-                        className={`text-xs font-mono font-bold ${
-                          pos.side === 'COMPRA' ? 'text-emerald-400' : 'text-red-400'
-                        }`}
-                      >
-                        {pos.side} {pos.volume}x @ {formatPrice(pos.entryPrice, pos.symbol)}
-                      </span>
-                      <span
-                        className={`text-xs font-mono font-bold tabular-nums ${
-                          pos.floatingPnlBrl >= 0 ? 'text-emerald-400' : 'text-red-400'
-                        }`}
-                      >
-                        {formatBrl(pos.floatingPnlBrl)}
-                      </span>
-                    </div>
-                    <div className="text-[11px] font-mono tabular-nums text-gray-400">
-                      {pos.robotName} · SL:{' '}
-                      {pos.sl > 0 ? formatPrice(pos.sl, pos.symbol) : '—'} · TP:{' '}
-                      {pos.tp > 0 ? formatPrice(pos.tp, pos.symbol) : '—'} ·{' '}
-                      {pos.openTime || '—'}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-sm font-mono text-gray-400">
-                Zerado (aguardando próximo sinal)
-              </div>
-            )}
-          </div>
-
-          <div className="lg:col-span-2 rounded-xl bg-[#11161D] border border-[#222B38] p-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-gray-400">
-                Últimas Execuções em {activeSymbol}
-              </span>
-              <button
-                type="button"
-                onClick={() => onNavigate('operations')}
-                className="text-xs font-medium text-emerald-400 hover:text-emerald-300 cursor-pointer"
-              >
-                Ver todas ({symbolTrades.length})
-              </button>
-            </div>
-            {symbolTrades.length === 0 ? (
-              <div className="text-xs text-gray-500">Nenhuma execução fechada registrada.</div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {symbolTrades
-                  .slice(-4)
-                  .reverse()
-                  .map((tr) => (
-                    <div
-                      key={`${tr.robotId}_${tr.id}`}
-                      className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-[#0B0E11] border border-[#1E2633] text-xs"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        {tr.side === 'COMPRA' ? (
-                          <TrendingUp className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                        ) : (
-                          <TrendingDown className="w-3.5 h-3.5 text-red-400 shrink-0" />
-                        )}
-                        <span className="font-mono text-gray-200 truncate">
-                          {tr.side} · {tr.exitTime}
-                          {symbolRobots.length > 1 ? ` · ${tr.robotName}` : ''}
-                        </span>
-                      </div>
-                      <span
-                        className={`font-mono font-semibold tabular-nums shrink-0 ${
-                          tr.pnlBrl >= 0 ? 'text-emerald-400' : 'text-red-400'
-                        }`}
-                      >
-                        {formatBrl(tr.pnlBrl)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
       </div>
+    </div>
   );
 }
-
