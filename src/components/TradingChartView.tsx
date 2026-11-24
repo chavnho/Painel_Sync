@@ -1114,40 +1114,6 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
   return (
     <div className="flex-1 flex flex-col min-h-0 px-6 py-4 gap-3 overflow-hidden">
       <div className="w-full flex-1 flex flex-col min-h-0 gap-3">
-        <div className="shrink-0 flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setShowMarkers((v) => !v)}
-              title="Exibir ou ocultar setas e linhas tracejadas dos trades"
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
-                showMarkers
-                  ? 'bg-emerald-950/50 border-emerald-700/50 text-emerald-300'
-                  : 'bg-[#11161D] border-[#222B38] text-gray-400 hover:text-gray-200'
-              }`}
-            >
-              Trades
-            </button>
-          </div>
-
-          {openPositions.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
-              {openPositions.map((pos) => (
-                <span
-                  key={pos.id}
-                  className={`px-2.5 py-1 rounded-lg border ${
-                    pos.side === 'COMPRA'
-                      ? 'bg-amber-950/40 border-amber-700/50 text-amber-300'
-                      : 'bg-emerald-950/40 border-emerald-700/50 text-emerald-300'
-                  }`}
-                >
-                  {pos.side} {pos.volume}x · {formatBrl(pos.floatingPnlBrl)}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-
         <div className="flex-1 flex flex-col min-h-0 rounded-xl bg-[#11161D] border border-[#222B38] overflow-hidden">
           <div className="shrink-0 px-4 py-2.5 border-b border-[#1E2633] flex flex-wrap items-center justify-between gap-3 text-xs min-h-[38px]">
             <div className="flex flex-wrap items-center gap-3 min-w-0 font-mono tabular-nums text-[11px]">
@@ -1197,11 +1163,39 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
               )}
             </div>
 
-            {symbolRobots.length > 0 && (
-              <div className="ml-auto text-xs font-medium text-gray-300 truncate">
-                {symbolRobots.map((r) => r.name).join(' · ')}
-              </div>
-            )}
+                        <div className="ml-auto flex flex-wrap items-center gap-2">
+              {openPositions.map((pos) => (
+                <span
+                  key={pos.id}
+                  className={`px-2 py-0.5 rounded text-[11px] font-mono border ${
+                    pos.side === 'COMPRA'
+                      ? 'bg-amber-950/40 border-amber-700/50 text-amber-300'
+                      : 'bg-emerald-950/40 border-emerald-700/50 text-emerald-300'
+                  }`}
+                >
+                  {pos.side} {pos.volume}x · {formatBrl(pos.floatingPnlBrl)}
+                </span>
+              ))}
+
+              {symbolRobots.length > 0 && (
+                <span className="text-xs font-medium text-gray-300 truncate">
+                  {symbolRobots.map((r) => r.name).join(' · ')}
+                </span>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setShowMarkers((v) => !v)}
+                title="Exibir ou ocultar setas e linhas tracejadas dos trades"
+                className={`px-2 py-0.5 rounded text-[11px] font-medium border transition-colors cursor-pointer shrink-0 ${
+                  showMarkers
+                    ? 'bg-emerald-950/50 border-emerald-700/50 text-emerald-300'
+                    : 'bg-[#0B0E11] border-[#222B38] text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                Trades
+              </button>
+            </div>
           </div>
 
           <div className="flex-1 min-h-0 bg-[#0B0E11] relative">
