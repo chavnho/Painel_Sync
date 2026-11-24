@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Pencil, Radio, X } from 'lucide-react';
+import { Check, Eye, EyeOff, Pencil, Radio, X } from 'lucide-react';
 import type { AccountSnapshot, DashboardView, RobotStream } from '../types/trading';
 import { formatBrl } from '../utils/tradingMath';
 import { ROBOT_COLORS, getPnlTextClass, getRobotColorTheme,  } from '../utils/themeTokens';
@@ -9,6 +9,7 @@ interface RobotSidebarProps {
   selectedRobotId: string | 'ALL';
   onSelectRobot: (robotId: string | 'ALL') => void;
   onRenameMagic: (magicNumber: number, nextName: string) => void;
+  onToggleHideMagic: (magicNumber: number, nextHidden: boolean) => void;
   magicColors: Record<number, number>;
   onCycleMagicColor: (magicNumber: number, fallbackIdx: number) => void;
   account: AccountSnapshot | null;
@@ -23,6 +24,7 @@ export function RobotSidebar({
   selectedRobotId,
   onSelectRobot,
   onRenameMagic,
+  onToggleHideMagic,
   magicColors,
   onCycleMagicColor,
   account,
@@ -33,6 +35,9 @@ export function RobotSidebar({
 }: RobotSidebarProps) {
   const [editingMagic, setEditingMagic] = useState<number | null>(null);
   const [draftName, setDraftName] = useState('');
+  const [showHidden, setShowHidden] = useState(false);
+  const hiddenCount = robots.filter((r) => r.hidden).length;
+  const visibleRobots = showHidden ? robots : robots.filter((r) => !r.hidden);
   const totalDailyPnl = robots.reduce((acc, r) => acc + r.dailyPnlBrl, 0);
   const totalTrades = robots.reduce((acc, r) => acc + r.trades.length, 0);
   const totalOpen = robots.filter((r) => r.position !== null).length;
@@ -100,19 +105,31 @@ export function RobotSidebar({
 
       {/* Lista de Robôs MT5 */}
       <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1.5">
-        <div className="px-2 pb-1 flex items-center justify-between text-xs font-medium text-gray-400">
-          <span>Robôs Monitorados</span>
-          <span className="font-mono tabular-nums text-gray-500">{robots.length}</span>
+        <div className="px-2 pb-1 flex items-center justify-between gap-2 text-xs font-medium text-gray-400">
+          <span className="whitespace-nowrap truncate">Robôs ({visibleRobots.length})</span>
+          {hiddenCount > 0 ? (
+            <button
+              type="button"
+              onClick={() => setShowHidden((v) => !v)}
+              className="inline-flex items-center gap-1 text-[11px] font-mono text-gray-400 hover:text-gray-200 cursor-pointer whitespace-nowrap shrink-0"
+              title={showHidden ? 'Esconder robôs ocultos' : 'Mostrar robôs ocultos'}
+            >
+              {showHidden ? <EyeOff className="w-3 h-3 shrink-0" /> : <Eye className="w-3 h-3 shrink-0" />}
+              <span>{showHidden ? 'Ocultar' : `Ocultos (${hiddenCount})`}</span>
+            </button>
+          ) : (
+            <span className="font-mono tabular-nums text-gray-500 shrink-0">{visibleRobots.length}</span>
+          )}
         </div>
 
-        {robots.length === 0 ? (
+        {visibleRobots.length === 0 ? (
           <div className="px-3 py-6 text-center">
             <p className="text-xs text-gray-400 leading-relaxed">
               Nenhum robô enviando dados no momento.
             </p>
           </div>
         ) : (
-          robots.map((bot, idx) => { const colorTheme = getRobotColorTheme(bot.magicNumber, magicColors);
+          visibleRobots.map((bot, idx) => { const colorTheme = getRobotColorTheme(bot.magicNumber, magicColors);
             const selected = selectedRobotId === bot.robotId;
             const wins = bot.trades.filter((t) => t.pnlBrl >= 0).length;
             const winRate =
@@ -202,6 +219,21 @@ export function RobotSidebar({
                           className="p-0.5 text-gray-500 hover:text-gray-200 rounded transition-colors cursor-pointer shrink-0"
                         >
                           <Pencil className="w-3 h-3" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleHideMagic(bot.magicNumber, !bot.hidden);
+                          }}
+                          title={bot.hidden ? 'Mostrar robô na lista' : 'Ocultar robô da lista'}
+                          className={`p-0.5 rounded transition-colors cursor-pointer shrink-0 ${
+                            bot.hidden
+                              ? 'text-amber-400 hover:text-amber-300'
+                              : 'text-gray-500 hover:text-gray-200 opacity-0 group-hover:opacity-100 focus:opacity-100'
+                          }`}
+                        >
+                          {bot.hidden ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
                         </button>
                       </div>
                       <span

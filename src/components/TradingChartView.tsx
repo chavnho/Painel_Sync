@@ -118,16 +118,18 @@ function parseHhMm(label: string): number | null {
  * ou reconstrói deterministicamente a partir de `timeLabel` ("HH:MM") mantendo compatibilidade.
  */
 function buildTimedCandles(rawCandles: LiveCandle[], tfMinutes: number): TimedCandle[] {
-  if (rawCandles.length === 0) return [];
+  if (!Array.isArray(rawCandles) || rawCandles.length === 0) return [];
+  const validCandles = rawCandles.filter((c) => c && Number.isFinite(c.open) && Number.isFinite(c.high) && Number.isFinite(c.low) && Number.isFinite(c.close) && c.high > 0 && c.low > 0);
+  if (validCandles.length === 0) return [];
 
-  const allHaveUnix = rawCandles.every(
+  const allHaveUnix = validCandles.every(
     (c) => typeof c.time === 'number' && Number.isFinite(c.time) && c.time > 0
   );
 
   if (allHaveUnix) {
     const out: TimedCandle[] = [];
     let lastTs = 0;
-    for (const c of rawCandles) {
+    for (const c of validCandles) {
       let ts = Math.floor(c.time as number);
       if (ts <= lastTs) ts = lastTs + Math.max(60, tfMinutes * 60);
       lastTs = ts;
@@ -140,8 +142,8 @@ function buildTimedCandles(rawCandles: LiveCandle[], tfMinutes: number): TimedCa
   const dayOffsets: number[] = [];
   let curDayOffset = 0;
   let prevMins = -1;
-  for (let i = 0; i < rawCandles.length; i++) {
-    const mins = parseHhMm(rawCandles[i].timeLabel);
+  for (let i = 0; i < validCandles.length; i++) {
+    const mins = parseHhMm(validCandles[i].timeLabel);
     if (mins !== null) {
       if (prevMins >= 0 && mins <= prevMins) {
         curDayOffset += 1;
@@ -159,8 +161,8 @@ function buildTimedCandles(rawCandles: LiveCandle[], tfMinutes: number): TimedCa
 
   const out: TimedCandle[] = [];
   let lastTs = 0;
-  for (let i = 0; i < rawCandles.length; i++) {
-    const c = rawCandles[i];
+  for (let i = 0; i < validCandles.length; i++) {
+    const c = validCandles[i];
     const mins = parseHhMm(c.timeLabel);
     const relativeDays = dayOffsets[i] - maxDayOffset;
     let ts =
@@ -313,7 +315,7 @@ export function TradingChartView({
   // Sincroniza timeframe inicial quando troca de ativo
   useEffect(() => {
     if (!activeSymbol || symbolRobots.length === 0) return;
-    const upper = symbolRobots[0].timeframe.toUpperCase() as ChartTf;
+    const upper = (symbolRobots[0]?.timeframe || 'M5').toUpperCase() as ChartTf;
     if (TIMEFRAMES.includes(upper)) {
       setSelectedTf(upper);
     } else {
@@ -426,17 +428,19 @@ export function TradingChartView({
         continue;
       }
 
-      if (r.timeframe.toUpperCase() === tfKey && r.candles.length > 0) {
-        if (!bestNative || r.candles.length > bestNative.candles.length) {
-          bestNative = { candles: r.candles, robot: r };
+      const rTf = (r.timeframe || 'M5').toUpperCase();
+      const rCandles = Array.isArray(r.candles) ? r.candles : [];
+      if (rTf === tfKey && rCandles.length > 0) {
+        if (!bestNative || rCandles.length > bestNative.candles.length) {
+          bestNative = { candles: rCandles, robot: r };
         }
         continue;
       }
 
-      const baseMin = TF_MINUTES[r.timeframe.toUpperCase()] ?? 5;
+      const baseMin = TF_MINUTES[rTf] ?? 5;
       const targetMin = TF_MINUTES[tfKey] ?? 5;
-      if (targetMin > baseMin && targetMin % baseMin === 0 && r.candles.length > 0) {
-        const agg = aggregateCandles(r.candles, targetMin / baseMin);
+      if (targetMin > baseMin && targetMin % baseMin === 0 && rCandles.length > 0) {
+        const agg = aggregateCandles(rCandles, targetMin / baseMin);
         if (!bestNative || agg.length > bestNative.candles.length) {
           bestNative = { candles: agg, robot: r };
         }
@@ -444,10 +448,9 @@ export function TradingChartView({
       }
 
       if (
-        r.candles.length > 0 &&
-        (!bestFallback || r.candles.length > bestFallback.candles.length)
+        rCandles.length > 0 && (!bestFallback || rCandles.length > bestFallback.candles.length)
       ) {
-        bestFallback = { candles: r.candles, robot: r };
+        bestFallback = { candles: rCandles, robot: r };
       }
     }
 
@@ -485,7 +488,7 @@ export function TradingChartView({
   const symbolTrades = useMemo<ExecutedTrade[]>(() => {
     const dedup = new Map<string, ExecutedTrade>();
     for (const r of symbolRobots) {
-      for (const tr of r.trades) {
+      for (const tr of (r.trades ?? [])) {
         dedup.set(`${tr.robotId}_${tr.id}`, tr);
       }
     }
@@ -524,11 +527,13 @@ export function TradingChartView({
     const result: UnifiedMarker[] = [];
 
     for (const r of symbolRobots) {
-      if (r.timeframe.toUpperCase() !== tfUpper) continue;
-      for (const m of r.markers) {
+      if ((r.timeframe || 'M5').toUpperCase() !== tfUpper) continue;
+      const rCandles = Array.isArray(r.candles) ? r.candles : [];
+      const rMarkers = Array.isArray(r.markers) ? r.markers : [];
+      for (const m of rMarkers) {
         let mappedIdx = m.candleIndex;
-        if (r.candles.length !== timedCandles.length) {
-          const targetLabel = r.candles[m.candleIndex]?.timeLabel;
+        if (rCandles.length !== timedCandles.length) {
+          const targetLabel = rCandles[m.candleIndex]?.timeLabel;
           let foundIdx = -1;
           if (targetLabel) {
             for (let k = timedCandles.length - 1; k >= 0; k--) {
@@ -541,7 +546,7 @@ export function TradingChartView({
           mappedIdx =
             foundIdx >= 0
               ? foundIdx
-              : m.candleIndex + (timedCandles.length - r.candles.length);
+              : m.candleIndex + (timedCandles.length - rCandles.length);
         }
         if (mappedIdx >= 0 && mappedIdx < timedCandles.length) {
           result.push({
@@ -695,6 +700,7 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
     const candleSeries = candleSeriesRef.current;
     if (!chart || !candleSeries || timedCandles.length === 0) return;
 
+    try {
     candleSeries.setData(
       timedCandles.map((tc) => ({
         time: tc.utcTime,
@@ -1036,6 +1042,9 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
       }
       initialFitDoneRef.current = true;
     }
+    } catch (err) {
+      console.error('[TradingChartView] Erro ao atualizar gráfico:', err);
+    }
   }, [
     timedCandles,
     showMarkers,
@@ -1159,7 +1168,7 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
                   ))}
                 </>
               ) : (
-                <span className="text-gray-500">Carregando cotação...</span>
+                <span className="text-gray-500">{isLoading ? 'Carregando cotação...' : 'Sem cotação'}</span>
               )}
             </div>
 

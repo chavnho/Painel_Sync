@@ -109,6 +109,7 @@ export interface RobotStream {
   realizedPnlBrl: number;
   floatingPnlBrl: number;
   dailyPnlBrl: number;
+  hidden?: boolean;
 }
 
 export interface AccountSnapshot {
@@ -122,6 +123,7 @@ export interface AccountSnapshot {
   margin: number;
   freeMargin: number;
   dailyPnlBrl: number;
+  hidden?: boolean;
 }
 
 export interface PairingAttemptEvent {

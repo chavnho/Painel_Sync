@@ -195,6 +195,35 @@ export default function App() {
     setSelectedRobotId('ALL');
   }, []);
 
+  const handleToggleHideMagic = useCallback(
+    async (magicNumber: number, nextHidden: boolean) => {
+      setTelemetry((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          robots: prev.robots.map((r) =>
+            r.magicNumber === magicNumber ? { ...r, hidden: nextHidden } : r
+          ),
+        };
+      });
+      if (nextHidden && selectedRobotId !== 'ALL') {
+        const target = robots.find((r) => r.robotId === selectedRobotId);
+        if (target && target.magicNumber === magicNumber) setSelectedRobotId('ALL');
+      }
+      try {
+        await fetch(
+          `${API_BASE_URL}/api/mt5-sync/${encodeURIComponent(creds.channelId)}/robots/${encodeURIComponent(String(magicNumber))}`,
+          {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', 'x-sync-token': creds.token },
+            body: JSON.stringify({ hidden: nextHidden }),
+          }
+        );
+      } catch {}
+    },
+    [creds.channelId, creds.token, robots, selectedRobotId]
+  );
+
   const handleClearPairingLog = useCallback(() => {
     setPairingEvents([]);
   }, []);
@@ -216,6 +245,7 @@ export default function App() {
           selectedRobotId={selectedRobotId}
           onSelectRobot={setSelectedRobotId}
           onRenameMagic={handleRenameMagic}
+          onToggleHideMagic={handleToggleHideMagic}
           magicColors={magicColors}
           onCycleMagicColor={handleCycleMagicColor}
           account={telemetry?.account ?? null}

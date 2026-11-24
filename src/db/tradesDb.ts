@@ -66,6 +66,13 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_trades_account_magic
     ON executed_trades (account_login, magic_number, exit_date, exit_time);
+  CREATE TABLE IF NOT EXISTS robot_preferences (
+    account_login TEXT NOT NULL,
+    magic_number INTEGER NOT NULL,
+    is_hidden INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (account_login, magic_number)
+  );
 `);
 
 const upsertStmt = db.prepare(`
@@ -198,4 +205,28 @@ export function createDatabaseBackup(keepLatest = 7): { ok: boolean; backupPath?
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
+}
+
+const upsertHiddenStmt = db.prepare(`
+  INSERT INTO robot_preferences (account_login, magic_number, is_hidden, updated_at)
+  VALUES (?, ?, ?, ?)
+  ON CONFLICT(account_login, magic_number) DO UPDATE SET
+    is_hidden = excluded.is_hidden,
+    updated_at = excluded.updated_at
+`);
+const selectHiddenStmt = db.prepare(`SELECT magic_number AS m FROM robot_preferences WHERE account_login = ? AND is_hidden = 1`);
+
+export function setRobotHiddenPreference(accountLogin: string, magicNumber: number, hidden: boolean): void {
+  if (!accountLogin || !Number.isFinite(magicNumber)) return;
+  upsertHiddenStmt.run(String(accountLogin), Math.trunc(magicNumber), hidden ? 1 : 0, new Date().toISOString());
+}
+
+export function loadHiddenMagicsForAccount(accountLogin: string): Set<number> {
+  const out = new Set<number>();
+  if (!accountLogin) return out;
+  for (const r of selectHiddenStmt.all(String(accountLogin))) {
+    const n = Number(r.m);
+    if (Number.isFinite(n)) out.add(n);
+  }
+  return out;
 }

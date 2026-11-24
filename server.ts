@@ -4,7 +4,7 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import { PendingRequest, PairingAttemptEvent, LiveSyncChannel, NormalizedCandle} from "./types";
-import { persistExecutedTrades, loadPersistedTradesForAccount } from "./src/db/tradesDb";
+import { persistExecutedTrades, loadPersistedTradesForAccount, setRobotHiddenPreference, loadHiddenMagicsForAccount } from "./src/db/tradesDb";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -352,6 +352,7 @@ function mergeChannelSymbols(channel: LiveSyncChannel, incoming: unknown) {
 function buildSnapshotResponse(channelId: string, channel: LiveSyncChannel) {
   const accountKey = channel.account?.login || channelId;
   const persistedAll = loadPersistedTradesForAccount(accountKey);
+  const hiddenMagics = new Set<number>([...loadHiddenMagicsForAccount(accountKey), ...loadHiddenMagicsForAccount(channelId)]);
 
   // Garante que robôs presentes no histórico SQLite (mesmo sem trades hoje) apareçam no painel
   const robotsMap = new Map(channel.robots);
@@ -383,7 +384,8 @@ function buildSnapshotResponse(channelId: string, channel: LiveSyncChannel) {
     const botPersisted = persistedAll.filter(
       (t) => t.magicNumber === bot.magicNumber
     );
-    if (botPersisted.length === 0) return bot;
+    const isHidden = hiddenMagics.has(bot.magicNumber);
+    if (botPersisted.length === 0) return { ...bot, hidden: isHidden };
     const mergedMap = new Map<string, NormalizedTrade>();
     for (const pt of botPersisted) mergedMap.set(pt.id, pt);
     for (const ht of bot.historyTrades ?? []) mergedMap.set(ht.id, ht);
@@ -391,6 +393,7 @@ function buildSnapshotResponse(channelId: string, channel: LiveSyncChannel) {
     return {
       ...bot,
       historyTrades: Array.from(mergedMap.values()),
+      hidden: isHidden,
     };
   });
   const totalDailyPnl = robots.reduce((acc, r) => acc + r.dailyPnlBrl, 0);
@@ -1065,7 +1068,23 @@ async function startServer() {
     for (const client of channel.subscribers) {
       client.write(`event: cleared\ndata: {}\n\n`);
     }
-    res.json({ ok: true });
+        res.json({ ok: true });
+  });
+
+  app.patch("/api/mt5-sync/:channelId/robots/:magicNumber", (req, res) => {
+    const channelId = String(req.params.channelId || "").trim();
+    const magicNumber = Number(req.params.magicNumber);
+    const channel = mt5Channels.get(channelId);
+    const token = String(req.header("x-sync-token") || req.query.token || "").trim();
+    if (!channel || !token || channel.token !== token) { res.status(401).json({ error: "Nao autorizado." }); return; }
+    if (!Number.isFinite(magicNumber)) { res.status(400).json({ error: "MagicNumber invalido." }); return; }
+    const hidden = Boolean(req.body?.hidden);
+    const accountKey = channel.account?.login || channelId;
+    setRobotHiddenPreference(accountKey, magicNumber, hidden); if (accountKey !== channelId) setRobotHiddenPreference(channelId, magicNumber, hidden);
+    const snapshot = buildSnapshotResponse(channelId, channel);
+    const sseData = `event: telemetry\ndata: ${JSON.stringify(snapshot)}\n\n`;
+    for (const client of channel.subscribers) client.write(sseData);
+    res.json({ ok: true, magicNumber, hidden });
   });
 
   // --- Static Files and Vite Middleware (Last) ---

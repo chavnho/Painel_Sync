@@ -1,5 +1,14 @@
 # Changelog — Painel Sync MT5
 
+## - 2026-11-24
+
+### Adicionado
+- **Persistência de Robôs Ocultos no SQLite**: tabela `robot_preferences` em `data/painel_sync.db`, injeção automática do estado `hidden` no snapshot e rota `PATCH /api/mt5-sync/:channelId/robots/:magicNumber` com atualização imediata via SSE.
+- **Controle Compacto na Sidebar**: botão de ocultar/exibir em cada card de robô e filtro em linha única `Robôs (N)` + `Ocultos (N) / Ocultar` na `RobotSidebar`.
+
+### Corrigido
+- **Blindagem de Gráficos em Contratos Vencidos**: tratamento seguro para robôs históricos sem candles ativos ou com séries vazias/vencidas (ex.: `WDOQ26`) no `TradingChartView`, evitando quebra de renderização e exibindo status claro de `Sem cotação`.
+
 ## [v0.5.1] - 2026-11-24
 ### Adicionado
 - **Filtros de Período Unificados (src/components/PeriodFilterBar.tsx)**: Seletores de Ano, Janeiro..Dezembro e calendários De / Até replicados nas abas *Compras & Vendas* e *Relatórios*, alinhados com a aba *Operações*.
