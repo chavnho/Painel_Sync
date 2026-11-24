@@ -1,3 +1,4 @@
+import { getRobotColorTheme } from '../utils/themeTokens';
 import { useMemo, useState } from 'react';
 import { Download, Search, TrendingDown, TrendingUp } from 'lucide-react';
 import type { DashboardView, OpenPosition, RobotStream } from '../types/trading';
@@ -6,12 +7,14 @@ import { exportTradesCsv, formatBrl, formatPrice } from '../utils/tradingMath';
 interface TradesLedgerViewProps {
   robots: RobotStream[];
   selectedRobotId: string | 'ALL';
+  magicColors?: Record<number, number>;
   onNavigate: (view: DashboardView) => void;
 }
 
 export function TradesLedgerView({
   robots,
   selectedRobotId,
+  magicColors = {},
   onNavigate,
 }: TradesLedgerViewProps) {
   const [search, setSearch] = useState('');
@@ -149,7 +152,7 @@ export function TradesLedgerView({
                   {openPositions.map((pos) => (
                     <tr key={pos.id} className="hover:bg-[#171E27]">
                       <td className="px-4 py-3 font-sans">
-                        <div className="font-semibold text-gray-100">{pos.robotName}</div>
+                        <div className="flex items-center gap-1.5 font-semibold text-gray-100"><span className={`w-2 h-2 rounded-full shrink-0 ${getRobotColorTheme(pos.magicNumber, magicColors).dot}`} /><span>{pos.robotName}</span></div>
                         <div className="text-[11px] font-mono text-gray-500">
                           #{pos.magicNumber}
                         </div>
@@ -337,7 +340,7 @@ export function TradesLedgerView({
                   {filteredTrades.map((tr) => (
                     <tr key={tr.id} className="hover:bg-[#171E27]">
                       <td className="px-4 py-2.5 text-gray-500">#{tr.id}</td>
-                      <td className="px-4 py-2.5 font-sans text-gray-200">{tr.robotName}</td>
+                      <td className="px-4 py-2.5 font-sans text-gray-200"><div className="flex items-center gap-1.5"><span className={`w-2 h-2 rounded-full shrink-0 ${getRobotColorTheme(tr.magicNumber, magicColors).dot}`} /><span>{tr.robotName}</span></div></td>
                       <td className="px-4 py-2.5 text-gray-200 font-semibold">{tr.symbol}</td>
                       <td className="px-4 py-2.5">
                         <span

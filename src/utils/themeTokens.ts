@@ -72,12 +72,18 @@ export function saveMagicColorMap(map: Record<number, number>): void {
   }
 }
 
+export function getDefaultMagicColorIndex(magicNumber: number): number {
+  const n = Math.abs(Math.trunc(Number(magicNumber) || 0));
+  return n % ROBOT_COLORS.length;
+}
+
 export function getRobotColorTheme(
   magicNumber: number,
   colorMap: Record<number, number>,
-  fallbackIndex = 0
+  fallbackIndex?: number
 ): RobotColorTheme {
-  const idx = (colorMap[magicNumber] ?? fallbackIndex) % ROBOT_COLORS.length;
+  const baseIdx = fallbackIndex ?? getDefaultMagicColorIndex(magicNumber);
+  const idx = (colorMap[magicNumber] ?? baseIdx) % ROBOT_COLORS.length;
   return ROBOT_COLORS[Math.abs(idx)];
 }
 

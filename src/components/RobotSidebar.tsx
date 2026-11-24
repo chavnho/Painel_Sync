@@ -2,13 +2,15 @@ import { useState } from 'react';
 import { Check, Pencil, Radio, X } from 'lucide-react';
 import type { AccountSnapshot, DashboardView, RobotStream } from '../types/trading';
 import { formatBrl } from '../utils/tradingMath';
-import { ROBOT_COLORS, getPnlTextClass, getRobotColorTheme, loadMagicColorMap, saveMagicColorMap } from '../utils/themeTokens';
+import { ROBOT_COLORS, getPnlTextClass, getRobotColorTheme,  } from '../utils/themeTokens';
 
 interface RobotSidebarProps {
   robots: RobotStream[];
   selectedRobotId: string | 'ALL';
   onSelectRobot: (robotId: string | 'ALL') => void;
   onRenameMagic: (magicNumber: number, nextName: string) => void;
+  magicColors: Record<number, number>;
+  onCycleMagicColor: (magicNumber: number, fallbackIdx: number) => void;
   account: AccountSnapshot | null;
   streamStatus: 'connecting' | 'listening' | 'error';
   lastSyncAt: string | null;
@@ -21,6 +23,8 @@ export function RobotSidebar({
   selectedRobotId,
   onSelectRobot,
   onRenameMagic,
+  magicColors,
+  onCycleMagicColor,
   account,
   streamStatus,
   lastSyncAt,
@@ -29,16 +33,6 @@ export function RobotSidebar({
 }: RobotSidebarProps) {
   const [editingMagic, setEditingMagic] = useState<number | null>(null);
   const [draftName, setDraftName] = useState('');
-  const [magicColors, setMagicColors] = useState<Record<number, number>>(() => {
-    return loadMagicColorMap();
-  });
-  const cycleMagicColor = (magic: number, fallbackIdx: number) => {
-    setMagicColors((prev) => {
-      const next = { ...prev, [magic]: ((prev[magic] ?? fallbackIdx) + 1) % ROBOT_COLORS.length };
-      saveMagicColorMap(next);
-      return next;
-    });
-  };
   const totalDailyPnl = robots.reduce((acc, r) => acc + r.dailyPnlBrl, 0);
   const totalTrades = robots.reduce((acc, r) => acc + r.trades.length, 0);
   const totalOpen = robots.filter((r) => r.position !== null).length;
@@ -154,7 +148,7 @@ export function RobotSidebar({
             </p>
           </div>
         ) : (
-          robots.map((bot, idx) => { const colorTheme = getRobotColorTheme(bot.magicNumber, magicColors, idx);
+          robots.map((bot, idx) => { const colorTheme = getRobotColorTheme(bot.magicNumber, magicColors);
             const selected = selectedRobotId === bot.robotId;
             const wins = bot.trades.filter((t) => t.pnlBrl >= 0).length;
             const winRate =
@@ -226,7 +220,7 @@ export function RobotSidebar({
                       <div className="flex items-center gap-1.5 min-w-0">
                         <button
                           type="button"
-                          onClick={(e) => { e.stopPropagation(); cycleMagicColor(bot.magicNumber, idx); }}
+                          onClick={(e) => { e.stopPropagation(); onCycleMagicColor(bot.magicNumber, idx); }}
                           title="Clique para alterar a cor"
                           className={`w-2.5 h-2.5 rounded-full shrink-0 cursor-pointer ${colorTheme.dot}`}
                         />

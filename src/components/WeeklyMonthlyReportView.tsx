@@ -1,3 +1,4 @@
+import { getRobotColorTheme } from '../utils/themeTokens';
 import { useMemo, useState } from 'react';
 import { CalendarRange, Download } from 'lucide-react';
 import type { DashboardView, RobotStream } from '../types/trading';
@@ -11,6 +12,7 @@ import {
 interface WeeklyMonthlyReportViewProps {
   robots: RobotStream[];
   selectedRobotId: string | 'ALL';
+  magicColors?: Record<number, number>;
   onSelectRobot: (robotId: string | 'ALL') => void;
   onNavigate: (view: DashboardView) => void;
 }
@@ -34,6 +36,7 @@ function profitFactorStatus(pf: number, totalTrades: number): {
 export function WeeklyMonthlyReportView({
   robots,
   selectedRobotId,
+  magicColors = {},
   onSelectRobot,
   onNavigate,
 }: WeeklyMonthlyReportViewProps) {
@@ -386,7 +389,7 @@ export function WeeklyMonthlyReportView({
                       }`}
                     >
                       <td className="px-4 py-3 font-sans">
-                        <div className="font-semibold text-gray-100">{row.robotName}</div>
+                        <div className="flex items-center gap-1.5 font-semibold text-gray-100"><span className={`w-2 h-2 rounded-full shrink-0 ${getRobotColorTheme(row.magicNumber, magicColors).dot}`} /><span>{row.robotName}</span></div>
                         <div className="text-[11px] font-mono text-gray-500">
                           Magic #{row.magicNumber}
                         </div>

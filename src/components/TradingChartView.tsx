@@ -54,6 +54,7 @@ import {
 interface TradingChartViewProps {
   robots: RobotStream[];
   selectedRobotId: string | 'ALL';
+  magicColors?: Record<number, number>;
   onNavigate: (view: DashboardView) => void;
 }
 
@@ -183,6 +184,7 @@ function buildTimedCandles(rawCandles: LiveCandle[], tfMinutes: number): TimedCa
 export function TradingChartView({
   robots,
   selectedRobotId,
+  magicColors = {},
   onNavigate,
 }: TradingChartViewProps) {
   const [selectedSymbol, setSelectedSymbol] = useState<string>('');
@@ -218,7 +220,8 @@ export function TradingChartView({
       setSearchQuery(firstSym);
       previousSymbolRef.current = firstSym;
     }
-  }, [selectedRobotId, robots]);
+  }, [selectedRobotId,
+  magicColors = {}, robots]);
 
     const handleSymbolChange = async (val: string) => {
       const upper = val.toUpperCase();
@@ -305,7 +308,8 @@ export function TradingChartView({
     }
     if (availableSymbols.length > 0) return availableSymbols[0];
     return '';
-  }, [availableSymbols, selectedSymbol, selectedRobotId, robots]);
+  }, [availableSymbols, selectedSymbol, selectedRobotId,
+  magicColors = {}, robots]);
 
   // Se um robô específico estiver selecionado, mostra apenas ele; se for 'ALL', consolida os do ativo
    const symbolRobots = useMemo(() => {

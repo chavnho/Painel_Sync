@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BuySellAnalyticsView } from './components/BuySellAnalyticsView';
 import { DashboardHeader } from './components/DashboardHeader';
+import { ROBOT_COLORS, getDefaultMagicColorIndex, loadMagicColorMap, saveMagicColorMap } from './utils/themeTokens';
 import { Mt5BridgeView } from './components/Mt5BridgeView';
 import { OverviewView } from './components/OverviewView';
 import { RobotSidebar } from './components/RobotSidebar';
@@ -33,6 +34,14 @@ export default function App() {
   const [telemetry, setTelemetry] = useState<DashboardTelemetry | null>(null);
   const [pairingEvents, setPairingEvents] = useState<PairingAttemptEvent[]>([]);
   const [selectedRobotId, setSelectedRobotId] = useState<string | 'ALL'>('ALL');
+  const [magicColors, setMagicColors] = useState<Record<number, number>>(() => loadMagicColorMap());
+  const handleCycleMagicColor = (magic: number, fallbackIdx: number) => {
+    setMagicColors((prev) => {
+      const base = prev[magic] ?? getDefaultMagicColorIndex(magic); const next = { ...prev, [magic]: (base + 1) % ROBOT_COLORS.length };
+      saveMagicColorMap(next);
+      return next;
+    });
+  };
   const [magicAliases, setMagicAliases] = useState<Record<number, string>>(() => {
     try {
       const raw = localStorage.getItem('painel_sync_magic_aliases_v1');
@@ -197,6 +206,8 @@ export default function App() {
           selectedRobotId={selectedRobotId}
           onSelectRobot={setSelectedRobotId}
           onRenameMagic={handleRenameMagic}
+          magicColors={magicColors}
+          onCycleMagicColor={handleCycleMagicColor}
           account={telemetry?.account ?? null}
           streamStatus={streamStatus}
           lastSyncAt={telemetry?.serverReceivedAt ?? null}
@@ -223,6 +234,7 @@ export default function App() {
           {activeView === 'charts' && (
             <TradingChartView
               robots={robots}
+              magicColors={magicColors}
               selectedRobotId={selectedRobotId}
               onNavigate={setActiveView}
             />
@@ -239,6 +251,7 @@ export default function App() {
           {activeView === 'operations' && (
             <TradesLedgerView
               robots={robots}
+              magicColors={magicColors}
               selectedRobotId={selectedRobotId}
               onNavigate={setActiveView}
             />
@@ -247,6 +260,7 @@ export default function App() {
           {activeView === 'reports' && (
             <WeeklyMonthlyReportView
               robots={robots}
+              magicColors={magicColors}
               selectedRobotId={selectedRobotId}
               onSelectRobot={setSelectedRobotId}
               onNavigate={setActiveView}
