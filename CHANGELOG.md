@@ -1,5 +1,20 @@
 # Changelog — Painel Sync MT5
 
+## [v0.5.1] - 2026-11-24
+### Adicionado
+- **Filtros de Período Unificados (src/components/PeriodFilterBar.tsx)**: Seletores de Ano, Janeiro..Dezembro e calendários De / Até replicados nas abas *Compras & Vendas* e *Relatórios*, alinhados com a aba *Operações*.
+- **Alerta Visual de Atraso MT5 (src/components/DashboardHeader.tsx)**: Indicador âmbar automático no cabeçalho quando o servidor passa de 10 segundos sem receber pacote de telemetria do MetaTrader 5.
+- **Backup Seguro do SQLite (src/db/tradesDb.ts + server.ts)**: Rotina automática via VACUUM INTO a cada 6 horas (e endpoint manual POST /api/db/backup) mantendo os 7 snapshots mais recentes em data/backups/.
+
+### Melhorado
+- **Histórico Consolidado e Apelidos (src/App.tsx + src/components/BuySellAnalyticsView.tsx)**: Propagação de nomes personalizados (magicAliases) também nos historyTrades vindos do SQLite e leitura completa do histórico consolidado na análise de Compras & Vendas.
+- **Template do EA Sincronizado (src/utils/mt5Bridge.ts)**: O botão de download na aba *Conectar MT5* passa a gerar o painel_sync.mq5 completo já preenchido com InpEndpointUrl e InpSyncToken da sessão ativa.
+
+## [v0.5.0] - 2026-11-24
+### Adicionado
+- **Importação Histórica Retroativa & Parciais (Painel_Sync.mq5 + server.ts + src/db/tradesDb.ts)**: Backfill automático de 90 dias no OnInit() em lotes de 15 dias, cálculo de preço médio ponderado de entrada por DEAL_POSITION_ID e reconstituição de robôs inativos e contratos vencidos da B3.
+- **Linhas de Trade no Gráfico (src/utils/tradeLinesPrimitive.ts)**: Primitiva ISeriesPrimitive (zOrder: 'top') desenhando entradas e saídas tracejadas com a cor do robô acima dos candles.
+
 ## - 2026-11-24
 ### Adicionado
 - **Persistência Histórica em SQLite (`src/db/tradesDb.ts` + `server.ts`)**: Armazenamento local em `data/painel_sync.db` utilizando `node:sqlite` (`DatabaseSync` em modo WAL), deduplicado por `(account_login, deal_ticket)`, com hidratação automática de `historyTrades` entre reinicializações do servidor.
