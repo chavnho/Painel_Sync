@@ -67,7 +67,9 @@ export const mt5Channels = new Map<string, LiveSyncChannel>();
 
 const requestQueue: PendingRequest[] = [];
 const chartCandlesCache = new Map<string, NormalizedCandle[]>();
+const activeChartFocus = new Map<string, { symbol: string; timeframe: string; expiresAt: number }>();
 const lastChannelSignature = new Map<string, string>();
+
 
 
 function addToQueue(request: PendingRequest) {
@@ -426,7 +428,7 @@ async function startServer() {
   });
 
   app.get("/api/mt5-sync/:channelId/candles", (req, res) => {
-    console.log(`[API Hit] Requesting candles for channel: ${req.params.channelId}`);
+    //console.log(`[API Hit] Requesting candles for channel: ${req.params.channelId}`);
     const channelId = String(req.params.channelId || "").trim();
     const token = extractSyncToken(req);
     const symbol = req.query.symbol ? String(req.query.symbol).trim() : "";
@@ -450,6 +452,15 @@ async function startServer() {
 
     const symKey = symbol.toUpperCase();
     const tfKey = timeframe.toUpperCase();
+
+    if (symKey && tfKey) {
+      activeChartFocus.set(channelId, {
+        symbol: symKey,
+        timeframe: tfKey,
+        expiresAt: Date.now() + 15_000,
+      });
+    }
+
     const cachedChart =
       chartCandlesCache.get(`${channelId}:${symKey}:${tfKey}`) ||
       chartCandlesCache.get(`${channelId}:${symKey}:`);
@@ -548,7 +559,7 @@ async function startServer() {
     }
 
     const body = req.body;
-    console.log("[Debug] Request Body:", JSON.stringify(body));
+    //console.log("[Debug] Request Body:", JSON.stringify(body));
 
     if (!body || typeof body !== "object") {
       pushPairingEvent(channel, {
@@ -626,11 +637,44 @@ async function startServer() {
       const chartSymbol = String(body.symbol || "").trim().toUpperCase();
       const chartTf = String(body.timeframe || "M5").trim().toUpperCase();
 
+      //console.log(`[Gráfico] ${chartSymbol} (${chartTf}) -> ${body.isChartDelta ? "Delta (2 velas)" : `Snapshot (${chartCandles.length} velas)`}`);
+
+      if (chartSymbol && body.isChartDelta === true) {
+        const existing = chartCandlesCache.get(`${channelId}:${chartSymbol}:${chartTf}`) || [];
+        if (existing.length > 0 && chartCandles.length > 0) {
+          const merged = [...existing];
+          for (const incoming of chartCandles) {
+            const idx = merged.findIndex((c) => c.time === incoming.time);
+            if (idx >= 0) {
+              merged[idx] = { ...incoming, index: idx };
+            } else {
+              merged.push({ ...incoming, index: merged.length });
+            }
+          }
+          const trimmed = merged.slice(-240).map((c, i) => ({ ...c, index: i }));
+          chartCandlesCache.set(`${channelId}:${chartSymbol}:${chartTf}`, trimmed);
+          chartCandlesCache.set(`${channelId}:${chartSymbol}:`, trimmed);
+        }
+        channel.updatedAtMs = Date.now();
+        res.json({
+          ok: true,
+          isChartDelta: true,
+          candlesCount: chartCandles.length,
+          serverReceivedAt,
+        });
+        return;
+      }
+
       if (chartSymbol) {
         mergeChannelSymbols(channel, [chartSymbol]);
         if (chartCandles.length > 0) {
           chartCandlesCache.set(`${channelId}:${chartSymbol}:${chartTf}`, chartCandles);
           chartCandlesCache.set(`${channelId}:${chartSymbol}:`, chartCandles);
+          activeChartFocus.set(channelId, {
+            symbol: chartSymbol,
+            timeframe: chartTf,
+            expiresAt: Date.now() + 15_000,
+          });
         }
       }
 
@@ -653,17 +697,9 @@ async function startServer() {
       return;
     }
 
-
     const incomingRobots: Array<Record<string, unknown>> = Array.isArray(body.robots)
       ? body.robots
       : (body.isManualRequest ? [] : [body as Record<string, unknown>]);
-
-
-    if (body.isManualRequest !== undefined) {
-      console.log(`[Debug] isManualRequest is ${body.isManualRequest}`);
-    } else {
-      console.log(`[Debug] isManualRequest is undefined`);
-    }
 
     const normalizedList: NormalizedRobot[] = [];
     for (const rawBot of incomingRobots) {
@@ -818,9 +854,16 @@ async function startServer() {
       });
     }
 
+    const focus = activeChartFocus.get(channelId);
+    const validFocus =
+      focus && focus.expiresAt > Date.now()
+        ? { symbol: focus.symbol, timeframe: focus.timeframe }
+        : null;
+
     res.json({
       ok: true,
-      requests: responseRequests
+      requests: responseRequests,
+      activeChart: validFocus,
     });
   });
 

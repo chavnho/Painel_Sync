@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AreaSeries,
   CandlestickSeries,
@@ -179,9 +179,9 @@ export function IndependentChartView({
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [manualCandles, setManualCandles] = useState<LiveCandle[] | null>(null);
   const [manualError, setManualError] = useState<string | null>(null);
-  const [showEma, setShowEma] = useState(true);
-  const [showVwap, setShowVwap] = useState(true);
-  const [showBollinger, setShowBollinger] = useState(true);
+  const [showEma, setShowEma] = useState(false);
+  const [showVwap, setShowVwap] = useState(false);
+  const [showBollinger, setShowBollinger] = useState(false);
   const [hoveredTime, setHoveredTime] = useState<number | null>(null);
   const [isScrolledAway, setIsScrolledAway] = useState(false);
   const [subPaneMode, setSubPaneMode] = useState<'volume' | 'rsi' | 'pnl'>('volume');
@@ -596,9 +596,9 @@ export function IndependentChartView({
   }, [timedCandles, showEma, showVwap, showBollinger, ema9, ema21, vwap, boll]);
 
   return (
-    <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-      <div className="max-w-7xl mx-auto space-y-4">
-        <div className="flex flex-wrap items-center gap-3">
+    <div className="flex-1 flex flex-col min-h-0 px-6 py-4 gap-3 overflow-hidden">
+      <div className="w-full flex-1 flex flex-col min-h-0 gap-3">
+        <div className="shrink-0 flex flex-wrap items-center gap-3">
           <SymbolAutocomplete
             symbols={symbols}
             selectedSymbol={selectedSymbol}
@@ -646,60 +646,48 @@ export function IndependentChartView({
           </button>
         </div>
 
-        <div className="rounded-xl bg-[#11161D] border border-[#222B38] overflow-hidden">
-          <div className="px-4 py-2.5 border-b border-[#1E2633] flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="flex-1 flex flex-col min-h-0 rounded-xl bg-[#11161D] border border-[#222B38] overflow-hidden">
+          <div className="shrink-0 px-4 py-2.5 border-b border-[#1E2633] flex flex-wrap items-center justify-between gap-3 text-xs min-h-[38px]">
             <div className="flex flex-wrap items-center gap-3 min-w-0">
-              {manualCandles && (
-                <div className="flex flex-wrap items-center gap-3 font-mono tabular-nums text-[11px]">
-                  <span className="font-semibold text-gray-100">
-                    {selectedSymbol} · {selectedTf}
-                  </span>
-                  <span className="text-gray-400">{manualCandles[0]?.timeLabel}</span>
-                  <span className="text-gray-400">
-                    A <strong className="text-gray-200">{formatPrice(manualCandles[0]?.open, selectedSymbol)}</strong>
-                  </span>
-                  <span className="text-gray-400">
-                    Máx <strong className="text-emerald-400">{formatPrice(manualCandles[0]?.high, selectedSymbol)}</strong>
-                  </span>
-                  <span className="text-gray-400">
-                    Mín <strong className="text-red-400">{formatPrice(manualCandles[0]?.low, selectedSymbol)}</strong>
-                  </span>
-                  <span className="text-gray-400">
-                    F <strong className="text-gray-100">{formatPrice(manualCandles[0]?.close, selectedSymbol)}</strong>
-                  </span>
-                  <span className="text-gray-400">
-                    Vol <strong className="text-gray-200">{manualCandles[0]?.volume}</strong>
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center bg-[#0B0E11] border border-[#222B38] rounded-md p-0.5">
-              {(
-                [
-                  { id: 'volume', label: 'Volume' },
-                  { id: 'pnl', label: 'P&L Dia (R$)' },
-                  { id: 'rsi', label: 'IFR (14)' },
-                ] as const
-              ).map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setSubPaneMode(tab.id)}
-                  className={`px-2.5 py-1 text-[11px] font-medium rounded transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                    subPaneMode === tab.id
-                      ? 'bg-[#1F2937] text-gray-100'
-                      : 'text-gray-400 hover:text-gray-200'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
+              {(() => {
+                const c = (hoveredTime !== null ? candleByTimeMap.get(hoveredTime) : null)
+                  ?? manualCandles?.[manualCandles.length - 1];
+                if (!c) {
+                  return (
+                    <span className="font-semibold text-gray-100 font-mono text-[11px]">
+                      {selectedSymbol ? `${selectedSymbol} · ${selectedTf}` : 'Mercado'}
+                    </span>
+                  );
+                }
+                return (
+                  <div className="flex flex-wrap items-center gap-3 font-mono tabular-nums text-[11px]">
+                    <span className="font-semibold text-gray-100">
+                      {selectedSymbol} · {selectedTf}
+                    </span>
+                    <span className="text-gray-400">{c.timeLabel}</span>
+                    <span className="text-gray-400">
+                      A <strong className="text-gray-200">{formatPrice(c.open, selectedSymbol)}</strong>
+                    </span>
+                    <span className="text-gray-400">
+                      Máx <strong className="text-emerald-400">{formatPrice(c.high, selectedSymbol)}</strong>
+                    </span>
+                    <span className="text-gray-400">
+                      Mín <strong className="text-red-400">{formatPrice(c.low, selectedSymbol)}</strong>
+                    </span>
+                    <span className="text-gray-400">
+                      F <strong className="text-gray-100">{formatPrice(c.close, selectedSymbol)}</strong>
+                    </span>
+                    <span className="text-gray-400">
+                      Vol <strong className="text-gray-200">{c.volume}</strong>
+                    </span>
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
-          <div className="bg-[#0B0E11] p-1 relative">
-            <div ref={containerRef} className="w-full h-[650px]" />
+          <div className="flex-1 min-h-[420px] bg-[#0B0E11] p-1 relative">
+            <div ref={containerRef} className="w-full h-full" />
             {(!manualCandles || manualCandles.length === 0) && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-6 pointer-events-none">
                 <CandlestickChart className="w-7 h-7 text-gray-500" />

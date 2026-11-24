@@ -48,7 +48,7 @@ export function regenerateMt5SyncCredentials(): Mt5SyncCredentials {
 
 export async function fetchCandles(channelId: string, token: string, symbol: string, timeframe: string): Promise<LiveCandle[]> {
   const url = `${API_BASE_URL}/api/mt5-sync/${channelId}/candles?symbol=${symbol}&timeframe=${timeframe}`;
-  console.log(`Fetching candles from: ${url}`);
+  //console.log(`Fetching candles from: ${url}`);
 
   const response = await fetch(url, {
     headers: {

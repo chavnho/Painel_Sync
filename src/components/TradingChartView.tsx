@@ -317,7 +317,8 @@ export function TradingChartView({
     initialFitDoneRef.current = false;
   }, [activeSymbol]);
  
-  // Carrega automaticamente (solicitando ao MT5 se necessário) e atualiza em tempo real
+  // 1ª carga: Snapshot (150 velas se ainda não estiver em cache)
+  // Ciclos seguintes (a cada 2s): lê direto da RAM do servidor com focus=1 (sem criar pedidos na fila)
   useEffect(() => {
     if (!activeSymbol) return;
     const controller = new AbortController();
@@ -329,21 +330,42 @@ export function TradingChartView({
       }
       try {
         const { channelId, token } = loadOrCreateMt5SyncCredentials();
-        const result = await syncCandlesWithMt5(
-          channelId,
-          token,
-          activeSymbol,
-          selectedTf,
-          {
-            force: true,
-            timeoutMs: 8000,
-            intervalMs: 800,
-            signal: controller.signal,
-          }
-        );
+        const result = isFirstLoad
+          ? await syncCandlesWithMt5(
+              channelId,
+              token,
+              activeSymbol,
+              selectedTf,
+              {
+                force: false,
+                timeoutMs: 8000,
+                intervalMs: 800,
+                signal: controller.signal,
+              }
+            )
+          : await fetchCandles(
+              channelId,
+              token,
+              activeSymbol,
+              `${selectedTf}`
+            );
+
         if (!controller.signal.aborted) {
           if (result && result.length > 0) {
-            setManualCandles(result);
+            setManualCandles((prev) => {
+              if (
+                prev &&
+                prev.length === result.length &&
+                prev[prev.length - 1]?.time === result[result.length - 1]?.time &&
+                prev[prev.length - 1]?.close === result[result.length - 1]?.close &&
+                prev[prev.length - 1]?.high === result[result.length - 1]?.high &&
+                prev[prev.length - 1]?.low === result[result.length - 1]?.low &&
+                prev[prev.length - 1]?.volume === result[result.length - 1]?.volume
+              ) {
+                return prev;
+              }
+              return result;
+            });
             setManualError(null);
           } else if (isFirstLoad) {
             setManualError('Aguardando resposta do MetaTrader 5...');
@@ -364,14 +386,14 @@ export function TradingChartView({
     loadLiveCandles(true);
     const interval = setInterval(() => {
       loadLiveCandles(false);
-    }, 3000);
+    }, 2000);
 
     return () => {
       controller.abort();
       clearInterval(interval);
     };
   }, [activeSymbol, selectedTf]);
- 
+
 
   // Seleciona a melhor série mestre de candles para o ativo + timeframe escolhido
   const { allCandles, masterRobot, isNativeTf } = useMemo<{

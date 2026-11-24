@@ -36,10 +36,16 @@ datetime g_lastSymbolsReport = 0;
 
 int OnInit()
 {
-   Print("PainelSync v2.0: Iniciando no canal ", InpChannelId);
-   if(!EventSetTimer(MathMax(1, InpSyncIntervalSec)))
-      return(INIT_FAILED);
+   Print("PainelSync v2.0: Iniciando monitoramento da conta no canal ", InpChannelId, "...");
 
+   if(!EventSetTimer(MathMax(1, InpSyncIntervalSec)))
+   {
+      Print("PainelSync: Falha ao configurar o Timer.");
+      return(INIT_FAILED);
+   }
+
+   g_lastSymbolsReport = TimeCurrent();
+   SendSymbolsReport();
    SendAccountAndRobotsTelemetry();
    return(INIT_SUCCEEDED);
 }
@@ -325,53 +331,94 @@ void FetchPendingRequest()
    if(res != 200 || ArraySize(result) <= 0) return;
 
    string response = CharArrayToString(result, 0, WHOLE_ARRAY, CP_UTF8);
+
+   // 1. Processa pedidos explícitos da fila (Snapshot inicial de 1000 candles)
    int pos = StringFind(response, "\"requests\":[");
-   if(pos < 0) return;
-
-   pos += StringLen("\"requests\":[");
-   int len = StringLen(response);
-
-   while(pos < len)
+   if(pos >= 0)
    {
-      int objStart = StringFind(response, "{", pos);
-      if(objStart < 0) break;
-      int objEnd = StringFind(response, "}", objStart);
-      if(objEnd < 0) break;
+      pos += StringLen("\"requests\":[");
+      int len = StringLen(response);
 
-      string obj = StringSubstr(response, objStart, objEnd - objStart + 1);
-      string reqSymbol    = ExtractJsonString(obj, "symbol");
-      string reqTimeframe = ExtractJsonString(obj, "timeframe");
-      string requestId    = ExtractJsonString(obj, "requestId");
-      if(requestId == "") requestId = ExtractJsonString(obj, "id");
-
-      if(reqSymbol != "")
+      while(pos < len)
       {
-         ENUM_TIMEFRAMES tf = StringToTimeframe(reqTimeframe);
-         SendCandlesData(reqSymbol, tf, requestId);
+         int objStart = StringFind(response, "{", pos);
+         int arrEnd   = StringFind(response, "]", pos);
+         if(objStart < 0 || (arrEnd >= 0 && objStart > arrEnd)) break;
+
+         int objEnd = StringFind(response, "}", objStart);
+         if(objEnd < 0) break;
+
+         string obj = StringSubstr(response, objStart, objEnd - objStart + 1);
+         string reqSymbol    = ExtractJsonString(obj, "symbol");
+         string reqTimeframe = ExtractJsonString(obj, "timeframe");
+         string requestId    = ExtractJsonString(obj, "requestId");
+         if(requestId == "") requestId = ExtractJsonString(obj, "id");
+
+         if(reqSymbol != "")
+         {
+            ENUM_TIMEFRAMES tf = StringToTimeframe(reqTimeframe);
+            SendCandlesData(reqSymbol, tf, requestId, 1000, false);
+         }
+         pos = objEnd + 1;
       }
-      pos = objEnd + 1;
+   }
+
+   // 2. Se houver um gráfico ativo em foco no painel, envia Delta incremental (apenas 2 velas)
+   int focusPos = StringFind(response, "\"activeChart\":{");
+   if(focusPos >= 0)
+   {
+      int focusEnd = StringFind(response, "}", focusPos);
+      if(focusEnd > focusPos)
+      {
+         string focusObj = StringSubstr(response, focusPos, focusEnd - focusPos + 1);
+         string focusSym = ExtractJsonString(focusObj, "symbol");
+         string focusTf  = ExtractJsonString(focusObj, "timeframe");
+         if(focusSym != "" && focusTf != "")
+         {
+            SendCandlesData(focusSym, StringToTimeframe(focusTf), "", 2, true);
+         }
+      }
    }
 }
 
-void SendCandlesData(const string symbol, const ENUM_TIMEFRAMES period, const string requestId)
+void SendCandlesData(const string symbol, const ENUM_TIMEFRAMES period, const string requestId, const int barsCount = 1000, const bool isDelta = false)
 {
-   if(!SymbolSelect(symbol, true)) return;
+   // Verifica se o ativo já estava visível na Observação do Mercado antes
+   bool wasSelected = (bool)SymbolInfoInteger(symbol, SYMBOL_SELECT);
+
+   if(!wasSelected)
+   {
+      if(!SymbolSelect(symbol, true)) return;
+   }
 
    MqlRates rates[];
    ArraySetAsSeries(rates, false);
-   int total = CopyRates(symbol, period, 0, 120, rates);
+   int total = CopyRates(symbol, period, 0, MathMax(2, barsCount), rates);
+
+   // Se acabou de ser adicionado agora, dá 250ms para a corretora entregar o histórico
+   if(total <= 0 && !wasSelected)
+   {
+      Sleep(250);
+      total = CopyRates(symbol, period, 0, MathMax(2, barsCount), rates);
+   }
+
+   // Se não estava na Observação do Mercado antes, remove para não poluir sua lista
+   if(!wasSelected)
+   {
+      SymbolSelect(symbol, false);
+   }
+
    if(total <= 0) return;
 
    int digits = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
    string json = "{";
-   json += "\"symbol\":\"" + symbol + "\"";
-   if(requestId != "") json += ",\"requestId\":\"" + requestId + "\"";
-   json += ",\"robotId\":\"chart_" + symbol + "_" + TimeframeToShortString(period) + "\"";
-   json += ",\"robotName\":\"Grafico " + symbol + "\"";
-   json += ",\"magicNumber\":0";
+   json += "\"isChartRequest\":true";
+   if(isDelta)
+      json += ",\"isChartDelta\":true";
+   json += ",\"symbol\":\"" + symbol + "\"";
+   if(requestId != "")
+      json += ",\"requestId\":\"" + requestId + "\"";
    json += ",\"timeframe\":\"" + TimeframeToShortString(period) + "\"";
-   json += ",\"status\":\"Grafico\"";
-   json += ",\"lastUpdate\":\"" + TimeToString(TimeCurrent(), TIME_DATE|TIME_MINUTES) + "\"";
    json += ",\"candles\":[";
 
    for(int i = 0; i < total; i++)
@@ -390,27 +437,91 @@ void SendCandlesData(const string symbol, const ENUM_TIMEFRAMES period, const st
    SendToServer(json);
 }
 
+//+------------------------------------------------------------------+
+//| Verifica se o ativo deve entrar no catálogo do painel            |
+//+------------------------------------------------------------------+
+bool IsRelevantSymbol(const string name)
+{
+   int len = StringLen(name);
+   if(len < 4 || len > 10) return false;
+
+   // Ignora contratos expirados ou séries de opções muito longas
+   long tradeMode = SymbolInfoInteger(name, SYMBOL_TRADE_MODE);
+   if(tradeMode == SYMBOL_TRADE_MODE_DISABLED) return false;
+
+   // Garante todos os futuros B3 (WDO, WIN, DOL, IND, BIT, WSP, CCM, BGI, ICF, DI1) e séries contínuas ($/@)
+   if(StringFind(name, "WDO") == 0 || StringFind(name, "WIN") == 0 ||
+      StringFind(name, "DOL") == 0 || StringFind(name, "IND") == 0 ||
+      StringFind(name, "BIT") == 0 || StringFind(name, "WSP") == 0 ||
+      StringFind(name, "CCM") == 0 || StringFind(name, "BGI") == 0 ||
+      StringFind(name, "ICF") == 0 || StringFind(name, "DI1") == 0)
+      return true;
+
+   // Ações à vista, FIIs, ETFs e BDRs padrão B3 (ex: PETR4, VALE3, BOVA11, MXRF11, AAPL34)
+   if(len == 5 || len == 6)
+   {
+      string suffix = StringSubstr(name, 4);
+      if(suffix == "3" || suffix == "4" || suffix == "5" || suffix == "6" ||
+         suffix == "11" || suffix == "34" || suffix == "35" || suffix == "39")
+         return true;
+   }
+
+   return false;
+}
+
+//+------------------------------------------------------------------+
+//| Envia lista completa de ativos relevantes + Market Watch         |
+//+------------------------------------------------------------------+
 void SendSymbolsReport()
 {
-   int total = SymbolsTotal(false);
-   bool useMarketWatch = false;
-   if(total <= 0) { useMarketWatch = true; total = SymbolsTotal(true); }
-   if(total <= 0) return;
-   if(total > 5000) total = 5000;
-
-   string json = "{\"symbols\":[";
+   string added[];
    int count = 0;
-   for(int i = 0; i < total; i++)
+   string json = "{\"symbols\":[";
+
+   // 1. Primeiro inclui 100% dos ativos que estão no seu Market Watch
+   int mwTotal = SymbolsTotal(true);
+   for(int i = 0; i < mwTotal; i++)
    {
-      string name = SymbolName(i, useMarketWatch);
+      string name = SymbolName(i, true);
       if(name == "") continue;
+
       if(count > 0) json += ",";
       json += "\"" + EscapeJson(name) + "\"";
+      ArrayResize(added, count + 1);
+      added[count] = name;
       count++;
    }
+
+   // 2. Depois varre TODOS os ativos da corretora (sem corte em 5000) filtrando os negociáveis
+   int allTotal = SymbolsTotal(false);
+   for(int i = 0; i < allTotal; i++)
+   {
+      string name = SymbolName(i, false);
+      if(name == "" || !IsRelevantSymbol(name)) continue;
+
+      // Evita duplicar o que já veio do Market Watch
+      bool exists = false;
+      for(int j = 0; j < count; j++)
+      {
+         if(added[j] == name) { exists = true; break; }
+      }
+      if(exists) continue;
+
+      if(count > 0) json += ",";
+      json += "\"" + EscapeJson(name) + "\"";
+      ArrayResize(added, count + 1);
+      added[count] = name;
+      count++;
+   }
+
    json += "]}";
+
+   if(InpDebug)
+      Print("PainelSync [DEBUG] Catálogo enviado: ", count, " ativos relevantes.");
+
    SendToServer(json);
 }
+
 
 void SendToServer(const string jsonPayload)
 {

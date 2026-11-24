@@ -38,12 +38,12 @@ export default function App() {
   useEffect(() => {
     setStreamStatus('connecting');
     const url = `${API_BASE_URL}/api/mt5-sync/${encodeURIComponent(creds.channelId)}/stream?token=${encodeURIComponent(creds.token)}`;
-    console.log('Attempting SSE connection to:', url);
+    //console.log('Attempting SSE connection to:', url);
     const es = new EventSource(url);
-    console.log('EventSource instance created');
+    //console.log('EventSource instance created');
 
     es.addEventListener('ready', (evt) => {
-      console.log('SSE "ready" event received');
+      //console.log('SSE "ready" event received');
       setStreamStatus('listening');
       try {
         const data = JSON.parse((evt as MessageEvent).data) as {
@@ -52,7 +52,7 @@ export default function App() {
           account?: any;
           serverReceivedAt?: string;
         };
-        console.log('Ready data:', data);
+        //console.log('Ready data:', data);
         if (Array.isArray(data.pairingEvents)) {
           setPairingEvents(data.pairingEvents);
         }
@@ -70,10 +70,10 @@ export default function App() {
     });
 
     es.addEventListener('telemetry', (evt) => {
-      console.log('SSE "telemetry" event received');
+      //console.log('SSE "telemetry" event received');
       try {
         const data = JSON.parse((evt as MessageEvent).data) as DashboardTelemetry;
-        console.log('Telemetry data:', data);
+        //console.log('Telemetry data:', data);
         setTelemetry(data);
         if (Array.isArray(data.pairingEvents)) {
           setPairingEvents(data.pairingEvents);
