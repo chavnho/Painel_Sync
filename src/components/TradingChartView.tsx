@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AreaSeries,
   CandlestickSeries,
@@ -33,6 +33,7 @@ import type {
   LiveCandle,
   LiveMarker,
   OpenPosition,
+  PendingOrder,
   RobotStream,
 } from '../types/trading';
 import {
@@ -518,6 +519,14 @@ export function TradingChartView({
     [symbolRobots]
   );
 
+  const pendingOrders = useMemo<PendingOrder[]>(
+    () =>
+      symbolRobots.flatMap((r) =>
+        (r.pendingOrders ?? []).map((o) => ({ ...o, robotName: o.robotName || r.name }))
+      ),
+    [symbolRobots]
+  );
+
   const totalSymbolDailyPnl = useMemo(
     () => Number(symbolRobots.reduce((acc, r) => acc + r.dailyPnlBrl, 0).toFixed(2)),
     [symbolRobots]
@@ -927,41 +936,132 @@ export function TradingChartView({
       candleSeries.removePriceLine(pl);
     }
     const nextPriceLines: IPriceLine[] = [];
+    const getPointValueBrl = (sym: string) => {
+      const u = sym.toUpperCase();
+      if (u.startsWith('WIN') || u.startsWith('IND')) return 0.2;
+      if (u.startsWith('WDO') || u.startsWith('DOL')) return 10.0;
+      if (u.startsWith('BIT')) return 0.01;
+      return 1.0;
+    };
+
+    const BUY_LINE  = '#B45309';
+    const BUY_TEXT  = '#FBBF24';
+    const SELL_LINE = '#047857';
+    const SELL_TEXT = '#34D399';
+    const LABEL_BG  = '#18181B';
+
     for (const pos of openPositions) {
       const prefix = openPositions.length > 1 ? `${pos.robotName} ` : '';
+      const ptVal = getPointValueBrl(pos.symbol);
+      const isBuy = pos.side === 'COMPRA';
+
+      const posLine  = isBuy ? BUY_LINE : SELL_LINE;
+      const posText  = isBuy ? BUY_TEXT : SELL_TEXT;
+      const exitLine = isBuy ? SELL_LINE : BUY_LINE;
+      const exitText = isBuy ? SELL_TEXT : BUY_TEXT;
+
       if (pos.entryPrice > 0) {
+        const ptsSign = pos.pointsOpen >= 0 ? '+' : '';
+        const brlSign = pos.floatingPnlBrl >= 0 ? '+' : '-';
+        const brlAbs = Math.abs(pos.floatingPnlBrl).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         nextPriceLines.push(
           candleSeries.createPriceLine({
             price: pos.entryPrice,
-            color: '#38BDF8',
+            color: posLine,
             lineWidth: 2,
             lineStyle: LineStyle.Dashed,
             axisLabelVisible: true,
-            title: `${prefix}${pos.side} ${pos.volume}x`,
+            axisLabelColor: LABEL_BG,
+            axisLabelTextColor: posText,
+            title: `${prefix}${isBuy ? 'Comprado' : 'Vendido'} ${pos.volume} · ${ptsSign}${pos.pointsOpen.toFixed(1)} pts (${brlSign}R$ ${brlAbs})`,
           })
         );
       }
       if (pos.sl > 0) {
+        const slPts = isBuy ? (pos.sl - pos.entryPrice) : (pos.entryPrice - pos.sl);
+        const slBrl = slPts * ptVal * pos.volume;
+        const slSign = slBrl >= 0 ? '+' : '-';
+        const slAbs = Math.abs(slBrl).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         nextPriceLines.push(
           candleSeries.createPriceLine({
             price: pos.sl,
-            color: '#EF4444',
-            lineWidth: 1,
+            color: exitLine,
+            lineWidth: 2,
             lineStyle: LineStyle.Dotted,
             axisLabelVisible: true,
-            title: `${prefix}SL`,
+            axisLabelColor: LABEL_BG,
+            axisLabelTextColor: exitText,
+            title: `${prefix}SL · ${slPts >= 0 ? '+' : ''}${slPts.toFixed(1)} pts (${slSign}R$ ${slAbs})`,
           })
         );
       }
       if (pos.tp > 0) {
+        const tpPts = isBuy ? (pos.tp - pos.entryPrice) : (pos.entryPrice - pos.tp);
+        const tpBrl = tpPts * ptVal * pos.volume;
+        const tpSign = tpBrl >= 0 ? '+' : '-';
+        const tpAbs = Math.abs(tpBrl).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         nextPriceLines.push(
           candleSeries.createPriceLine({
             price: pos.tp,
-            color: '#10B981',
-            lineWidth: 1,
+            color: exitLine,
+            lineWidth: 2,
             lineStyle: LineStyle.Dotted,
             axisLabelVisible: true,
-            title: `${prefix}TP`,
+            axisLabelColor: LABEL_BG,
+            axisLabelTextColor: exitText,
+            title: `${prefix}TP · ${tpPts >= 0 ? '+' : ''}${tpPts.toFixed(1)} pts (${tpSign}R$ ${tpAbs})`,
+          })
+        );
+      }
+    }
+
+    for (const ord of pendingOrders) {
+      const prefix = symbolRobots.length > 1 ? `${ord.robotName || `Robô #${ord.magicNumber}`} ` : '';
+      const isBuyOrd = ord.side === 'COMPRA';
+      const ordLine  = isBuyOrd ? BUY_LINE : SELL_LINE;
+      const ordText  = isBuyOrd ? BUY_TEXT : SELL_TEXT;
+      const exitLine = isBuyOrd ? SELL_LINE : BUY_LINE;
+      const exitText = isBuyOrd ? SELL_TEXT : BUY_TEXT;
+
+      if (ord.price > 0) {
+        nextPriceLines.push(
+          candleSeries.createPriceLine({
+            price: ord.price,
+            color: ordLine,
+            lineWidth: 2,
+            lineStyle: LineStyle.Dotted,
+            axisLabelVisible: true,
+            axisLabelColor: LABEL_BG,
+            axisLabelTextColor: ordText,
+            title: `${prefix}${ord.orderType} ${ord.volume}x`,
+          })
+        );
+      }
+      if (ord.sl > 0) {
+        nextPriceLines.push(
+          candleSeries.createPriceLine({
+            price: ord.sl,
+            color: exitLine,
+            lineWidth: 2,
+            lineStyle: LineStyle.Dotted,
+            axisLabelVisible: true,
+            axisLabelColor: LABEL_BG,
+            axisLabelTextColor: exitText,
+            title: `${prefix}SL Ordem`,
+          })
+        );
+      }
+      if (ord.tp > 0) {
+        nextPriceLines.push(
+          candleSeries.createPriceLine({
+            price: ord.tp,
+            color: exitLine,
+            lineWidth: 2,
+            lineStyle: LineStyle.Dotted,
+            axisLabelVisible: true,
+            axisLabelColor: LABEL_BG,
+            axisLabelTextColor: exitText,
+            title: `${prefix}TP Ordem`,
           })
         );
       }
@@ -993,6 +1093,7 @@ export function TradingChartView({
     boll,
     unifiedMarkers,
     openPositions,
+    pendingOrders,
     subPaneMode,
     rsi14,
     pnlCurve,
@@ -1245,3 +1346,4 @@ export function TradingChartView({
       </div>
   );
 }
+

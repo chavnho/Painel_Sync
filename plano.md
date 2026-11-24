@@ -25,16 +25,21 @@
    - Padronização visual da aba **Mercado** (`IndependentChartView.tsx`) em tela cheia (100% largura e altura), sem sub-painel inferior, indicadores desligados por padrão e barra OHLC dinâmica no hover.
    - Navegação por teclado (`↑` / `↓` + `Enter`) com destaque visual e scroll automático no seletor de ativos (`SymbolAutocomplete.tsx`).
 
+2. **Ordens Pendentes e Rótulos Financeiros no Gráfico (`Painel_Sync.mq5` + `TradingChartView.tsx`)**:
+   - Varredura de ordens apregoadas no book (`OrdersTotal()`) agrupadas por `ORDER_MAGIC` (`BUY LIMIT`, `SELL LIMIT`, `BUY STOP`, `SELL STOP`).
+   - Renderização de linhas horizontais pontilhadas de espessura 2 com rótulos escuros de alto contraste para Ordem, `SL Ordem` e `TP Ordem`.
+   - Labels da **Posição Aberta** enriquecidos com cálculo automático de pontos e resultado financeiro (`R$`) ao vivo na Entrada, `SL` e `TP` (com cor dinâmica verde/vermelha na Entrada conforme o PnL flutuante).
+
 ---
 
 ## 🚀 Próximas Etapas (v0.4.0)
 
-### 1. Persistência Histórica em Banco de Dados (SQLite)
+### 1. Nomes Amigáveis por Magic Number
+- Permitir mapear e editar nomes personalizados diretamente no painel (salvos inicialmente no `localStorage` e depois no banco) ou via input `InpMagicNamesMap` no EA (ex: `261001=EaZonas;261002=RoboScalper`), refletindo nos gráficos, relatórios e logs.
+
+### 2. Persistência Histórica em Banco de Dados (SQLite)
 - **Objetivo**: Armazenar histórico completo de trades e métricas semanais/mensais independentemente do histórico carregado no terminal MT5.
 - **Implementação**:
   - Adicionar camada de banco local (SQLite via `better-sqlite3` ou Prisma) no `server.ts`.
   - Persistir cada `ExecutedTrade` deduplicado por `(accountLogin, dealTicket)`.
   - Alimentar as abas **Relatórios** e **Operações** diretamente do banco com filtros por data, robô e ativo.
-
-### 2. Nomes Amigáveis por Magic Number
-- Permitir mapear e editar nomes personalizados diretamente no painel (salvos no banco) ou via input `InpMagicNamesMap` no EA (ex: `261001=EaZonas;261002=RoboScalper`), refletindo nos gráficos, relatórios e logs.

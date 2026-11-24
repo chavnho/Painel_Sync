@@ -1,4 +1,4 @@
-////////////////////////////////////////////////////////////////////////////////////////////////////////////
+﻿////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ------------------------------------------- Parte 1 ---------------------------------------------------//
 // ------------------------------------------- $parte1 = @' ----------------------------------------------//
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -26,6 +26,8 @@ struct RobotSummary
    string   symbol;
    bool     hasPosition;
    string   posJson;
+   string   ordersJson;
+   int      ordersCount;
    string   tradesJson;
    int      tradesCount;
    double   realizedPnl;
@@ -122,6 +124,53 @@ void SendAccountAndRobotsTelemetry()
             + ",\"pointsOpen\":" + DoubleToString(ptsOpen, 1)
             + "}";
       }
+   }
+
+   int ordTotal = OrdersTotal();
+   for(int i = 0; i < ordTotal; i++)
+   {
+      ulong orderTicket = OrderGetTicket(i);
+      if(orderTicket == 0) continue;
+
+      long magic = OrderGetInteger(ORDER_MAGIC);
+      if(magic == 0 && !InpIncludeManual) continue;
+
+      string symbol  = OrderGetString(ORDER_SYMBOL);
+      string comment = OrderGetString(ORDER_COMMENT);
+      int idx = EnsureRobotEntry(robots, robotCount, magic, symbol, comment);
+
+      long ordType     = OrderGetInteger(ORDER_TYPE);
+      string side      = (ordType == ORDER_TYPE_BUY_LIMIT || ordType == ORDER_TYPE_BUY_STOP || ordType == ORDER_TYPE_BUY_STOP_LIMIT) ? "COMPRA" : "VENDA";
+      string typeLabel = "ORDEM";
+      if(ordType == ORDER_TYPE_BUY_LIMIT)       typeLabel = "BUY LIMIT";
+      else if(ordType == ORDER_TYPE_SELL_LIMIT) typeLabel = "SELL LIMIT";
+      else if(ordType == ORDER_TYPE_BUY_STOP)   typeLabel = "BUY STOP";
+      else if(ordType == ORDER_TYPE_SELL_STOP)  typeLabel = "SELL STOP";
+
+      double volume    = OrderGetDouble(ORDER_VOLUME_CURRENT);
+      double ordPrice  = OrderGetDouble(ORDER_PRICE_OPEN);
+      double sl        = OrderGetDouble(ORDER_SL);
+      double tp        = OrderGetDouble(ORDER_TP);
+      int digits       = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
+
+      string ordObj = "{"
+         + "\"id\":\"" + IntegerToString((long)orderTicket) + "\""
+         + ",\"robotId\":\"" + robots[idx].robotId + "\""
+         + ",\"robotName\":\"" + EscapeJson(robots[idx].name) + "\""
+         + ",\"magicNumber\":" + IntegerToString(magic)
+         + ",\"symbol\":\"" + symbol + "\""
+         + ",\"side\":\"" + side + "\""
+         + ",\"orderType\":\"" + typeLabel + "\""
+         + ",\"volume\":" + DoubleToString(volume, 2)
+         + ",\"price\":" + DoubleToString(ordPrice, digits)
+         + ",\"sl\":" + DoubleToString(sl, digits)
+         + ",\"tp\":" + DoubleToString(tp, digits)
+         + "}";
+
+      if(robots[idx].ordersCount > 0)
+         robots[idx].ordersJson += ",";
+      robots[idx].ordersJson += ordObj;
+      robots[idx].ordersCount++;
    }
 
    MqlDateTime dtNow;
@@ -250,6 +299,7 @@ void SendAccountAndRobotsTelemetry()
       json += ",\"status\":\"" + statusStr + "\"";
       json += ",\"lastUpdate\":\"" + nowStr + "\"";
       json += ",\"position\":" + (robots[i].hasPosition ? robots[i].posJson : "null");
+      json += ",\"pendingOrders\":[" + robots[i].ordersJson + "]";
       json += ",\"candles\":[]";
       json += ",\"trades\":[" + robots[i].tradesJson + "]";
       json += ",\"realizedPnlBrl\":" + DoubleToString(robots[i].realizedPnl, 2);
@@ -284,6 +334,8 @@ int EnsureRobotEntry(RobotSummary &robots[], int &count, const long magic, const
    robots[count].symbol      = symbol;
    robots[count].hasPosition = false;
    robots[count].posJson     = "null";
+   robots[count].ordersJson  = "";
+   robots[count].ordersCount = 0;
    robots[count].tradesJson  = "";
    robots[count].tradesCount = 0;
    robots[count].realizedPnl = 0.0;
@@ -332,7 +384,7 @@ void FetchPendingRequest()
 
    string response = CharArrayToString(result, 0, WHOLE_ARRAY, CP_UTF8);
 
-   // 1. Processa pedidos explícitos da fila (Snapshot inicial de 1000 candles)
+   // 1. Processa pedidos explÃ­citos da fila (Snapshot inicial de 1000 candles)
    int pos = StringFind(response, "\"requests\":[");
    if(pos >= 0)
    {
@@ -363,7 +415,7 @@ void FetchPendingRequest()
       }
    }
 
-   // 2. Se houver um gráfico ativo em foco no painel, envia Delta incremental (apenas 2 velas)
+   // 2. Se houver um grÃ¡fico ativo em foco no painel, envia Delta incremental (apenas 2 velas)
    int focusPos = StringFind(response, "\"activeChart\":{");
    if(focusPos >= 0)
    {
@@ -383,7 +435,7 @@ void FetchPendingRequest()
 
 void SendCandlesData(const string symbol, const ENUM_TIMEFRAMES period, const string requestId, const int barsCount = 1000, const bool isDelta = false)
 {
-   // Verifica se o ativo já estava visível na Observação do Mercado antes
+   // Verifica se o ativo jÃ¡ estava visÃ­vel na ObservaÃ§Ã£o do Mercado antes
    bool wasSelected = (bool)SymbolInfoInteger(symbol, SYMBOL_SELECT);
 
    if(!wasSelected)
@@ -395,14 +447,14 @@ void SendCandlesData(const string symbol, const ENUM_TIMEFRAMES period, const st
    ArraySetAsSeries(rates, false);
    int total = CopyRates(symbol, period, 0, MathMax(2, barsCount), rates);
 
-   // Se acabou de ser adicionado agora, dá 250ms para a corretora entregar o histórico
+   // Se acabou de ser adicionado agora, dÃ¡ 250ms para a corretora entregar o histÃ³rico
    if(total <= 0 && !wasSelected)
    {
       Sleep(250);
       total = CopyRates(symbol, period, 0, MathMax(2, barsCount), rates);
    }
 
-   // Se não estava na Observação do Mercado antes, remove para não poluir sua lista
+   // Se nÃ£o estava na ObservaÃ§Ã£o do Mercado antes, remove para nÃ£o poluir sua lista
    if(!wasSelected)
    {
       SymbolSelect(symbol, false);
@@ -438,18 +490,18 @@ void SendCandlesData(const string symbol, const ENUM_TIMEFRAMES period, const st
 }
 
 //+------------------------------------------------------------------+
-//| Verifica se o ativo deve entrar no catálogo do painel            |
+//| Verifica se o ativo deve entrar no catÃ¡logo do painel            |
 //+------------------------------------------------------------------+
 bool IsRelevantSymbol(const string name)
 {
    int len = StringLen(name);
    if(len < 4 || len > 10) return false;
 
-   // Ignora contratos expirados ou séries de opções muito longas
+   // Ignora contratos expirados ou sÃ©ries de opÃ§Ãµes muito longas
    long tradeMode = SymbolInfoInteger(name, SYMBOL_TRADE_MODE);
    if(tradeMode == SYMBOL_TRADE_MODE_DISABLED) return false;
 
-   // Garante todos os futuros B3 (WDO, WIN, DOL, IND, BIT, WSP, CCM, BGI, ICF, DI1) e séries contínuas ($/@)
+   // Garante todos os futuros B3 (WDO, WIN, DOL, IND, BIT, WSP, CCM, BGI, ICF, DI1) e sÃ©ries contÃ­nuas ($/@)
    if(StringFind(name, "WDO") == 0 || StringFind(name, "WIN") == 0 ||
       StringFind(name, "DOL") == 0 || StringFind(name, "IND") == 0 ||
       StringFind(name, "BIT") == 0 || StringFind(name, "WSP") == 0 ||
@@ -457,7 +509,7 @@ bool IsRelevantSymbol(const string name)
       StringFind(name, "ICF") == 0 || StringFind(name, "DI1") == 0)
       return true;
 
-   // Ações à vista, FIIs, ETFs e BDRs padrão B3 (ex: PETR4, VALE3, BOVA11, MXRF11, AAPL34)
+   // AÃ§Ãµes Ã  vista, FIIs, ETFs e BDRs padrÃ£o B3 (ex: PETR4, VALE3, BOVA11, MXRF11, AAPL34)
    if(len == 5 || len == 6)
    {
       string suffix = StringSubstr(name, 4);
@@ -478,7 +530,7 @@ void SendSymbolsReport()
    int count = 0;
    string json = "{\"symbols\":[";
 
-   // 1. Primeiro inclui 100% dos ativos que estão no seu Market Watch
+   // 1. Primeiro inclui 100% dos ativos que estÃ£o no seu Market Watch
    int mwTotal = SymbolsTotal(true);
    for(int i = 0; i < mwTotal; i++)
    {
@@ -492,14 +544,14 @@ void SendSymbolsReport()
       count++;
    }
 
-   // 2. Depois varre TODOS os ativos da corretora (sem corte em 5000) filtrando os negociáveis
+   // 2. Depois varre TODOS os ativos da corretora (sem corte em 5000) filtrando os negociÃ¡veis
    int allTotal = SymbolsTotal(false);
    for(int i = 0; i < allTotal; i++)
    {
       string name = SymbolName(i, false);
       if(name == "" || !IsRelevantSymbol(name)) continue;
 
-      // Evita duplicar o que já veio do Market Watch
+      // Evita duplicar o que jÃ¡ veio do Market Watch
       bool exists = false;
       for(int j = 0; j < count; j++)
       {
@@ -517,7 +569,7 @@ void SendSymbolsReport()
    json += "]}";
 
    if(InpDebug)
-      Print("PainelSync [DEBUG] Catálogo enviado: ", count, " ativos relevantes.");
+      Print("PainelSync [DEBUG] CatÃ¡logo enviado: ", count, " ativos relevantes.");
 
    SendToServer(json);
 }
@@ -611,3 +663,4 @@ string TimeframeToShortString(ENUM_TIMEFRAMES period)
 //'@
 //Add-Content -Path "Painel_Sync.mq5" -Value $parte2 -Encoding UTF8
 //Write-Host "Painel_Sync.mq5 finalizado com sucesso!" -ForegroundColor Green
+

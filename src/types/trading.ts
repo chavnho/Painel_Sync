@@ -1,4 +1,4 @@
-export type DashboardView =
+﻿export type DashboardView =
   | 'overview'
   | 'charts'
   | 'buy-sell'
@@ -57,6 +57,20 @@ export interface OpenPosition {
   pointsOpen: number;
 }
 
+export interface PendingOrder {
+  id: string;
+  robotId: string;
+  robotName?: string;
+  magicNumber: number;
+  symbol: string;
+  side: TradeSide;
+  orderType: string;
+  volume: number;
+  price: number;
+  sl: number;
+  tp: number;
+}
+
 export interface ExecutedTrade {
   id: string;
   robotId: string;
@@ -85,6 +99,7 @@ export interface RobotStream {
   status: string;
   lastUpdate: string;
   position: OpenPosition | null;
+  pendingOrders?: PendingOrder[];
   candles: LiveCandle[];
   candlesByTimeframe?: Record<string, LiveCandle[]>;
   overlays: LiveOverlay[];
@@ -168,3 +183,5 @@ export interface PortfolioMetrics {
   buys: SideStats;
   sells: SideStats;
 }
+
+

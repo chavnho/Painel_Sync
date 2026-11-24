@@ -1,4 +1,4 @@
-import "dotenv/config";
+﻿import "dotenv/config";
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -22,6 +22,20 @@ interface NormalizedPosition {
   floatingPnlBrl: number;
   openTime: string;
   pointsOpen: number;
+}
+
+interface NormalizedPendingOrder {
+  id: string;
+  robotId: string;
+  robotName: string;
+  magicNumber: number;
+  symbol: string;
+  side: "COMPRA" | "VENDA";
+  orderType: string;
+  volume: number;
+  price: number;
+  sl: number;
+  tp: number;
 }
 
 interface NormalizedTrade {
@@ -52,6 +66,7 @@ interface NormalizedRobot {
   status: string;
   lastUpdate: string;
   position: NormalizedPosition | null;
+  pendingOrders: NormalizedPendingOrder[];
   candles: NormalizedCandle[];
   candlesByTimeframe?: Record<string, NormalizedCandle[]>;
   overlays: Array<Record<string, unknown>>;
@@ -227,6 +242,25 @@ function normalizeRobotPayload(
     }
   }
 
+  const pendingOrders: NormalizedPendingOrder[] = Array.isArray(raw.pendingOrders)
+    ? raw.pendingOrders
+        .filter((o): o is Record<string, unknown> => Boolean(o && typeof o === "object"))
+        .map((o, idx) => ({
+          id: String(o.id ?? `${robotId}_ord_${idx}`),
+          robotId,
+          robotName,
+          magicNumber,
+          symbol: String(o.symbol || symbol),
+          side: o.side === "VENDA" ? ("VENDA" as const) : ("COMPRA" as const),
+          orderType: String(o.orderType || "LIMIT"),
+          volume: Number(o.volume) || 1,
+          price: Number(o.price) || 0,
+          sl: Number.isFinite(Number(o.sl)) ? Number(o.sl) : 0,
+          tp: Number.isFinite(Number(o.tp)) ? Number(o.tp) : 0,
+        }))
+        .filter((o) => o.price > 0)
+    : [];
+
   const todayIso = serverTimeIso.slice(0, 10);
 
   const normalizeTradeArray = (arr: unknown, limit: number): NormalizedTrade[] => {
@@ -289,6 +323,7 @@ function normalizeRobotPayload(
     status,
     lastUpdate: serverTimeIso,
     position,
+    pendingOrders,
     candles,
     candlesByTimeframe,
     overlays: Array.isArray(raw.overlays) ? raw.overlays.slice(0, 16) : [],
@@ -751,7 +786,7 @@ async function startServer() {
     const currentSignature = normalizedList
       .map(
         (r) =>
-          `${r.robotId}:${r.status}:${r.position ? `${r.position.id}@${r.position.sl}/${r.position.tp}` : "none"}:${r.trades.length}`
+          `${r.robotId}:${r.status}:${r.position ? `${r.position.id}@${r.position.sl}/${r.position.tp}` : "none"}:ord${r.pendingOrders.length}:${r.trades.length}`
       )
       .sort()
       .join("|");
@@ -976,3 +1011,5 @@ async function startServer() {
 }
 
 startServer();
+
+
