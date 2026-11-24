@@ -198,7 +198,14 @@ export default function App() {
 
   return (
     <div className="h-screen w-screen flex flex-col bg-[#0B0E11] text-gray-100 overflow-hidden">
-      <DashboardHeader activeView={activeView} onViewChange={setActiveView} />
+      <DashboardHeader
+        activeView={activeView}
+        onViewChange={setActiveView}
+        robotsCount={robots.length}
+        account={telemetry?.account ?? null}
+        streamStatus={streamStatus}
+        lastSyncAt={telemetry?.serverReceivedAt ?? null}
+      />
 
       <div className="flex-1 flex min-h-0">
         <RobotSidebar

@@ -65,42 +65,6 @@ export function RobotSidebar({
         ))}
       </div>
 
-      {/* Estado da Conexão MT5 */}
-      <div className="px-4 py-3.5 border-b border-[#222B38] space-y-1.5">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-xs font-medium text-gray-400">Conexão Terminal</span>
-          <span
-            className={`inline-flex items-center gap-1.5 text-xs font-medium ${
-              robots.length > 0
-                ? 'text-emerald-400'
-                : streamStatus === 'error'
-                  ? 'text-red-400'
-                  : 'text-gray-300'
-            }`}
-          >
-            <Radio className="w-3.5 h-3.5 shrink-0" />
-            <span>
-              {robots.length > 0
-                ? 'MT5 Conectado'
-                : streamStatus === 'listening'
-                  ? 'Aguardando MT5'
-                  : streamStatus === 'error'
-                    ? 'Reconectando'
-                    : 'Conectando'}
-            </span>
-          </span>
-        </div>
-
-        <div className="text-[11px] font-mono text-gray-500 tabular-nums truncate">
-          {account
-            ? `${(account.broker ? account.broker.split(' ')[0] : account.server || 'MT5')} · ${account.mode}`
-            : 'Canal pronto para WebRequest (MT5)'}
-          {lastSyncAt
-            ? ` · ${new Date(lastSyncAt).toLocaleTimeString('pt-BR')}`
-            : ''}
-        </div>
-      </div>
-
       {/* Resumo da Carteira / Seletor "Todos os Robôs" */}
       <div className="p-3 border-b border-[#222B38]">
         <button
