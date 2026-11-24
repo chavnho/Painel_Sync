@@ -96,3 +96,6 @@ export function getPnlTextClass(value: number): string {
 export function getSideTextClass(side: 'COMPRA' | 'VENDA'): string {
   return side === 'COMPRA' ? 'text-emerald-400' : 'text-red-400';
 }
+
+export const MAX_CHART_CANDLES = 1000;
+export const INITIAL_CHART_VIEW_BARS = 300;

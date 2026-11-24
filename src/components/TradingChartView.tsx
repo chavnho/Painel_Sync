@@ -1,3 +1,4 @@
+import { INITIAL_CHART_VIEW_BARS, MAX_CHART_CANDLES } from '../utils/themeTokens';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AreaSeries,
@@ -1032,7 +1033,7 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
     if (!initialFitDoneRef.current) {
       const total = timedCandles.length;
       if (total > 300) {
-        const viewWindow = selectedTf === 'D' ? 365 : (selectedTf === 'W' ? 1000 : 300);
+        const viewWindow = selectedTf === 'D' ? 365 : (selectedTf === 'W' ? MAX_CHART_CANDLES : INITIAL_CHART_VIEW_BARS);
         chart.timeScale().setVisibleLogicalRange({
           from: total - viewWindow,
           to: total,
@@ -1063,7 +1064,7 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
     const span = range.to - range.from;
     const delta = span * 0.22;
     const nextSpan =
-      direction === 'in' ? Math.max(10, span - delta) : Math.min(1000, span + delta);
+      direction === 'in' ? Math.max(10, span - delta) : Math.min(MAX_CHART_CANDLES, span + delta);
     chart.timeScale().setVisibleLogicalRange({
       from: range.to - nextSpan,
       to: range.to,

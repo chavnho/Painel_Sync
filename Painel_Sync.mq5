@@ -13,6 +13,7 @@
 
 input string   InpEndpointUrl      = "http://127.0.0.1:3000";
 input string   InpToken            = "tk_test_1234567890";
+input int      InpMaxChartBars     = 1000;   // Quantidade maxima de barras enviadas ao grafico
 input string   InpChannelId        = "ps_c9a2rn8qcr";
 input int      InpSyncIntervalSec  = 2;
 input bool     InpIncludeManual    = true;
@@ -411,7 +412,7 @@ void FetchPendingRequest()
          if(reqSymbol != "")
          {
             ENUM_TIMEFRAMES tf = StringToTimeframe(reqTimeframe);
-            SendCandlesData(reqSymbol, tf, requestId, 1000, false);
+            SendCandlesData(reqSymbol, tf, requestId, InpMaxChartBars, false);
          }
          pos = objEnd + 1;
       }
@@ -435,7 +436,7 @@ void FetchPendingRequest()
    }
 }
 
-void SendCandlesData(const string symbol, const ENUM_TIMEFRAMES period, const string requestId, const int barsCount = 1000, const bool isDelta = false)
+void SendCandlesData(const string symbol, const ENUM_TIMEFRAMES period, const string requestId, const int barsCount = InpMaxChartBars, const bool isDelta = false)
 {
    // Verifica se o ativo jÃ¡ estava visÃ­vel na ObservaÃ§Ã£o do Mercado antes
    bool wasSelected = (bool)SymbolInfoInteger(symbol, SYMBOL_SELECT);

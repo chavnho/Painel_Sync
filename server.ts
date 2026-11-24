@@ -82,6 +82,7 @@ interface NormalizedRobot {
 export const mt5Channels = new Map<string, LiveSyncChannel>();
 
 const requestQueue: PendingRequest[] = [];
+const MAX_CHART_CANDLES = 1000;
 const chartCandlesCache = new Map<string, NormalizedCandle[]>();
 const activeChartFocus = new Map<string, { symbol: string; timeframe: string; expiresAt: number }>();
 const lastChannelSignature = new Map<string, string>();
@@ -158,7 +159,7 @@ function processQueue() {
 function normalizeCandles(raw: unknown): NormalizedCandle[] {
   if (!Array.isArray(raw)) return [];
   return raw
-    .slice(-240)
+    .slice(-MAX_CHART_CANDLES)
     .filter(
       (c): c is Record<string, unknown> =>
         Boolean(c) &&
@@ -703,7 +704,7 @@ async function startServer() {
               merged.push({ ...incoming, index: merged.length });
             }
           }
-          const trimmed = merged.slice(-1000).map((c, i) => ({ ...c, index: i }));
+          const trimmed = merged.slice(-MAX_CHART_CANDLES).map((c, i) => ({ ...c, index: i }));
           chartCandlesCache.set(`${channelId}:${chartSymbol}:${chartTf}`, trimmed);
           chartCandlesCache.set(`${channelId}:${chartSymbol}:`, trimmed);
         }
