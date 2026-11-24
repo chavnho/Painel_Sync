@@ -862,28 +862,34 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
             text: pnlLabel,
           });
 
-          if (
-            Number(entryCandle.utcTime) < Number(exitCandle.utcTime) &&
-            tr.entryPrice > 0 &&
-            tr.exitPrice > 0
-          ) {
-            const segSeries = chart.addSeries(
-              LineSeries,
-              {
-                color: tradeColor,
-                lineWidth: 2,
-                lineStyle: LineStyle.Dashed,
-                priceLineVisible: false,
-                lastValueVisible: false,
-                crosshairMarkerVisible: false,
-              },
-              0
-            );
-            segSeries.setData([
-              { time: entryCandle.utcTime, value: tr.entryPrice },
-              { time: exitCandle.utcTime, value: tr.exitPrice },
-            ]);
-            tradeSegmentSeriesRef.current.push(segSeries);
+          if (tr.entryPrice > 0 && tr.exitPrice > 0) {
+            const entryIdx = timedCandles.indexOf(entryCandle);
+            let targetExitTime = exitCandle.utcTime;
+            if (Number(entryCandle.utcTime) >= Number(exitCandle.utcTime) && entryIdx >= 0 && entryIdx + 1 < timedCandles.length) {
+              targetExitTime = timedCandles[entryIdx + 1].utcTime;
+            }
+            if (Number(entryCandle.utcTime) < Number(targetExitTime)) {
+              const lineHex = isWin ? '#34D399' : '#F87171';
+              const segSeries = chart.addSeries(
+                LineSeries,
+                {
+                  color: lineHex,
+                  lineWidth: 2,
+                  lineStyle: LineStyle.Dashed,
+                  priceLineVisible: false,
+                  lastValueVisible: false,
+                  crosshairMarkerVisible: false,
+                  pointMarkersVisible: true,
+                  pointMarkersRadius: 3,
+                },
+                0
+              );
+              segSeries.setData([
+                { time: entryCandle.utcTime, value: tr.entryPrice },
+                { time: targetExitTime, value: tr.exitPrice },
+              ]);
+              tradeSegmentSeriesRef.current.push(segSeries);
+            }
           }
         }
       }
