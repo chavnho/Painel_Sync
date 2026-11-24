@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Check, Pencil, Radio, X } from 'lucide-react';
 import type { AccountSnapshot, DashboardView, RobotStream } from '../types/trading';
 import { formatBrl } from '../utils/tradingMath';
+import { ROBOT_COLORS, getPnlTextClass, getRobotColorTheme, loadMagicColorMap, saveMagicColorMap } from '../utils/themeTokens';
 
 interface RobotSidebarProps {
   robots: RobotStream[];
@@ -14,15 +15,6 @@ interface RobotSidebarProps {
   activeView: DashboardView;
   onViewChange: (view: DashboardView) => void;
 }
-
-const ROBOT_COLORS = [
-  { dot: 'bg-sky-400', border: 'border-l-sky-400' },
-  { dot: 'bg-emerald-400', border: 'border-l-emerald-400' },
-  { dot: 'bg-amber-400', border: 'border-l-amber-400' },
-  { dot: 'bg-purple-400', border: 'border-l-purple-400' },
-  { dot: 'bg-rose-400', border: 'border-l-rose-400' },
-  { dot: 'bg-cyan-400', border: 'border-l-cyan-400' },
-] as const;
 
 export function RobotSidebar({
   robots,
@@ -38,12 +30,12 @@ export function RobotSidebar({
   const [editingMagic, setEditingMagic] = useState<number | null>(null);
   const [draftName, setDraftName] = useState('');
   const [magicColors, setMagicColors] = useState<Record<number, number>>(() => {
-    try { return JSON.parse(localStorage.getItem('painel_sync_magic_colors_v1') || '{}'); } catch { return {}; }
+    return loadMagicColorMap();
   });
   const cycleMagicColor = (magic: number, fallbackIdx: number) => {
     setMagicColors((prev) => {
       const next = { ...prev, [magic]: ((prev[magic] ?? fallbackIdx) + 1) % ROBOT_COLORS.length };
-      try { localStorage.setItem('painel_sync_magic_colors_v1', JSON.stringify(next)); } catch {}
+      saveMagicColorMap(next);
       return next;
     });
   };
@@ -162,7 +154,7 @@ export function RobotSidebar({
             </p>
           </div>
         ) : (
-          robots.map((bot, idx) => { const colorTheme = ROBOT_COLORS[(magicColors[bot.magicNumber] ?? idx) % ROBOT_COLORS.length];
+          robots.map((bot, idx) => { const colorTheme = getRobotColorTheme(bot.magicNumber, magicColors, idx);
             const selected = selectedRobotId === bot.robotId;
             const wins = bot.trades.filter((t) => t.pnlBrl >= 0).length;
             const winRate =
