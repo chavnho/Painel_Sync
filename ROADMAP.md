@@ -1,12 +1,13 @@
 # Roadmap — Painel Sync MT5
 
-## v0.4.0 (Próximas Entregas)
+## Concluído até v0.4.0
+- [x] Telemetria multi-robô agrupada por `MagicNumber` (`Painel_Sync.mq5` + `server.ts` via SSE).
+- [x] Gráficos em tela cheia com Snapshot + Delta incremental, série contínua vinculada e ordens pendentes com rótulos financeiros.
+- [x] Design Tokens centralizados (`src/index.css` + `src/utils/themeTokens.ts`) e propagação de cores por `MagicNumber` em todas as abas.
+- [x] Persistência histórica em SQLite nativo (`data/painel_sync.db` via `node:sqlite`, deduplicada por conta e ticket).
 
-### 1. Persistência Histórica em SQLite (`node:sqlite`)
-- Criar módulo `src/db/tradesDb.ts` utilizando `DatabaseSync` nativo do Node v26 (`data/painel_sync.db`).
-- Persistir `ExecutedTrade` deduplicado por `(account_login, deal_ticket)`.
-- Hidratar automaticamente `historyTrades` ao iniciar o servidor para manter relatórios semanais/mensais e histórico de operações entre reinicializações.
-
-### 2. Propagação de Cores e Controles Operacionais
-- Propagar as cores configuradas por `MagicNumber` na barra lateral para os gráficos e relatórios consolidados.
-- Avaliar comandos operacionais remotos via fila `/pending` (ex.: pausar ou zerar robô específico).
+## Próximas Etapas (v0.5.0)
+1. **Comandos Operacionais Remotos via Fila `/pending`**:
+   - Permitir enviar comandos do painel para o EA (ex.: zerar posição aberta de um `MagicNumber` específico ou cancelar ordens pendentes) com confirmação de segurança.
+2. **Filtros Avançados e Exportação de Relatórios Históricos**:
+   - Adicionar seletor de período customizado (datas inicial e final) consultando diretamente o banco SQLite.
