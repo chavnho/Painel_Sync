@@ -1,4 +1,5 @@
-import { INITIAL_CHART_VIEW_BARS, MAX_CHART_CANDLES } from '../utils/themeTokens';
+import { TradeLinesPrimitive, type TradeSegmentItem } from '../utils/tradeLinesPrimitive';
+import { INITIAL_CHART_VIEW_BARS, MAX_CHART_CANDLES, getRobotColorTheme } from '../utils/themeTokens';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AreaSeries,
@@ -212,7 +213,7 @@ export function TradingChartView({
       previousSymbolRef.current = firstSym;
     }
   }, [selectedRobotId,
-  magicColors = {}, robots]);
+  robots]);
 
     const handleSymbolChange = async (val: string) => {
       const upper = val.toUpperCase();
@@ -271,7 +272,7 @@ export function TradingChartView({
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const markersPluginRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const priceLinesRef = useRef<IPriceLine[]>([]);
-  const tradeSegmentSeriesRef = useRef<ISeriesApi<'Line'>[]>([]);
+  const tradeLinesPrimitiveRef = useRef<TradeLinesPrimitive | null>(null);
   const subSeriesRef = useRef<ISeriesApi<'Histogram' | 'Line' | 'Area'> | null>(null);
   const subPriceLinesRef = useRef<IPriceLine[]>([]);
   const initialFitDoneRef = useRef<boolean>(false);
@@ -296,7 +297,7 @@ export function TradingChartView({
     if (availableSymbols.length > 0) return availableSymbols[0];
     return '';
   }, [availableSymbols, selectedSymbol, selectedRobotId,
-  magicColors = {}, robots]);
+  robots]);
 
   // Se um robô específico estiver selecionado, mostra apenas ele; se for 'ALL', consolida os do ativo
    const symbolRobots = useMemo(() => {
@@ -651,6 +652,9 @@ export function TradingChartView({
     );
 
 const markersPlugin = createSeriesMarkers(candleSeries, []);
+    const tradeLinesPrimitive = new TradeLinesPrimitive();
+    candleSeries.attachPrimitive(tradeLinesPrimitive);
+    tradeLinesPrimitiveRef.current = tradeLinesPrimitive;
 
     chart.subscribeCrosshairMove((param) => {
       if (!param.point || param.time === undefined || typeof param.time !== 'number') {
@@ -681,7 +685,7 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
       subSeriesRef.current = null;
       priceLinesRef.current = [];
       subPriceLinesRef.current = [];
-      tradeSegmentSeriesRef.current = [];
+      tradeLinesPrimitiveRef.current = null;
     };
   }, [activeSymbol, selectedTf]);
 
@@ -773,15 +777,7 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
           text: `${isBuy ? 'C' : 'V'} ${pos.volume}x @ ${formatPrice(pos.entryPrice, activeSymbol)}`,
         });
       }
-
-            for (const seg of tradeSegmentSeriesRef.current) {
-        try {
-          chart.removeSeries(seg);
-        } catch {
-          // ignora
-        }
-      }
-      tradeSegmentSeriesRef.current = [];
+      const nextSegments: TradeSegmentItem[] = [];
 
       if (showMarkers && timedCandles.length > 0) {
         const firstCandleSec = Number(timedCandles[0].utcTime);
@@ -828,9 +824,17 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
           return timedCandles[0];
         };
 
-        const closedTrades = symbolRobots
-          .flatMap((r) => r.trades.map((t) => ({ ...t, robotName: r.name })))
-          .slice(-30);
+        const dedupTrades = new Map<string, ExecutedTrade & { robotName: string }>();
+        for (const r of symbolRobots) {
+          for (const t of [...(r.historyTrades ?? []), ...r.trades]) {
+            dedupTrades.set(`${r.magicNumber}_${t.id}`, {
+              ...t,
+              magicNumber: r.magicNumber,
+              robotName: r.name,
+            });
+          }
+        }
+        const closedTrades = Array.from(dedupTrades.values()).slice(-40);
 
         for (const tr of closedTrades) {
           const entrySec = parseTradeEpochSec(tr.entryDate, tr.entryTime);
@@ -863,37 +867,20 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
           });
 
           if (tr.entryPrice > 0 && tr.exitPrice > 0) {
-            const entryIdx = timedCandles.indexOf(entryCandle);
-            let targetExitTime = exitCandle.utcTime;
-            if (Number(entryCandle.utcTime) >= Number(exitCandle.utcTime) && entryIdx >= 0 && entryIdx + 1 < timedCandles.length) {
-              targetExitTime = timedCandles[entryIdx + 1].utcTime;
-            }
-            if (Number(entryCandle.utcTime) < Number(targetExitTime)) {
-              const lineHex = isWin ? '#34D399' : '#F87171';
-              const segSeries = chart.addSeries(
-                LineSeries,
-                {
-                  color: lineHex,
-                  lineWidth: 2,
-                  lineStyle: LineStyle.Dashed,
-                  priceLineVisible: false,
-                  lastValueVisible: false,
-                  crosshairMarkerVisible: false,
-                  pointMarkersVisible: true,
-                  pointMarkersRadius: 3,
-                },
-                0
-              );
-              segSeries.setData([
-                { time: entryCandle.utcTime, value: tr.entryPrice },
-                { time: targetExitTime, value: tr.exitPrice },
-              ]);
-              tradeSegmentSeriesRef.current.push(segSeries);
-            }
+            const lineHex = isWin ? '#34D399' : '#F87171';
+            nextSegments.push({
+              entryTime: entryCandle.utcTime,
+              entryPrice: tr.entryPrice,
+              exitTime: exitCandle.utcTime,
+              exitPrice: tr.exitPrice,
+              color: lineHex,
+              dotColor: getRobotColorTheme(tr.magicNumber, magicColors).hex,
+            });
           }
         }
       }
 
+      tradeLinesPrimitiveRef.current?.setSegments(nextSegments);
       seriesMarkers.sort((a, b) => Number(a.time) - Number(b.time));
       markersPluginRef.current.setMarkers(seriesMarkers);
     }
@@ -1053,6 +1040,7 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
     timedCandles,
     showMarkers,
     symbolRobots,
+    magicColors,
     unifiedMarkers,
     openPositions,
     pendingOrders,
