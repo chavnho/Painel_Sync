@@ -42,14 +42,7 @@ import {
   loadOrCreateMt5SyncCredentials,
   syncCandlesWithMt5,
 } from '../utils/mt5Bridge';
-import {
-  computeBollinger,
-  computeEMA,
-  computeRSI,
-  computeVWAP,
-  formatBrl,
-  formatPrice,
-} from '../utils/tradingMath';
+import { formatBrl, formatPrice } from '../utils/tradingMath';
 
 interface TradingChartViewProps {
   robots: RobotStream[];
@@ -192,9 +185,6 @@ export function TradingChartView({
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [manualCandles, setManualCandles] = useState<LiveCandle[] | null>(null);
   const [manualError, setManualError] = useState<string | null>(null);
-  const [showEma, setShowEma] = useState(false);
-  const [showVwap, setShowVwap] = useState(false);
-  const [showBollinger, setShowBollinger] = useState(false);
   const [showMarkers, setShowMarkers] = useState(true);
   const [hoveredTime, setHoveredTime] = useState<number | null>(null);
   const [isScrolledAway, setIsScrolledAway] = useState(false);
@@ -278,11 +268,6 @@ export function TradingChartView({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
-  const ema9SeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
-  const ema21SeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
-  const vwapSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
-  const bbUpSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
-  const bbLowSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
   const markersPluginRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const priceLinesRef = useRef<IPriceLine[]>([]);
   const tradeSegmentSeriesRef = useRef<ISeriesApi<'Line'>[]>([]);
@@ -494,26 +479,6 @@ export function TradingChartView({
     return map;
   }, [timedCandles]);
 
-  // Indicadores calculados sobre todos os candles disponíveis
-  const allCloses = useMemo(() => allCandles.map((c) => c.close), [allCandles]);
-  const ema9 = useMemo(
-    () => (showEma ? computeEMA(allCloses, 9) : []),
-    [allCloses, showEma]
-  );
-  const ema21 = useMemo(
-    () => (showEma ? computeEMA(allCloses, 21) : []),
-    [allCloses, showEma]
-  );
-  const vwap = useMemo(
-    () => (showVwap ? computeVWAP(allCandles) : []),
-    [allCandles, showVwap]
-  );
-  const boll = useMemo(
-    () => (showBollinger ? computeBollinger(allCloses, 20, 2) : null),
-    [allCloses, showBollinger]
-  );
-  const rsi14 = useMemo(() => computeRSI(allCloses, 14), [allCloses]);
-
   // Consolida operações e posições de todos os robôs que operam o ativo ativo
   const symbolTrades = useMemo<ExecutedTrade[]>(() => {
     const dedup = new Map<string, ExecutedTrade>();
@@ -684,75 +649,7 @@ export function TradingChartView({
       0
     );
 
-    const ema9Series = chart.addSeries(
-      LineSeries,
-      {
-        color: '#38BDF8',
-        lineWidth: 1,
-        priceLineVisible: false,
-        lastValueVisible: false,
-        crosshairMarkerVisible: false,
-        priceFormat,
-      },
-      0
-    );
-
-    const ema21Series = chart.addSeries(
-      LineSeries,
-      {
-        color: '#F59E0B',
-        lineWidth: 1,
-        priceLineVisible: false,
-        lastValueVisible: false,
-        crosshairMarkerVisible: false,
-        priceFormat,
-      },
-      0
-    );
-
-    const vwapSeries = chart.addSeries(
-      LineSeries,
-      {
-        color: '#C084FC',
-        lineWidth: 1,
-        lineStyle: LineStyle.Dashed,
-        priceLineVisible: false,
-        lastValueVisible: false,
-        crosshairMarkerVisible: false,
-        priceFormat,
-      },
-      0
-    );
-
-    const bbUpSeries = chart.addSeries(
-      LineSeries,
-      {
-        color: '#64748B',
-        lineWidth: 1,
-        lineStyle: LineStyle.Dotted,
-        priceLineVisible: false,
-        lastValueVisible: false,
-        crosshairMarkerVisible: false,
-        priceFormat,
-      },
-      0
-    );
-
-    const bbLowSeries = chart.addSeries(
-      LineSeries,
-      {
-        color: '#64748B',
-        lineWidth: 1,
-        lineStyle: LineStyle.Dotted,
-        priceLineVisible: false,
-        lastValueVisible: false,
-        crosshairMarkerVisible: false,
-        priceFormat,
-      },
-      0
-    );
-
-    const markersPlugin = createSeriesMarkers(candleSeries, []);
+const markersPlugin = createSeriesMarkers(candleSeries, []);
 
     chart.subscribeCrosshairMove((param) => {
       if (!param.point || param.time === undefined || typeof param.time !== 'number') {
@@ -769,11 +666,6 @@ export function TradingChartView({
 
     chartRef.current = chart;
     candleSeriesRef.current = candleSeries;
-    ema9SeriesRef.current = ema9Series;
-    ema21SeriesRef.current = ema21Series;
-    vwapSeriesRef.current = vwapSeries;
-    bbUpSeriesRef.current = bbUpSeries;
-    bbLowSeriesRef.current = bbLowSeries;
     markersPluginRef.current = markersPlugin;
     subSeriesRef.current = null;
     priceLinesRef.current = [];
@@ -784,11 +676,6 @@ export function TradingChartView({
       chart.remove();
       chartRef.current = null;
       candleSeriesRef.current = null;
-      ema9SeriesRef.current = null;
-      ema21SeriesRef.current = null;
-      vwapSeriesRef.current = null;
-      bbUpSeriesRef.current = null;
-      bbLowSeriesRef.current = null;
       markersPluginRef.current = null;
       subSeriesRef.current = null;
       priceLinesRef.current = [];
@@ -813,67 +700,7 @@ export function TradingChartView({
       }))
     );
 
-    ema9SeriesRef.current?.setData(
-      showEma
-        ? timedCandles
-            .map((tc, i) =>
-              ema9[i] !== null && ema9[i] !== undefined
-                ? { time: tc.utcTime, value: ema9[i] as number }
-                : null
-            )
-            .filter((d): d is { time: UTCTimestamp; value: number } => d !== null)
-        : []
-    );
-
-    ema21SeriesRef.current?.setData(
-      showEma
-        ? timedCandles
-            .map((tc, i) =>
-              ema21[i] !== null && ema21[i] !== undefined
-                ? { time: tc.utcTime, value: ema21[i] as number }
-                : null
-            )
-            .filter((d): d is { time: UTCTimestamp; value: number } => d !== null)
-        : []
-    );
-
-    vwapSeriesRef.current?.setData(
-      showVwap
-        ? timedCandles
-            .map((tc, i) =>
-              vwap[i] !== null && vwap[i] !== undefined
-                ? { time: tc.utcTime, value: vwap[i] as number }
-                : null
-            )
-            .filter((d): d is { time: UTCTimestamp; value: number } => d !== null)
-        : []
-    );
-
-    bbUpSeriesRef.current?.setData(
-      showBollinger && boll
-        ? timedCandles
-            .map((tc, i) =>
-              boll.upper[i] !== null && boll.upper[i] !== undefined
-                ? { time: tc.utcTime, value: boll.upper[i] as number }
-                : null
-            )
-            .filter((d): d is { time: UTCTimestamp; value: number } => d !== null)
-        : []
-    );
-
-    bbLowSeriesRef.current?.setData(
-      showBollinger && boll
-        ? timedCandles
-            .map((tc, i) =>
-              boll.lower[i] !== null && boll.lower[i] !== undefined
-                ? { time: tc.utcTime, value: boll.lower[i] as number }
-                : null
-            )
-            .filter((d): d is { time: UTCTimestamp; value: number } => d !== null)
-        : []
-    );
-
-    // Marcadores consolidados de todos os robôs no ativo (ordenados por timestamp)
+// Marcadores consolidados de todos os robôs no ativo (ordenados por timestamp)
     // Marcadores consolidados de todos os robôs no ativo + posição aberta em tempo real
     if (markersPluginRef.current) {
       const seriesMarkers: SeriesMarker<Time>[] = unifiedMarkers
@@ -1217,20 +1044,12 @@ export function TradingChartView({
     }
   }, [
     timedCandles,
-    showEma,
-    showVwap,
-    showBollinger,
     showMarkers,
     symbolRobots,
-    ema9,
-    ema21,
-    vwap,
-    boll,
     unifiedMarkers,
     openPositions,
     pendingOrders,
     subPaneMode,
-    rsi14,
     pnlCurve,
     totalSymbolDailyPnl,
     symbolRobots.length,
