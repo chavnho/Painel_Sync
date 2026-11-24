@@ -18,7 +18,10 @@ export function TradesLedgerView({
   onNavigate,
 }: TradesLedgerViewProps) {
   const [search, setSearch] = useState('');
-  const [rangeFilter, setRangeFilter] = useState<'recent' | '7d' | '30d'>('7d');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+  const [selectedYear, setSelectedYear] = useState<string>(String(new Date().getFullYear()));
+  const [selectedMonth, setSelectedMonth] = useState<string>('ALL');
   const [sideFilter, setSideFilter] = useState<'ALL' | 'COMPRA' | 'VENDA'>('ALL');
   const [resultFilter, setResultFilter] = useState<'ALL' | 'GAIN' | 'LOSS'>('ALL');
 
@@ -38,23 +41,42 @@ export function TradesLedgerView({
     [scopedRobots]
   );
 
+  const availableYears = useMemo(() => {
+    const years = new Set<string>([String(new Date().getFullYear())]);
+    for (const r of scopedRobots) {
+      for (const tr of [...(r.historyTrades ?? new Array()), ...r.trades]) {
+        const y = (tr.exitDate || '').slice(0, 4);
+        if (/^\d{4}$/.test(y)) years.add(y);
+      }
+    }
+    return Array.from(years).sort((a, b) => b.localeCompare(a));
+  }, [scopedRobots]);
+
+  const handleSelectMonthPreset = (yearStr: string, monthStr: string) => {
+    setSelectedYear(yearStr);
+    setSelectedMonth(monthStr);
+    if (monthStr === 'ALL') {
+      setStartDate('');
+      setEndDate('');
+      return;
+    }
+    const y = Number(yearStr);
+    const m = Number(monthStr);
+    const lastDay = new Date(y, m, 0).getDate();
+    const mm = String(m).padStart(2, '0');
+    const dd = String(lastDay).padStart(2, '0');
+    setStartDate(`${y}-${mm}-01`);
+    setEndDate(`${y}-${mm}-${dd}`);
+  };
+
   const filteredTrades = useMemo(() => {
     const query = search.trim().toLowerCase();
-    const cutoffMs =
-      rangeFilter === '7d'
-        ? Date.now() - 7 * 86400_000
-        : rangeFilter === '30d'
-          ? Date.now() - 30 * 86400_000
-          : 0;
-
     const dedup = new Map<string, (typeof scopedRobots)[number]['trades'][number]>();
     for (const r of scopedRobots) {
       const source =
-        rangeFilter === 'recent'
-          ? r.trades
-          : r.historyTrades && r.historyTrades.length > 0
-            ? [...r.historyTrades, ...r.trades]
-            : r.trades;
+        r.historyTrades && r.historyTrades.length > 0
+          ? [...r.historyTrades, ...r.trades]
+          : r.trades;
       for (const tr of source) {
         dedup.set(`${tr.robotId}_${tr.id}`, tr);
       }
@@ -62,10 +84,9 @@ export function TradesLedgerView({
 
     return Array.from(dedup.values())
       .filter((t) => {
-        if (cutoffMs > 0 && t.exitDate) {
-          const parsed = Date.parse(`${t.exitDate}T00:00:00`);
-          if (Number.isFinite(parsed) && parsed < cutoffMs - 86400_000) return false;
-        }
+        const normDate = (t.exitDate || '').replace(/\./g, '-').slice(0, 10);
+        if (startDate && normDate && normDate < startDate) return false;
+        if (endDate && normDate && normDate > endDate) return false;
         if (sideFilter !== 'ALL' && t.side !== sideFilter) return false;
         if (resultFilter === 'GAIN' && t.pnlBrl < 0) return false;
         if (resultFilter === 'LOSS' && t.pnlBrl >= 0) return false;
@@ -82,7 +103,7 @@ export function TradesLedgerView({
         const keyB = `${b.exitDate || ''} ${b.exitTime}`;
         return keyB.localeCompare(keyA);
       });
-  }, [scopedRobots, search, rangeFilter, sideFilter, resultFilter]);
+  }, [scopedRobots, search, startDate, endDate, sideFilter, resultFilter]);
 
   const totalFilteredPnl = useMemo(
     () => filteredTrades.reduce((acc, t) => acc + t.pnlBrl, 0),
@@ -105,10 +126,10 @@ export function TradesLedgerView({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden px-6 py-5">
+      <div className="max-w-7xl w-full mx-auto flex-1 flex flex-col min-h-0 gap-5">
         {/* Posições Abertas */}
-        <section className="rounded-xl bg-[#11161D] border border-[#222B38] overflow-hidden">
+        <section className="shrink-0 rounded-xl bg-[#11161D] border border-[#222B38] overflow-hidden">
           <div className="px-5 py-3.5 border-b border-[#1E2633] flex items-center justify-between">
             <h2 className="text-sm font-semibold text-gray-100">
               Posições em Aberto ({openPositions.length})
@@ -208,7 +229,7 @@ export function TradesLedgerView({
         </section>
 
         {/* Livro Completo de Compras e Vendas */}
-        <section className="rounded-xl bg-[#11161D] border border-[#222B38] overflow-hidden">
+        <section className="flex-1 flex flex-col min-h-0 rounded-xl bg-[#11161D] border border-[#222B38] overflow-hidden">
           <div className="px-5 py-3.5 border-b border-[#1E2633] flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold text-gray-100">
@@ -234,27 +255,80 @@ export function TradesLedgerView({
                 />
               </div>
 
-              <div className="flex items-center bg-[#0B0E11] border border-[#222B38] rounded-lg p-0.5">
-                {(
-                  [
-                    { id: 'recent', label: 'Recentes' },
-                    { id: '7d', label: '7 dias' },
-                    { id: '30d', label: '30 dias' },
-                  ] as const
-                ).map((item) => (
+              <div className="flex flex-wrap items-center gap-1.5 bg-[#0B0E11] border border-[#222B38] rounded-lg px-2 py-1">
+                <select
+                  aria-label="Ano"
+                  value={selectedYear}
+                  onChange={(e) => handleSelectMonthPreset(e.target.value, selectedMonth)}
+                  className="bg-transparent text-xs text-gray-200 font-medium focus:outline-none cursor-pointer pr-1"
+                >
+                  {availableYears.map((yr) => (
+                    <option key={yr} value={yr} className="bg-[#11161D] text-gray-100">
+                      {yr}
+                    </option>
+                  ))}
+                </select>
+
+                <span className="text-gray-700">|</span>
+
+                <select
+                  aria-label="Mês"
+                  value={selectedMonth}
+                  onChange={(e) => handleSelectMonthPreset(selectedYear, e.target.value)}
+                  className="bg-transparent text-xs text-gray-200 font-medium focus:outline-none cursor-pointer pr-1"
+                >
+                  <option value="ALL" className="bg-[#11161D]">Todos os meses</option>
+                  <option value="1" className="bg-[#11161D]">Janeiro</option>
+                  <option value="2" className="bg-[#11161D]">Fevereiro</option>
+                  <option value="3" className="bg-[#11161D]">Março</option>
+                  <option value="4" className="bg-[#11161D]">Abril</option>
+                  <option value="5" className="bg-[#11161D]">Maio</option>
+                  <option value="6" className="bg-[#11161D]">Junho</option>
+                  <option value="7" className="bg-[#11161D]">Julho</option>
+                  <option value="8" className="bg-[#11161D]">Agosto</option>
+                  <option value="9" className="bg-[#11161D]">Setembro</option>
+                  <option value="10" className="bg-[#11161D]">Outubro</option>
+                  <option value="11" className="bg-[#11161D]">Novembro</option>
+                  <option value="12" className="bg-[#11161D]">Dezembro</option>
+                </select>
+
+                <span className="text-gray-700">|</span>
+
+                <label className="flex items-center gap-1 text-[11px] text-gray-400">
+                  <span>De</span>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => {
+                      setStartDate(e.target.value);
+                      setSelectedMonth('ALL');
+                    }}
+                    className="bg-[#11161D] border border-[#222B38] rounded px-1.5 py-0.5 text-xs text-gray-200 focus:border-emerald-500 focus:outline-none [color-scheme:dark]"
+                  />
+                </label>
+
+                <label className="flex items-center gap-1 text-[11px] text-gray-400">
+                  <span>Até</span>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => {
+                      setEndDate(e.target.value);
+                      setSelectedMonth('ALL');
+                    }}
+                    className="bg-[#11161D] border border-[#222B38] rounded px-1.5 py-0.5 text-xs text-gray-200 focus:border-emerald-500 focus:outline-none [color-scheme:dark]"
+                  />
+                </label>
+
+                {(startDate || endDate) && (
                   <button
-                    key={item.id}
                     type="button"
-                    onClick={() => setRangeFilter(item.id)}
-                    className={`px-2.5 py-1 text-xs rounded font-medium cursor-pointer transition-colors whitespace-nowrap ${
-                      rangeFilter === item.id
-                        ? 'bg-[#1F2937] text-gray-100'
-                        : 'text-gray-400 hover:text-gray-200'
-                    }`}
+                    onClick={() => handleSelectMonthPreset(selectedYear, 'ALL')}
+                    className="text-[11px] text-emerald-400 hover:text-emerald-300 px-1.5 py-0.5 cursor-pointer"
                   >
-                    {item.label}
+                    Limpar
                   </button>
-                ))}
+                )}
               </div>
 
               <div className="flex items-center bg-[#0B0E11] border border-[#222B38] rounded-lg p-0.5">
@@ -320,7 +394,7 @@ export function TradesLedgerView({
               Nenhuma operação encontrada com os filtros aplicados.
             </div>
           ) : (
-            <div className="overflow-x-auto max-h-[460px] overflow-y-auto">
+            <div className="flex-1 min-h-0 overflow-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead className="bg-[#0E1319] text-[11px] text-gray-400 border-b border-[#1E2633] sticky top-0">
                   <tr>

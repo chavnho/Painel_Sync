@@ -16,6 +16,7 @@ input string   InpToken            = "tk_test_1234567890";
 input int      InpMaxChartBars     = 1000;   // Quantidade maxima de barras enviadas ao grafico
 input string   InpChannelId        = "ps_c9a2rn8qcr";
 input int      InpSyncIntervalSec  = 2;
+input int      InpHistoryBackfillDays = 90;  // Dias de historico retroativo enviados ao iniciar (0 = desativa)
 input bool     InpIncludeManual    = true;
 input bool     InpDebug            = false;
 
@@ -49,6 +50,8 @@ int OnInit()
 
    g_lastSymbolsReport = TimeCurrent();
    SendSymbolsReport();
+   if(InpHistoryBackfillDays > 0)
+      SyncHistoricalTrades(InpHistoryBackfillDays);
    SendAccountAndRobotsTelemetry();
    return(INIT_SUCCEEDED);
 }
@@ -359,6 +362,10 @@ void FindEntryDealInfo(const long posId, const ulong outTicket, double &entryPri
 {
    if(posId <= 0) return;
    int total = HistoryDealsTotal();
+   double weightedSum = 0.0;
+   double totalVol = 0.0;
+   datetime firstDt = 0;
+
    for(int i = 0; i < total; i++)
    {
       ulong t = HistoryDealGetTicket(i);
@@ -366,10 +373,22 @@ void FindEntryDealInfo(const long posId, const ulong outTicket, double &entryPri
       if(HistoryDealGetInteger(t, DEAL_POSITION_ID) == posId &&
          HistoryDealGetInteger(t, DEAL_ENTRY) == DEAL_ENTRY_IN)
       {
-         entryPrice = HistoryDealGetDouble(t, DEAL_PRICE);
-         entryDt    = (datetime)HistoryDealGetInteger(t, DEAL_TIME);
-         return;
+         double v = HistoryDealGetDouble(t, DEAL_VOLUME);
+         double p = HistoryDealGetDouble(t, DEAL_PRICE);
+         datetime dt = (datetime)HistoryDealGetInteger(t, DEAL_TIME);
+         if(v > 0)
+         {
+            weightedSum += p * v;
+            totalVol += v;
+            if(firstDt == 0 || dt < firstDt) firstDt = dt;
+         }
       }
+   }
+
+   if(totalVol > 0.0)
+   {
+      entryPrice = weightedSum / totalVol;
+      if(firstDt > 0) entryDt = firstDt;
    }
 }
 
@@ -436,7 +455,7 @@ void FetchPendingRequest()
    }
 }
 
-void SendCandlesData(const string symbol, const ENUM_TIMEFRAMES period, const string requestId, const int barsCount = InpMaxChartBars, const bool isDelta = false)
+void SendCandlesData(const string symbol, const ENUM_TIMEFRAMES period, const string requestId, const int barsCount, const bool isDelta = false)
 {
    // Verifica se o ativo jÃ¡ estava visÃ­vel na ObservaÃ§Ã£o do Mercado antes
    bool wasSelected = (bool)SymbolInfoInteger(symbol, SYMBOL_SELECT);
@@ -577,6 +596,108 @@ void SendSymbolsReport()
    SendToServer(json);
 }
 
+
+void SyncHistoricalTrades(const int daysBack)
+{
+   if(daysBack <= 0) return;
+
+   datetime now = TimeCurrent();
+   datetime globalFrom = now - (datetime)(daysBack * 86400);
+   long login = AccountInfoInteger(ACCOUNT_LOGIN);
+   int chunkSec = 15 * 86400; // Lotes de 15 dias para payload leve
+   int totalImported = 0;
+
+   Print("PainelSync: Iniciando importacao de historico retroativo (", daysBack, " dias)...");
+
+   for(datetime chunkStart = globalFrom; chunkStart < now; chunkStart += chunkSec)
+   {
+      datetime chunkEnd = MathMin(chunkStart + chunkSec, now);
+      // Seleciona 7 dias antes do bloco para capturar entradas (DEAL_ENTRY_IN) de operacoes multi-dia
+      datetime selectFrom = chunkStart - (7 * 86400);
+
+      if(!HistorySelect(selectFrom, chunkEnd))
+         continue;
+
+      int dealsTotal = HistoryDealsTotal();
+      string tradesJson = "";
+      int chunkCount = 0;
+
+      for(int i = 0; i < dealsTotal; i++)
+      {
+         ulong dealTicket = HistoryDealGetTicket(i);
+         if(dealTicket == 0) continue;
+
+         datetime exitDt = (datetime)HistoryDealGetInteger(dealTicket, DEAL_TIME);
+         if(exitDt < chunkStart || exitDt > chunkEnd) continue;
+
+         long entryType = HistoryDealGetInteger(dealTicket, DEAL_ENTRY);
+         if(entryType != DEAL_ENTRY_OUT && entryType != DEAL_ENTRY_OUT_BY) continue;
+
+         long dealType = HistoryDealGetInteger(dealTicket, DEAL_TYPE);
+         if(dealType != DEAL_TYPE_BUY && dealType != DEAL_TYPE_SELL) continue;
+
+         long magic = HistoryDealGetInteger(dealTicket, DEAL_MAGIC);
+         if(magic == 0 && !InpIncludeManual) continue;
+
+         string symbol  = HistoryDealGetString(dealTicket, DEAL_SYMBOL);
+         string comment = HistoryDealGetString(dealTicket, DEAL_COMMENT);
+         string rId     = "mt5_magic_" + IntegerToString(magic);
+         string rName   = (magic == 0) ? "Operacao Manual"
+                        : ((comment != "" && StringFind(comment, "[") != 0) ? (comment + " (#" + IntegerToString(magic) + ")")
+                        : ("Robo #" + IntegerToString(magic)));
+
+         string side      = (dealType == DEAL_TYPE_SELL) ? "COMPRA" : "VENDA";
+         double volume    = HistoryDealGetDouble(dealTicket, DEAL_VOLUME);
+         double exitPrice = HistoryDealGetDouble(dealTicket, DEAL_PRICE);
+         double pnl       = HistoryDealGetDouble(dealTicket, DEAL_PROFIT)
+                          + HistoryDealGetDouble(dealTicket, DEAL_SWAP)
+                          + HistoryDealGetDouble(dealTicket, DEAL_COMMISSION);
+         int digits       = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
+         if(digits <= 0) digits = 2;
+
+         long posId = HistoryDealGetInteger(dealTicket, DEAL_POSITION_ID);
+         double entryPrice = exitPrice;
+         datetime entryDt  = exitDt;
+         FindEntryDealInfo(posId, dealTicket, entryPrice, entryDt);
+
+         double point = SymbolInfoDouble(symbol, SYMBOL_POINT);
+         double pts   = (point > 0) ? ((side == "COMPRA" ? (exitPrice - entryPrice) : (entryPrice - exitPrice)) / point) : 0.0;
+
+         string tradeObj = "{"
+            + "\"id\":\"" + IntegerToString((long)dealTicket) + "\""
+            + ",\"robotId\":\"" + rId + "\""
+            + ",\"robotName\":\"" + EscapeJson(rName) + "\""
+            + ",\"magicNumber\":" + IntegerToString(magic)
+            + ",\"symbol\":\"" + symbol + "\""
+            + ",\"side\":\"" + side + "\""
+            + ",\"entryDate\":\"" + TimeToString(entryDt, TIME_DATE) + "\""
+            + ",\"exitDate\":\"" + TimeToString(exitDt, TIME_DATE) + "\""
+            + ",\"entryTime\":\"" + TimeToString(entryDt, TIME_MINUTES|TIME_SECONDS) + "\""
+            + ",\"exitTime\":\"" + TimeToString(exitDt, TIME_MINUTES|TIME_SECONDS) + "\""
+            + ",\"entryPrice\":" + DoubleToString(entryPrice, digits)
+            + ",\"exitPrice\":" + DoubleToString(exitPrice, digits)
+            + ",\"volume\":" + DoubleToString(volume, 2)
+            + ",\"points\":" + DoubleToString(pts, 1)
+            + ",\"pnlBrl\":" + DoubleToString(pnl, 2)
+            + ",\"reason\":\"" + EscapeJson(comment != "" ? comment : "Fechamento MT5") + "\""
+            + "}";
+
+         if(chunkCount > 0) tradesJson += ",";
+         tradesJson += tradeObj;
+         chunkCount++;
+      }
+
+      if(chunkCount > 0)
+      {
+         string payload = "{\"isHistorySync\":true,\"account\":{\"login\":\"" + IntegerToString(login) + "\"},\"trades\":[" + tradesJson + "]}";
+         SendToServer(payload);
+         totalImported += chunkCount;
+         Sleep(80);
+      }
+   }
+
+   Print("PainelSync: Importacao historica concluida (", totalImported, " operacoes processadas).");
+}
 
 void SendToServer(const string jsonPayload)
 {

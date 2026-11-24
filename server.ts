@@ -351,9 +351,36 @@ function mergeChannelSymbols(channel: LiveSyncChannel, incoming: unknown) {
 function buildSnapshotResponse(channelId: string, channel: LiveSyncChannel) {
   const accountKey = channel.account?.login || channelId;
   const persistedAll = loadPersistedTradesForAccount(accountKey);
-  const robots = Array.from(channel.robots.values()).map((bot) => {
+
+  // Garante que robôs presentes no histórico SQLite (mesmo sem trades hoje) apareçam no painel
+  const robotsMap = new Map(channel.robots);
+  for (const pt of persistedAll) {
+    const rId = `mt5_magic_${pt.magicNumber}`;
+    if (!robotsMap.has(rId)) {
+      robotsMap.set(rId, {
+        robotId: rId,
+        robotName: pt.robotName || `Robo #${pt.magicNumber}`,
+        name: pt.robotName || `Robo #${pt.magicNumber}`,
+        magicNumber: pt.magicNumber,
+        symbol: pt.symbol,
+        timeframe: "M5",
+        status: "Inativo",
+        lastUpdate: `${pt.exitDate} ${pt.exitTime}`,
+        position: null,
+        pendingOrders: [],
+        candles: [],
+        trades: [],
+        historyTrades: [],
+        realizedPnlBrl: 0,
+        floatingPnlBrl: 0,
+        dailyPnlBrl: 0,
+      } as unknown as LiveSyncChannel["robots"] extends Map<string, infer V> ? V : never);
+    }
+  }
+
+  const robots = Array.from(robotsMap.values()).map((bot) => {
     const botPersisted = persistedAll.filter(
-      (t) => t.magicNumber === bot.magicNumber && t.symbol === bot.symbol
+      (t) => t.magicNumber === bot.magicNumber
     );
     if (botPersisted.length === 0) return bot;
     const mergedMap = new Map<string, NormalizedTrade>();
@@ -638,6 +665,40 @@ async function startServer() {
       res.json({
         ok: true,
         pingTest: true,
+        serverReceivedAt,
+      });
+      return;
+    }
+
+    if (body.isHistorySync === true) {
+      const login = body.account?.login ? String(body.account.login) : channel.account?.login;
+      const rawTrades = Array.isArray(body.trades) ? body.trades : [];
+      if (login && rawTrades.length > 0) {
+        const normalized = rawTrades.map((t: Record<string, unknown>) => ({
+          id: String(t.id || ""),
+          robotId: String(t.robotId || `${Number(t.magicNumber) || 0}_${String(t.symbol || "")}`),
+          robotName: String(t.robotName || `Robo #${Number(t.magicNumber) || 0}`),
+          magicNumber: Number(t.magicNumber) || 0,
+          symbol: String(t.symbol || ""),
+          side: (t.side === "VENDA" ? "VENDA" : "COMPRA") as "COMPRA" | "VENDA",
+          entryDate: String(t.entryDate || ""),
+          exitDate: String(t.exitDate || ""),
+          entryTime: String(t.entryTime || ""),
+          exitTime: String(t.exitTime || ""),
+          entryPrice: Number(t.entryPrice) || 0,
+          exitPrice: Number(t.exitPrice) || 0,
+          volume: Number(t.volume) || 1,
+          points: Number(t.points) || 0,
+          pnlBrl: Number(t.pnlBrl) || 0,
+          reason: String(t.reason || "MT5"),
+        }));
+        persistExecutedTrades(login, normalized);
+      }
+      channel.updatedAtMs = Date.now();
+      res.json({
+        ok: true,
+        isHistorySync: true,
+        importedCount: rawTrades.length,
         serverReceivedAt,
       });
       return;
