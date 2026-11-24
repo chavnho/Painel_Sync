@@ -15,6 +15,15 @@ interface RobotSidebarProps {
   onViewChange: (view: DashboardView) => void;
 }
 
+const ROBOT_COLORS = [
+  { dot: 'bg-sky-400', border: 'border-l-sky-400' },
+  { dot: 'bg-emerald-400', border: 'border-l-emerald-400' },
+  { dot: 'bg-amber-400', border: 'border-l-amber-400' },
+  { dot: 'bg-purple-400', border: 'border-l-purple-400' },
+  { dot: 'bg-rose-400', border: 'border-l-rose-400' },
+  { dot: 'bg-cyan-400', border: 'border-l-cyan-400' },
+] as const;
+
 export function RobotSidebar({
   robots,
   selectedRobotId,
@@ -28,6 +37,16 @@ export function RobotSidebar({
 }: RobotSidebarProps) {
   const [editingMagic, setEditingMagic] = useState<number | null>(null);
   const [draftName, setDraftName] = useState('');
+  const [magicColors, setMagicColors] = useState<Record<number, number>>(() => {
+    try { return JSON.parse(localStorage.getItem('painel_sync_magic_colors_v1') || '{}'); } catch { return {}; }
+  });
+  const cycleMagicColor = (magic: number, fallbackIdx: number) => {
+    setMagicColors((prev) => {
+      const next = { ...prev, [magic]: ((prev[magic] ?? fallbackIdx) + 1) % ROBOT_COLORS.length };
+      try { localStorage.setItem('painel_sync_magic_colors_v1', JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
   const totalDailyPnl = robots.reduce((acc, r) => acc + r.dailyPnlBrl, 0);
   const totalTrades = robots.reduce((acc, r) => acc + r.trades.length, 0);
   const totalOpen = robots.filter((r) => r.position !== null).length;
@@ -88,7 +107,7 @@ export function RobotSidebar({
 
         <div className="text-[11px] font-mono text-gray-500 tabular-nums truncate">
           {account
-            ? `${account.broker || account.server || 'MetaTrader 5'} · ${account.mode}`
+            ? `${(account.broker ? account.broker.split(' ')[0] : account.server || 'MT5')} · ${account.mode}`
             : 'Canal pronto para WebRequest (MT5)'}
           {lastSyncAt
             ? ` · ${new Date(lastSyncAt).toLocaleTimeString('pt-BR')}`
@@ -143,7 +162,7 @@ export function RobotSidebar({
             </p>
           </div>
         ) : (
-          robots.map((bot) => {
+          robots.map((bot, idx) => { const colorTheme = ROBOT_COLORS[(magicColors[bot.magicNumber] ?? idx) % ROBOT_COLORS.length];
             const selected = selectedRobotId === bot.robotId;
             const wins = bot.trades.filter((t) => t.pnlBrl >= 0).length;
             const winRate =
@@ -165,11 +184,7 @@ export function RobotSidebar({
                     onSelectRobot(bot.robotId);
                   }
                 }}
-                className={`group w-full text-left px-3 py-2.5 rounded-lg border transition-colors cursor-pointer ${
-                  selected
-                    ? 'bg-[#18202B] border-[#334155]'
-                    : 'bg-transparent border-transparent hover:bg-[#161C25]'
-                }`}
+                className={`group w-full text-left px-3 py-2.5 rounded-lg border border-l-2 transition-colors cursor-pointer ${selected ? `bg-[#18202B] border-[#334155] ${colorTheme.border}` : `bg-[#141A23]/60 border-[#1E2633] ${colorTheme.border} hover:bg-[#171E29]`}`}
               >
                 <div className="flex items-center justify-between gap-2">
                   {isEditing ? (
@@ -217,6 +232,12 @@ export function RobotSidebar({
                   ) : (
                     <>
                       <div className="flex items-center gap-1.5 min-w-0">
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); cycleMagicColor(bot.magicNumber, idx); }}
+                          title="Clique para alterar a cor"
+                          className={`w-2.5 h-2.5 rounded-full shrink-0 cursor-pointer ${colorTheme.dot}`}
+                        />
                         <span className="text-xs font-semibold text-gray-100 truncate">
                           {bot.name}
                         </span>
@@ -228,7 +249,7 @@ export function RobotSidebar({
                             setDraftName(bot.name);
                           }}
                           title="Renomear robô"
-                          className="opacity-0 group-hover:opacity-100 focus:opacity-100 p-0.5 text-gray-400 hover:text-gray-200 rounded transition-opacity cursor-pointer"
+                          className="p-0.5 text-gray-500 hover:text-gray-200 rounded transition-colors cursor-pointer shrink-0"
                         >
                           <Pencil className="w-3 h-3" />
                         </button>

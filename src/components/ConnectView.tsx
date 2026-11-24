@@ -283,7 +283,7 @@ export function ConnectView({
                     </p>
                   </div>
                   <div className="text-[10px] font-mono text-gray-500">
-                    {ev.timestamp.split('T')[1].split('.')[0]}
+                    {new Date(ev.timestamp).toLocaleTimeString('pt-BR')}
                   </div>
                 </div>
               ))
