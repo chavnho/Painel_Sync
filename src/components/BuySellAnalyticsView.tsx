@@ -1,3 +1,4 @@
+import { getPnlTextClass, getRobotColorTheme } from '../utils/themeTokens';
 import { useMemo } from 'react';
 import { BarChart3, TrendingDown, TrendingUp } from 'lucide-react';
 import type { DashboardView, RobotStream } from '../types/trading';
@@ -11,12 +12,13 @@ interface BuySellAnalyticsViewProps {
   robots: RobotStream[];
   selectedRobotId: string | 'ALL';
   onNavigate: (view: DashboardView) => void;
+  magicColors?: Record<number, number>;
 }
 
 export function BuySellAnalyticsView({
   robots,
   selectedRobotId,
-  onNavigate,
+  magicColors = {},
 }: BuySellAnalyticsViewProps) {
   const scopedRobots = useMemo(
     () =>
@@ -106,22 +108,35 @@ export function BuySellAnalyticsView({
   return (
     <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
       <div className="max-w-7xl mx-auto space-y-6">
-        <div className="space-y-0.5">
-          <h1 className="font-display text-xl font-bold text-gray-100">
-            Análise de Compras vs Vendas
-          </h1>
-          <p className="text-xs text-gray-400">
-            Comparativo completo entre operações compradas (Long) e vendidas (Short) nos robôs selecionados
-          </p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="space-y-0.5">
+            <h1 className="font-display text-xl font-bold text-gray-100">
+              Análise de Compras vs Vendas
+            </h1>
+            <p className="text-xs text-gray-400">
+              Comparativo completo entre operações compradas (Long) e vendidas (Short)
+            </p>
+          </div>
+          {selectedRobotId !== 'ALL' && scopedRobots.length === 1 ? (
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#11161D] border border-[#222B38] text-xs">
+              <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${getRobotColorTheme(scopedRobots[0].magicNumber, magicColors).dot}`} />
+              <span className="font-semibold text-gray-100">{scopedRobots[0].name}</span>
+              <span className="font-mono text-gray-400">#{scopedRobots[0].magicNumber} · {scopedRobots[0].symbol}</span>
+            </div>
+          ) : (
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#11161D] border border-[#222B38] text-xs text-gray-300">
+              Todos os Robôs ({scopedRobots.length})
+            </div>
+          )}
         </div>
 
         {/* Proporção Compra / Venda */}
         <div className="rounded-xl bg-[#11161D] border border-[#222B38] p-5 space-y-3">
           <div className="flex items-center justify-between text-xs font-mono tabular-nums">
-            <span className="text-emerald-400 font-semibold">
+            <span className={metrics.buys.count > 0 ? "text-emerald-400 font-semibold" : "text-gray-400"}>
               Compras: {metrics.buys.count} operações ({buySharePct}%)
             </span>
-            <span className="text-red-400 font-semibold">
+            <span className={metrics.sells.count > 0 ? "text-red-400 font-semibold" : "text-gray-400"}>
               Vendas: {metrics.sells.count} operações ({sellSharePct}%)
             </span>
           </div>
@@ -150,7 +165,7 @@ export function BuySellAnalyticsView({
               </div>
               <span
                 className={`text-sm font-mono font-bold tabular-nums ${
-                  metrics.buys.netPnlBrl >= 0 ? 'text-emerald-400' : 'text-red-400'
+                  getPnlTextClass(metrics.buys.netPnlBrl)
                 }`}
               >
                 {formatBrl(metrics.buys.netPnlBrl)}
@@ -178,13 +193,13 @@ export function BuySellAnalyticsView({
               </div>
               <div>
                 <div className="text-gray-400">Ganho Médio</div>
-                <div className="mt-1 font-mono font-semibold tabular-nums text-emerald-400">
+                <div className={`mt-1 font-mono font-semibold tabular-nums ${getPnlTextClass(metrics.buys.avgWinBrl)}`}>
                   {formatBrl(metrics.buys.avgWinBrl)}
                 </div>
               </div>
               <div>
                 <div className="text-gray-400">Perda Média</div>
-                <div className="mt-1 font-mono font-semibold tabular-nums text-red-400">
+                <div className={`mt-1 font-mono font-semibold tabular-nums ${getPnlTextClass(-metrics.buys.avgLossBrl)}`}>
                   {formatBrl(-metrics.buys.avgLossBrl, false)}
                 </div>
               </div>
@@ -196,13 +211,13 @@ export function BuySellAnalyticsView({
               </div>
               <div>
                 <div className="text-gray-400">Melhor Compra</div>
-                <div className="mt-1 font-mono tabular-nums text-emerald-400">
+                <div className={`mt-1 font-mono tabular-nums ${getPnlTextClass(metrics.buys.bestTradeBrl)}`}>
                   {formatBrl(metrics.buys.bestTradeBrl)}
                 </div>
               </div>
               <div>
                 <div className="text-gray-400">Pior Compra</div>
-                <div className="mt-1 font-mono tabular-nums text-red-400">
+                <div className={`mt-1 font-mono tabular-nums ${getPnlTextClass(metrics.buys.worstTradeBrl)}`}>
                   {formatBrl(metrics.buys.worstTradeBrl)}
                 </div>
               </div>
@@ -226,7 +241,7 @@ export function BuySellAnalyticsView({
               </div>
               <span
                 className={`text-sm font-mono font-bold tabular-nums ${
-                  metrics.sells.netPnlBrl >= 0 ? 'text-emerald-400' : 'text-red-400'
+                  getPnlTextClass(metrics.sells.netPnlBrl)
                 }`}
               >
                 {formatBrl(metrics.sells.netPnlBrl)}
@@ -254,13 +269,13 @@ export function BuySellAnalyticsView({
               </div>
               <div>
                 <div className="text-gray-400">Ganho Médio</div>
-                <div className="mt-1 font-mono font-semibold tabular-nums text-emerald-400">
+                <div className={`mt-1 font-mono font-semibold tabular-nums ${getPnlTextClass(metrics.buys.avgWinBrl)}`}>
                   {formatBrl(metrics.sells.avgWinBrl)}
                 </div>
               </div>
               <div>
                 <div className="text-gray-400">Perda Média</div>
-                <div className="mt-1 font-mono font-semibold tabular-nums text-red-400">
+                <div className={`mt-1 font-mono font-semibold tabular-nums ${getPnlTextClass(-metrics.buys.avgLossBrl)}`}>
                   {formatBrl(-metrics.sells.avgLossBrl, false)}
                 </div>
               </div>
@@ -272,13 +287,13 @@ export function BuySellAnalyticsView({
               </div>
               <div>
                 <div className="text-gray-400">Melhor Venda</div>
-                <div className="mt-1 font-mono tabular-nums text-emerald-400">
+                <div className={`mt-1 font-mono tabular-nums ${getPnlTextClass(metrics.buys.bestTradeBrl)}`}>
                   {formatBrl(metrics.sells.bestTradeBrl)}
                 </div>
               </div>
               <div>
                 <div className="text-gray-400">Pior Venda</div>
-                <div className="mt-1 font-mono tabular-nums text-red-400">
+                <div className={`mt-1 font-mono tabular-nums ${getPnlTextClass(metrics.buys.worstTradeBrl)}`}>
                   {formatBrl(metrics.sells.worstTradeBrl)}
                 </div>
               </div>
@@ -392,7 +407,7 @@ export function BuySellAnalyticsView({
                     <td className="px-4 py-3 text-right text-gray-300">{row.buys}</td>
                     <td
                       className={`px-4 py-3 text-right ${
-                        row.buyPnl >= 0 ? 'text-emerald-400' : 'text-red-400'
+                        getPnlTextClass(row.buyPnl)
                       }`}
                     >
                       {formatBrl(row.buyPnl)}
@@ -400,14 +415,14 @@ export function BuySellAnalyticsView({
                     <td className="px-4 py-3 text-right text-gray-300">{row.sells}</td>
                     <td
                       className={`px-4 py-3 text-right ${
-                        row.sellPnl >= 0 ? 'text-emerald-400' : 'text-red-400'
+                        getPnlTextClass(row.sellPnl)
                       }`}
                     >
                       {formatBrl(row.sellPnl)}
                     </td>
                     <td
                       className={`px-4 py-3 text-right font-bold ${
-                        row.net >= 0 ? 'text-emerald-400' : 'text-red-400'
+                        getPnlTextClass(row.net)
                       }`}
                     >
                       {formatBrl(row.net)}

@@ -243,6 +243,7 @@ export default function App() {
           {activeView === 'buy-sell' && (
             <BuySellAnalyticsView
               robots={robots}
+              magicColors={magicColors}
               selectedRobotId={selectedRobotId}
               onNavigate={setActiveView}
             />
