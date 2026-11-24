@@ -1063,7 +1063,7 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
     const span = range.to - range.from;
     const delta = span * 0.22;
     const nextSpan =
-      direction === 'in' ? Math.max(10, span - delta) : Math.min(300, span + delta);
+      direction === 'in' ? Math.max(10, span - delta) : Math.min(1000, span + delta);
     chart.timeScale().setVisibleLogicalRange({
       from: range.to - nextSpan,
       to: range.to,

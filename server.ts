@@ -703,7 +703,7 @@ async function startServer() {
               merged.push({ ...incoming, index: merged.length });
             }
           }
-          const trimmed = merged.slice(-240).map((c, i) => ({ ...c, index: i }));
+          const trimmed = merged.slice(-1000).map((c, i) => ({ ...c, index: i }));
           chartCandlesCache.set(`${channelId}:${chartSymbol}:${chartTf}`, trimmed);
           chartCandlesCache.set(`${channelId}:${chartSymbol}:`, trimmed);
         }
