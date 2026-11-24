@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
 
 interface SymbolAutocompleteProps {
@@ -16,7 +16,9 @@ export function SymbolAutocomplete({
 }: SymbolAutocompleteProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState(selectedSymbol);
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setSearchTerm(selectedSymbol);
@@ -37,6 +39,18 @@ export function SymbolAutocomplete({
     .filter((s) => s.toUpperCase().includes(query))
     .slice(0, 200);
 
+  // Reseta o destaque para o topo sempre que o filtro mudar
+  useEffect(() => {
+    setHighlightedIndex(0);
+  }, [query]);
+
+  // Garante que o item destacado fique visível dentro do scroll da lista
+  useEffect(() => {
+    if (!isOpen || !listRef.current) return;
+    const item = listRef.current.children[highlightedIndex] as HTMLElement | undefined;
+    item?.scrollIntoView({ block: 'nearest' });
+  }, [highlightedIndex, isOpen]);
+
   const handleSelect = (symbol: string) => {
     onSelect(symbol);
     setSearchTerm(symbol);
@@ -44,9 +58,32 @@ export function SymbolAutocomplete({
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Enter') {
+    if (event.key === 'ArrowDown') {
       event.preventDefault();
+      if (!isOpen) {
+        setIsOpen(true);
+        return;
+      }
       if (filteredSymbols.length > 0) {
+        setHighlightedIndex((prev) => (prev + 1) % filteredSymbols.length);
+      }
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (!isOpen) {
+        setIsOpen(true);
+        return;
+      }
+      if (filteredSymbols.length > 0) {
+        setHighlightedIndex((prev) =>
+          prev <= 0 ? filteredSymbols.length - 1 : prev - 1
+        );
+      }
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      if (isOpen && filteredSymbols.length > 0) {
+        const chosen = filteredSymbols[highlightedIndex] ?? filteredSymbols[0];
+        handleSelect(chosen);
+      } else if (filteredSymbols.length > 0) {
         handleSelect(filteredSymbols[0]);
       }
     } else if (event.key === 'Escape') {
@@ -65,19 +102,26 @@ export function SymbolAutocomplete({
             setSearchTerm(e.target.value);
             setIsOpen(true);
           }}
-          onFocus={() => setIsOpen(true)}
+          onFocus={(e) => {
+            e.target.select();
+            setIsOpen(true);
+          }}
+          onClick={() => setIsOpen(true)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           className="bg-transparent border-none focus:outline-none text-sm font-bold text-gray-100 w-32"
         />
         <ChevronDown
-          className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          className={`w-3.5 h-3.5 text-gray-400 transition-transform cursor-pointer ${isOpen ? 'rotate-180' : ''}`}
           onClick={() => setIsOpen(!isOpen)}
         />
       </div>
 
       {isOpen && (
-        <div className="absolute z-50 mt-1 w-full max-h-60 overflow-y-auto bg-[#11161D] border border-[#263040] rounded-lg shadow-xl">
+        <div
+          ref={listRef}
+          className="absolute z-50 mt-1 w-full max-h-60 overflow-y-auto bg-[#11161D] border border-[#263040] rounded-lg shadow-xl"
+        >
           {filteredSymbols.length === 0 ? (
             <div className="px-3 py-2 text-xs text-gray-500">
               {symbols.length === 0
@@ -85,18 +129,27 @@ export function SymbolAutocomplete({
                 : 'Nenhum ativo encontrado.'}
             </div>
           ) : (
-            filteredSymbols.map((symbol) => (
-              <div
-                key={symbol}
-                onClick={() => handleSelect(symbol)}
-                className="px-3 py-2 text-xs text-gray-200 hover:bg-[#1E2633] cursor-pointer flex items-center justify-between"
-              >
-                <span>{symbol}</span>
-                {selectedSymbol === symbol && (
-                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                )}
-              </div>
-            ))
+            filteredSymbols.map((symbol, index) => {
+              const isHighlighted = index === highlightedIndex;
+              const isSelected = selectedSymbol === symbol;
+              return (
+                <div
+                  key={symbol}
+                  onMouseEnter={() => setHighlightedIndex(index)}
+                  onClick={() => handleSelect(symbol)}
+                  className={`px-3 py-2 text-xs cursor-pointer flex items-center justify-between transition-colors ${
+                    isHighlighted
+                      ? 'bg-[#1E293B] text-white font-semibold'
+                      : 'text-gray-200 hover:bg-[#1E2633]'
+                  }`}
+                >
+                  <span>{symbol}</span>
+                  {isSelected && (
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  )}
+                </div>
+              );
+            })
           )}
         </div>
       )}
