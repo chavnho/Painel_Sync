@@ -18,25 +18,23 @@
 
 ---
 
+## ✅ Concluído (v0.4.0-alpha)
+1. **Streaming Incremental de Candles (Snapshot + Delta de 2 Candles)**:
+   - Carga inicial (Snapshot) com histórico estendido (`CopyRates`) sem poluir a Observação do Mercado do MT5 (`SymbolSelect` temporário com restauração automática).
+   - Atualização contínua em tempo real via foco ativo (`activeChart`, expira em 15s) enviando apenas Delta incremental de 2 velas (`isChartDelta: true`, ~250 bytes) e *upsert* por `time` no `server.ts`.
+   - Padronização visual da aba **Mercado** (`IndependentChartView.tsx`) em tela cheia (100% largura e altura), sem sub-painel inferior, indicadores desligados por padrão e barra OHLC dinâmica no hover.
+   - Navegação por teclado (`↑` / `↓` + `Enter`) com destaque visual e scroll automático no seletor de ativos (`SymbolAutocomplete.tsx`).
+
+---
+
 ## 🚀 Próximas Etapas (v0.4.0)
 
-### 1. Streaming Incremental de Candles (Snapshot + Delta de 2 Candles)
-- **Objetivo**: Eliminar o reenvio de 120–150 candles a cada ciclo e atualizar a vela atual em tempo real com latência mínima.
-- **Carga Inicial (Snapshot)**:
-  - Quando `chartCandlesCache` estiver vazio para `symbol:timeframe`, o frontend dispara `POST /request` com `count: 150`.
-  - O `Painel_Sync.mq5` executa `CopyRates(..., 0, 150)` uma única vez e popula o cache.
-- **Atualização Contínua (Delta Incremental)**:
-  - Enquanto o usuário estiver visualizando um gráfico, o frontend envia heartbeat de foco (`activeChart: { symbol, timeframe }`).
-  - O `Painel_Sync.mq5` inclui apenas `CopyRates(..., 0, 2)` (vela atual em formação + vela anterior recém-fechada) no ciclo de 2s (~250 bytes).
-  - O `server.ts` faz *upsert* por `time` no `chartCandlesCache` e o frontend aplica `candleSeries.update(lastCandle)` sem recarregar toda a série.
-  - Expiração automática do foco após 15s sem heartbeat para economizar banda.
-
-### 2. Persistência Histórica em Banco de Dados
+### 1. Persistência Histórica em Banco de Dados (SQLite)
 - **Objetivo**: Armazenar histórico completo de trades e métricas semanais/mensais independentemente do histórico carregado no terminal MT5.
 - **Implementação**:
-  - Adicionar camada de banco local (SQLite via Prisma ou `better-sqlite3`) no `server.ts`.
+  - Adicionar camada de banco local (SQLite via `better-sqlite3` ou Prisma) no `server.ts`.
   - Persistir cada `ExecutedTrade` deduplicado por `(accountLogin, dealTicket)`.
   - Alimentar as abas **Relatórios** e **Operações** diretamente do banco com filtros por data, robô e ativo.
 
-### 3. Nomes Amigáveis por Magic Number
-- Permitir mapear nomes personalizados no painel ou via input `InpMagicNamesMap` no EA (ex: `261001=EaZonas;261002=RoboScalper`).
+### 2. Nomes Amigáveis por Magic Number
+- Permitir mapear e editar nomes personalizados diretamente no painel (salvos no banco) ou via input `InpMagicNamesMap` no EA (ex: `261001=EaZonas;261002=RoboScalper`), refletindo nos gráficos, relatórios e logs.

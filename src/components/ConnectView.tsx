@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import {
   Activity,
   AlertCircle,
@@ -178,7 +178,7 @@ export function ConnectView({
               <div className="pt-4">
                 <p className="text-xs text-gray-500 mb-1">URL de Conexão:</p>
                 <code className="block p-2 bg-[#0B0E11] rounded border border-[#1E2633] break-all text-[10px] text-emerald-400">
-                  {`wss://${window.location.hostname}/api/mt5-sync/${creds.channelId}/stream?token=${creds.token}`}
+                  {`http://${window.location.hostname}:3000/api/mt5-sync/${creds.channelId}/stream?token=${creds.token}`}
                 </code>
               </div>
             </div>
@@ -259,3 +259,4 @@ export function ConnectView({
     </div>
   );
 }
+
