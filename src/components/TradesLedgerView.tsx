@@ -230,30 +230,45 @@ export function TradesLedgerView({
 
         {/* Livro Completo de Compras e Vendas */}
         <section className="flex-1 flex flex-col min-h-0 rounded-xl bg-[#11161D] border border-[#222B38] overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-[#1E2633] flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-sm font-semibold text-gray-100">
-                Histórico de Execuções ({filteredTrades.length})
-              </h2>
-              <p className="text-xs font-mono tabular-nums text-gray-400">
-                Resultado filtrado:{' '}
-                <strong className={totalFilteredPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}>
-                  {formatBrl(totalFilteredPnl)}
-                </strong>
-              </p>
+          <div className="px-5 py-3.5 border-b border-[#1E2633] flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-baseline gap-3">
+                <h2 className="text-sm font-semibold text-gray-100">
+                  Histórico de Execuções ({filteredTrades.length})
+                </h2>
+                <p className="text-xs font-mono tabular-nums text-gray-400">
+                  Resultado filtrado:{' '}
+                  <strong className={totalFilteredPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                    {formatBrl(totalFilteredPnl)}
+                  </strong>
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-gray-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Buscar ativo, robô, ticket..."
+                    className="bg-[#0B0E11] border border-[#222B38] focus:border-emerald-500 focus:outline-none rounded-lg pl-8 pr-3 py-1.5 text-xs text-gray-100 placeholder:text-gray-500 w-52"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => exportTradesCsv(filteredTrades)}
+                disabled={filteredTrades.length === 0}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1A222D] hover:bg-[#232D3B] border border-[#2C3747] text-xs font-medium text-gray-100 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Exportar CSV</span>
+              </button>
+              </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative">
-                <Search className="w-3.5 h-3.5 text-gray-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Buscar ativo, robô, ticket..."
-                  className="bg-[#0B0E11] border border-[#222B38] focus:border-emerald-500 focus:outline-none rounded-lg pl-8 pr-3 py-1.5 text-xs text-gray-100 placeholder:text-gray-500 w-48"
-                />
-              </div>
+            <div className="flex flex-wrap lg:flex-nowrap items-center justify-center gap-2">
 
               <div className="flex flex-wrap items-center gap-1.5 bg-[#0B0E11] border border-[#222B38] rounded-lg px-2 py-1">
                 <select
@@ -376,16 +391,6 @@ export function TradesLedgerView({
                   </button>
                 ))}
               </div>
-
-              <button
-                type="button"
-                onClick={() => exportTradesCsv(filteredTrades)}
-                disabled={filteredTrades.length === 0}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1A222D] hover:bg-[#232D3B] border border-[#2C3747] text-xs font-medium text-gray-100 transition-colors cursor-pointer disabled:opacity-50"
-              >
-                <Download className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Exportar CSV</span>
-              </button>
             </div>
           </div>
 
