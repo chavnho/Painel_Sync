@@ -285,6 +285,7 @@ export function TradingChartView({
   const bbLowSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
   const markersPluginRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const priceLinesRef = useRef<IPriceLine[]>([]);
+  const tradeSegmentSeriesRef = useRef<ISeriesApi<'Line'>[]>([]);
   const subSeriesRef = useRef<ISeriesApi<'Histogram' | 'Line' | 'Area'> | null>(null);
   const subPriceLinesRef = useRef<IPriceLine[]>([]);
   const initialFitDoneRef = useRef<boolean>(false);
@@ -792,6 +793,7 @@ export function TradingChartView({
       subSeriesRef.current = null;
       priceLinesRef.current = [];
       subPriceLinesRef.current = [];
+      tradeSegmentSeriesRef.current = [];
     };
   }, [activeSymbol, selectedTf]);
 
@@ -942,6 +944,120 @@ export function TradingChartView({
           color: isBuy ? '#10B981' : '#EF4444',
           text: `${isBuy ? 'C' : 'V'} ${pos.volume}x @ ${formatPrice(pos.entryPrice, activeSymbol)}`,
         });
+      }
+
+            for (const seg of tradeSegmentSeriesRef.current) {
+        try {
+          chart.removeSeries(seg);
+        } catch {
+          // ignora
+        }
+      }
+      tradeSegmentSeriesRef.current = [];
+
+      if (showMarkers && timedCandles.length > 0) {
+        const firstCandleSec = Number(timedCandles[0].utcTime);
+        const lastCandleSec = Number(timedCandles[timedCandles.length - 1].utcTime);
+
+        const parseTradeEpochSec = (dateStr?: string, timeStr?: string): number | null => {
+          const raw = `${dateStr ?? ''} ${timeStr ?? ''}`.trim();
+          const full = /(\d{4})[.\-/](\d{2})[.\-/](\d{2})\s+(\d{2}):(\d{2})(?::(\d{2}))?/.exec(raw);
+          if (full) {
+            return Math.floor(
+              Date.UTC(
+                Number(full.at(1)),
+                Number(full.at(2)) - 1,
+                Number(full.at(3)),
+                Number(full.at(4)),
+                Number(full.at(5)),
+                Number(full.at(6) ?? 0)
+              ) / 1000
+            );
+          }
+          const hhmm = /^(\d{2}):(\d{2})(?::(\d{2}))?$/.exec((timeStr ?? '').trim());
+          if (hhmm) {
+            const lastDate = new Date(lastCandleSec * 1000);
+            return Math.floor(
+              Date.UTC(
+                lastDate.getUTCFullYear(),
+                lastDate.getUTCMonth(),
+                lastDate.getUTCDate(),
+                Number(hhmm.at(1)),
+                Number(hhmm.at(2)),
+                Number(hhmm.at(3) ?? 0)
+              ) / 1000
+            );
+          }
+          return null;
+        };
+
+        const findNearestCandle = (epochSec: number) => {
+          for (let i = timedCandles.length - 1; i >= 0; i--) {
+            if (Number(timedCandles[i].utcTime) <= epochSec) {
+              return timedCandles[i];
+            }
+          }
+          return timedCandles[0];
+        };
+
+        const closedTrades = symbolRobots
+          .flatMap((r) => r.trades.map((t) => ({ ...t, robotName: r.name })))
+          .slice(-30);
+
+        for (const tr of closedTrades) {
+          const entrySec = parseTradeEpochSec(tr.entryDate, tr.entryTime);
+          const exitSec = parseTradeEpochSec(tr.exitDate || tr.entryDate, tr.exitTime);
+          if (entrySec === null || exitSec === null) continue;
+          if (exitSec < firstCandleSec - 86400 || entrySec > lastCandleSec + 86400) continue;
+
+          const entryCandle = findNearestCandle(entrySec);
+          const exitCandle = findNearestCandle(exitSec);
+          const isBuy = tr.side === 'COMPRA';
+          const isWin = tr.pnlBrl >= 0;
+          const tradeColor = isWin ? '#10B981' : '#EF4444';
+          const botTag = symbolRobots.length > 1 ? ` (${tr.robotName})` : '';
+
+          seriesMarkers.push({
+            time: entryCandle.utcTime,
+            position: isBuy ? ('belowBar' as const) : ('aboveBar' as const),
+            shape: isBuy ? ('arrowUp' as const) : ('arrowDown' as const),
+            color: isBuy ? '#10B981' : '#EF4444',
+            text: `${isBuy ? 'C' : 'V'}${botTag}`,
+          });
+
+          const pnlLabel = `${tr.pnlBrl >= 0 ? '+' : ''}R${Math.round(tr.pnlBrl)}`;
+          seriesMarkers.push({
+            time: exitCandle.utcTime,
+            position: isBuy ? ('aboveBar' as const) : ('belowBar' as const),
+            shape: isBuy ? ('arrowDown' as const) : ('arrowUp' as const),
+            color: tradeColor,
+            text: pnlLabel,
+          });
+
+          if (
+            Number(entryCandle.utcTime) < Number(exitCandle.utcTime) &&
+            tr.entryPrice > 0 &&
+            tr.exitPrice > 0
+          ) {
+            const segSeries = chart.addSeries(
+              LineSeries,
+              {
+                color: tradeColor,
+                lineWidth: 2,
+                lineStyle: LineStyle.Dashed,
+                priceLineVisible: false,
+                lastValueVisible: false,
+                crosshairMarkerVisible: false,
+              },
+              0
+            );
+            segSeries.setData([
+              { time: entryCandle.utcTime, value: tr.entryPrice },
+              { time: exitCandle.utcTime, value: tr.exitPrice },
+            ]);
+            tradeSegmentSeriesRef.current.push(segSeries);
+          }
+        }
       }
 
       seriesMarkers.sort((a, b) => Number(a.time) - Number(b.time));
@@ -1104,6 +1220,8 @@ export function TradingChartView({
     showEma,
     showVwap,
     showBollinger,
+    showMarkers,
+    symbolRobots,
     ema9,
     ema21,
     vwap,
@@ -1183,66 +1301,19 @@ export function TradingChartView({
     <div className="flex-1 flex flex-col min-h-0 px-6 py-4 gap-3 overflow-hidden">
       <div className="w-full flex-1 flex flex-col min-h-0 gap-3">
         <div className="shrink-0 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-3">
-            <div
-              role="group"
-              aria-label="Tempo gráfico"
-              className="flex items-center bg-[#11161D] border border-[#222B38] rounded-lg p-0.5"
+                    <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowMarkers((v) => !v)}
+              title="Exibir ou ocultar setas e linhas tracejadas dos trades"
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
+                showMarkers
+                  ? 'bg-emerald-950/50 border-emerald-700/50 text-emerald-300'
+                  : 'bg-[#11161D] border-[#222B38] text-gray-400 hover:text-gray-200'
+              }`}
             >
-              {TIMEFRAMES.map((tf) => {
-                const active = selectedTf === tf;
-                return (
-                  <button
-                    key={tf}
-                    type="button"
-                    onClick={() => setSelectedTf(tf)}
-                    className={`px-2.5 py-1 rounded text-xs font-mono font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                      active
-                        ? 'bg-[#1F2937] text-gray-100'
-                        : 'text-gray-400 hover:text-gray-200'
-                    }`}
-                  >
-                    {tf}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => setShowMarkers((v) => !v)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
-                  showMarkers
-                    ? 'bg-[#1F2937] border-[#374151] text-gray-100'
-                    : 'bg-[#11161D] border-[#222B38] text-gray-400 hover:text-gray-200'
-                }`}
-              >
-                Execuções
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowEma((v) => !v)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
-                  showEma
-                    ? 'bg-[#1F2937] border-[#374151] text-gray-100'
-                    : 'bg-[#11161D] border-[#222B38] text-gray-400 hover:text-gray-200'
-                }`}
-              >
-                EMA 9/21
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowVwap((v) => !v)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
-                  showVwap
-                    ? 'bg-[#1F2937] border-[#374151] text-gray-100'
-                    : 'bg-[#11161D] border-[#222B38] text-gray-400 hover:text-gray-200'
-                }`}
-              >
-                VWAP
-              </button>
-            </div>
+              Trades
+            </button>
           </div>
 
           {openPositions.length > 0 && (
