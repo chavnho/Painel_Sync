@@ -504,7 +504,8 @@ export function filterTradesByPeriod(
 
 export function computeRobotHistoricalReport(
   robots: RobotStream[],
-  period: ReportPeriod
+  period: ReportPeriod,
+  customRange?: { startDate?: string; endDate?: string }
 ): {
   rows: RobotHistoricalRow[];
   consolidated: RobotHistoricalRow;
@@ -560,7 +561,15 @@ export function computeRobotHistoricalReport(
   const allScopedTrades: ExecutedTrade[] = [];
   const rows: RobotHistoricalRow[] = robots.map((bot) => {
     const merged = getMergedRobotHistory(bot);
-    const periodTrades = filterTradesByPeriod(merged, period);
+    const hasCustom = Boolean(customRange?.startDate || customRange?.endDate);
+    const periodTrades = hasCustom
+      ? merged.filter((t) => {
+          const d = (t.exitDate || todayIso).replace(/\./g, '-').slice(0, 10);
+          if (customRange?.startDate && d < customRange.startDate) return false;
+          if (customRange?.endDate && d > customRange.endDate) return false;
+          return true;
+        })
+      : filterTradesByPeriod(merged, period);
     allScopedTrades.push(...periodTrades);
     return buildRow(bot.robotId, bot.name, bot.magicNumber, bot.symbol, periodTrades);
   });

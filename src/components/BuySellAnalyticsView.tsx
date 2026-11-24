@@ -1,11 +1,13 @@
 import { getPnlTextClass, getRobotColorTheme } from '../utils/themeTokens';
 import { useMemo } from 'react';
+import { PeriodFilterBar, usePeriodFilter } from './PeriodFilterBar';
 import { BarChart3, TrendingDown, TrendingUp } from 'lucide-react';
 import type { DashboardView, RobotStream } from '../types/trading';
 import {
   computeHourlyBreakdown,
   computePortfolioMetrics,
   formatBrl,
+  getMergedRobotHistory,
 } from '../utils/tradingMath';
 
 interface BuySellAnalyticsViewProps {
@@ -28,14 +30,26 @@ export function BuySellAnalyticsView({
     [robots, selectedRobotId]
   );
 
+  const periodFilter = usePeriodFilter(scopedRobots);
+
+  const filteredRobots = useMemo(
+    () =>
+      scopedRobots.map((r) => {
+        const merged = getMergedRobotHistory(r).filter((t) => periodFilter.matchesDate(t.exitDate));
+        const realized = Number(merged.reduce((acc, t) => acc + t.pnlBrl, 0).toFixed(2));
+        return { ...r, trades: merged, realizedPnlBrl: realized };
+      }),
+    [scopedRobots, periodFilter.startDate, periodFilter.endDate]
+  );
+
   const allTrades = useMemo(
-    () => scopedRobots.flatMap((r) => r.trades),
-    [scopedRobots]
+    () => filteredRobots.flatMap((r) => r.trades),
+    [filteredRobots]
   );
 
   const metrics = useMemo(
-    () => computePortfolioMetrics(scopedRobots),
-    [scopedRobots]
+    () => computePortfolioMetrics(filteredRobots),
+    [filteredRobots]
   );
 
   const hourly = useMemo(
@@ -117,6 +131,8 @@ export function BuySellAnalyticsView({
               Comparativo completo entre operações compradas (Long) e vendidas (Short)
             </p>
           </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <PeriodFilterBar filter={periodFilter} />
           {selectedRobotId !== 'ALL' && scopedRobots.length === 1 ? (
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#11161D] border border-[#222B38] text-xs">
               <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${getRobotColorTheme(scopedRobots[0].magicNumber, magicColors).dot}`} />
@@ -128,6 +144,7 @@ export function BuySellAnalyticsView({
               Todos os Robôs ({scopedRobots.length})
             </div>
           )}
+          </div>
         </div>
 
         {/* Proporção Compra / Venda */}

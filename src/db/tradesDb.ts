@@ -168,3 +168,34 @@ export function loadPersistedTradesForAccount(
     reason: String(r.reason || "MT5"),
   }));
 }
+
+export function createDatabaseBackup(keepLatest = 7): { ok: boolean; backupPath?: string; error?: string } {
+  try {
+    const backupsDir = path.join(dataDir, "backups");
+    if (!fs.existsSync(backupsDir)) {
+      fs.mkdirSync(backupsDir, { recursive: true });
+    }
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const targetFile = path.join(backupsDir, `painel_sync_${stamp}.db`);
+    const escapedPath = targetFile.replace(/'/g, "''");
+    db.exec(`VACUUM INTO '${escapedPath}'`);
+
+    const files = fs
+      .readdirSync(backupsDir)
+      .filter((f) => f.startsWith("painel_sync_") && f.endsWith(".db"))
+      .sort();
+    while (files.length > keepLatest) {
+      const oldest = files.shift();
+      if (oldest) {
+        try {
+          fs.unlinkSync(path.join(backupsDir, oldest));
+        } catch {
+          // ignora falha ao remover backup antigo
+        }
+      }
+    }
+    return { ok: true, backupPath: targetFile };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}

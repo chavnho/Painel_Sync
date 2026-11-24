@@ -1,3 +1,4 @@
+import { createDatabaseBackup } from "./src/db/tradesDb";
 import "dotenv/config";
 import express from "express";
 import path from "path";
@@ -1083,6 +1084,26 @@ async function startServer() {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
+
+  app.post("/api/db/backup", (_req, res) => {
+    const result = createDatabaseBackup(7);
+    if (result.ok) {
+      res.json(result);
+    } else {
+      res.status(500).json(result);
+    }
+  });
+
+  // Backup seguro automatico do SQLite (VACUUM INTO) a cada 6 horas
+  const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
+  setInterval(() => {
+    const res = createDatabaseBackup(7);
+    if (res.ok) {
+      console.log(`[SQLite Backup] Snapshot criado: ${res.backupPath}`);
+    } else {
+      console.warn(`[SQLite Backup] Falha: ${res.error}`);
+    }
+  }, SIX_HOURS_MS);
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Painel Sync MT5 server running on http://0.0.0.0:${PORT}`);

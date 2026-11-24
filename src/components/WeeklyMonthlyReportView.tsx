@@ -1,5 +1,6 @@
 import { getRobotColorTheme } from '../utils/themeTokens';
 import { useMemo, useState } from 'react';
+import { PeriodFilterBar, usePeriodFilter } from './PeriodFilterBar';
 import { CalendarRange, Download } from 'lucide-react';
 import type { DashboardView, RobotStream } from '../types/trading';
 import {
@@ -42,6 +43,7 @@ export function WeeklyMonthlyReportView({
 }: WeeklyMonthlyReportViewProps) {
   const [period, setPeriod] = useState<ReportPeriod>('weekly');
   const [hoverDayIdx, setHoverDayIdx] = useState<number | null>(null);
+  const periodFilter = usePeriodFilter(robots);
 
   const scopedRobots = useMemo(
     () =>
@@ -52,14 +54,14 @@ export function WeeklyMonthlyReportView({
   );
 
   const report = useMemo(
-    () => computeRobotHistoricalReport(scopedRobots, period),
-    [scopedRobots, period]
+    () => computeRobotHistoricalReport(scopedRobots, period, { startDate: periodFilter.startDate, endDate: periodFilter.endDate }),
+    [scopedRobots, period, periodFilter.startDate, periodFilter.endDate]
   );
 
   // Sempre calcula também a tabela comparativa completa de todos os robôs para visão consolidada
   const fullFleetReport = useMemo(
-    () => computeRobotHistoricalReport(robots, period),
-    [robots, period]
+    () => computeRobotHistoricalReport(robots, period, { startDate: periodFilter.startDate, endDate: periodFilter.endDate }),
+    [robots, period, periodFilter.startDate, periodFilter.endDate]
   );
 
   const activePeriodMeta =
@@ -109,7 +111,7 @@ export function WeeklyMonthlyReportView({
               Relatório Histórico Consolidado
             </h1>
             <div className="text-xs text-gray-400">
-              <span>{activePeriodMeta.desc}</span>
+              <span>{(periodFilter.startDate || periodFilter.endDate) ? periodFilter.periodSummaryLabel : activePeriodMeta.desc}</span>
               <span className="mx-2 text-gray-600">·</span>
               <span>
                 {selectedRobotId === 'ALL'
@@ -122,6 +124,7 @@ export function WeeklyMonthlyReportView({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <PeriodFilterBar filter={periodFilter} onManualDateChange={() => setHoverDayIdx(null)} />
             <div
               role="tablist"
               aria-label="Período do relatório"

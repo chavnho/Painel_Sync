@@ -158,6 +158,9 @@ export default function App() {
         trades: Array.isArray(bot.trades)
           ? bot.trades.map((t) => ({ ...t, robotName: alias }))
           : bot.trades,
+        historyTrades: Array.isArray(bot.historyTrades)
+          ? bot.historyTrades.map((t) => ({ ...t, robotName: alias }))
+          : bot.historyTrades,
       };
     });
   }, [telemetry?.robots, magicAliases]);

@@ -1,4 +1,5 @@
-import { Radio, Settings2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { AlertTriangle, Radio, Settings2 } from 'lucide-react';
 import type { AccountSnapshot, DashboardView } from '../types/trading';
 
 interface DashboardHeaderProps {
@@ -28,10 +29,22 @@ export function DashboardHeader({
   lastSyncAt,
 }: DashboardHeaderProps) {
   const isConnectActive = activeView === 'connect';
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const lastSyncMs = lastSyncAt ? Date.parse(lastSyncAt) : NaN;
+  const delaySec = Number.isFinite(lastSyncMs) ? Math.max(0, Math.floor((nowMs - lastSyncMs) / 1000)) : null;
+  const isStale = robotsCount > 0 && delaySec !== null && delaySec > 10;
 
   const statusText =
     robotsCount > 0
-      ? 'MT5 Conectado'
+      ? isStale
+        ? `Atraso MT5 (${delaySec}s)`
+        : 'MT5 Conectado'
       : streamStatus === 'listening'
         ? 'Aguardando MT5'
         : streamStatus === 'error'
@@ -40,7 +53,9 @@ export function DashboardHeader({
 
   const statusColorClass =
     robotsCount > 0
-      ? 'text-emerald-400'
+      ? isStale
+        ? 'text-amber-400'
+        : 'text-emerald-400'
       : streamStatus === 'error'
         ? 'text-red-400'
         : 'text-gray-300';
@@ -53,7 +68,7 @@ export function DashboardHeader({
         className="font-display text-lg font-bold tracking-tight text-gray-100 whitespace-nowrap shrink-0 cursor-pointer hover:text-white transition-colors flex items-center gap-2"
       >
         Painel Sync
-        <span className="text-[10px] font-normal text-gray-500">v0.5.0</span>
+        <span className="text-[10px] font-normal text-gray-500">v0.5.1</span>
       </button>
 
       <nav aria-label="Navegação principal" className="hidden md:flex items-center gap-7">
@@ -77,9 +92,9 @@ export function DashboardHeader({
       </nav>
 
       <div className="shrink-0 flex items-center gap-3">
-        <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#0B0E11] border border-[#222B38] text-xs">
+        <div className={`hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#0B0E11] border text-xs transition-colors ${isStale ? 'border-amber-500/60 bg-amber-950/20' : 'border-[#222B38]'}`}>
           <span className={`inline-flex items-center gap-1.5 font-medium whitespace-nowrap ${statusColorClass}`}>
-            <Radio className="w-3.5 h-3.5 shrink-0" />
+            {isStale ? <AlertTriangle className="w-3.5 h-3.5 shrink-0 animate-pulse" /> : <Radio className="w-3.5 h-3.5 shrink-0" />}
             <span>{statusText}</span>
           </span>
           <span className="text-gray-600">·</span>
