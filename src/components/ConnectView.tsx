@@ -70,8 +70,8 @@ export function ConnectView({
   return (
     <div className="flex-1 flex flex-col p-8 space-y-8 bg-[#0B0E11] text-gray-100">
       <div className="max-w-4xl w-full mx-auto space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-1">
             <h2 className="text-2xl font-bold">Configuração do Robô EA</h2>
             <p className="text-gray-400 text-sm">Use as credenciais abaixo para configurar seu robô no MetaTrader 5.</p>
           </div>
@@ -165,45 +165,44 @@ export function ConnectView({
                 : 'Copiar código do EA (Painel_Sync.mq5)'}
             </button>
           </div>
-          <div className="p-6 rounded-xl bg-[#11161D] border border-[#222B38]">
-            <h3 className="text-sm font-semibold text-gray-300 mb-2">Status do Stream</h3>
-            <div className="flex items-center gap-2">
-              <div className={`w-3 h-3 rounded-full ${streamStatus === 'listening' ? 'bg-emerald-500' : 'bg-blue-500'}`} />
-              <span className={`text-sm ${statusColor[streamStatus]}`}>{streamStatus.toUpperCase()}</span>
+          <div className="p-6 rounded-xl bg-[#11161D] border border-[#222B38] flex flex-col justify-between space-y-4">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-300">Status do Stream</h3>
+                <div className="flex items-center gap-2">
+                  <span className={`w-2.5 h-2.5 rounded-full ${streamStatus === 'listening' ? 'bg-emerald-500 animate-pulse' : streamStatus === 'error' ? 'bg-red-500' : 'bg-blue-500'}`} />
+                  <span className={`text-xs font-mono font-bold ${statusColor[streamStatus]}`}>
+                    {streamStatus.toUpperCase()}
+                  </span>
+                </div>
+              </div>
+              <div className="divide-y divide-[#1E2633] text-xs [&>div]:py-2 [&>div:first-child]:pt-0 [&>div:last-child]:pb-0">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Canal Ativo:</span>
+                  <span className="font-mono text-gray-200">{creds.channelId}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Última Recepção:</span>
+                  <span className="font-mono text-gray-200">
+                    {telemetry?.serverReceivedAt ? new Date(telemetry.serverReceivedAt).toLocaleTimeString('pt-BR') : 'Aguardando EA'}
+                  </span>
+                </div>
+              </div>
             </div>
-            <p className="text-xs text-gray-500 mt-2">
-              Conectado ao canal: <span className="text-gray-300">{creds.channelId}</span>
-            </p>
+            <div className="pt-2 border-t border-[#1E2633]">
+              <p className="text-[11px] text-gray-500 mb-1">Endpoint Stream SSE:</p>
+              <code className="block p-2 bg-[#0B0E11] rounded border border-[#1E2633] break-all text-[10px] text-emerald-400">
+                {`http://${window.location.hostname}:3000/api/mt5-sync/${creds.channelId}/stream?token=${creds.token}`}
+              </code>
+            </div>
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="p-6 rounded-xl bg-[#11161D] border border-[#222B38] space-y-4">
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              <WifiOff className="w-5 h-5 text-gray-400" />
-              Detalhes do Stream
-            </h2>
-            <div className="divide-y divide-[#1E2633] text-sm [&>div]:py-2 [&>div:first-child]:pt-0 [&>div:last-child]:pb-0">
-              <div className="flex justify-between">
-                <span className="text-gray-400">Canal:</span>
-                <span className="font-mono">{creds.channelId}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Status do SSE:</span>
-                <span className="font-mono">{streamStatus}</span>
-              </div>
-              <div className="pt-4">
-                <p className="text-xs text-gray-500 mb-1">URL de Conexão:</p>
-                <code className="block p-2 bg-[#0B0E11] rounded border border-[#1E2633] break-all text-[10px] text-emerald-400">
-                  {`http://${window.location.hostname}:3000/api/mt5-sync/${creds.channelId}/stream?token=${creds.token}`}
-                </code>
-              </div>
-            </div>
-          </div>
-          <div className="p-6 rounded-xl bg-[#11161D] border border-[#222B38] space-y-4">
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              <Info className="w-5 h-5 text-gray-400" />
-              Conta MT5
-            </h2>
+
+        <div className="p-6 rounded-xl bg-[#11161D] border border-[#222B38] space-y-4">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Info className="w-5 h-5 text-gray-400" />
+            Conta MT5
+          </h2>
             {telemetry?.account ? (
               <div className="divide-y divide-[#1E2633] text-sm [&>div]:py-2 [&>div:first-child]:pt-0 [&>div:last-child]:pb-0">
                 {(telemetry.account.broker || telemetry.account.server) && (
@@ -251,7 +250,7 @@ export function ConnectView({
               </div>
             )}
           </div>
-        </div>
+        
 
         {/* Log de Eventos de Pareamento */}
         <div className="p-6 rounded-xl bg-[#11161D] border border-[#222B38]">
