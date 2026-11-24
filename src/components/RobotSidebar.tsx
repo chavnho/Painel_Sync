@@ -222,7 +222,7 @@ export function RobotSidebar({
                           type="button"
                           onClick={(e) => { e.stopPropagation(); onCycleMagicColor(bot.magicNumber, idx); }}
                           title="Clique para alterar a cor"
-                          className={`w-2.5 h-2.5 rounded-full shrink-0 cursor-pointer ${colorTheme.dot}`}
+                          style={{ backgroundColor: colorTheme.hex }} className="w-2.5 h-2.5 rounded-full shrink-0 cursor-pointer"
                         />
                         <span className="text-xs font-semibold text-gray-100 truncate">
                           {bot.name}
