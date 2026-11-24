@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { Settings2 } from 'lucide-react';
 import type { DashboardView } from '../types/trading';
 
 interface DashboardHeaderProps {
@@ -15,24 +15,8 @@ const NAV_ITEMS: Array<{ id: DashboardView; label: string }> = [
   { id: 'reports', label: 'Relatórios' },
 ];
 
-const CONN_ITEMS: Array<{ id: DashboardView; label: string }> = [
-  { id: 'connect', label: 'Conectar Agora' },
-  { id: 'overview', label: 'Voltar ao Painel' },
-];
-
 export function DashboardHeader({ activeView, onViewChange }: DashboardHeaderProps) {
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  const isConnectActive = activeView === 'connect';
 
   return (
     <header className="h-14 shrink-0 bg-[#11161D] border-b border-[#222B38] px-6 flex items-center justify-between gap-8">
@@ -65,41 +49,20 @@ export function DashboardHeader({ activeView, onViewChange }: DashboardHeaderPro
         })}
       </nav>
 
-      <div className="shrink-0 relative">
+      <div className="shrink-0">
         <button
           type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setIsDropdownOpen(!isDropdownOpen);
-          }}
-          className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-400 ${
-            isDropdownOpen 
-              ? 'bg-[#1F2733] text-gray-100 border border-[#364152]' 
-              : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+          onClick={() => onViewChange('connect')}
+          className={`inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold rounded-lg border transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+            isConnectActive
+              ? 'bg-emerald-950/50 text-emerald-300 border-emerald-500/50'
+              : 'bg-[#18202B] hover:bg-[#1E2836] text-gray-200 hover:text-white border-[#2E3A4B] hover:border-emerald-500/40'
           }`}
         >
-          {activeView === 'connect' ? 'Conexão Ativa' : 'Conectar MT5'}
-          <span className="ml-1">▾</span>
+          <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+          <Settings2 className="w-3.5 h-3.5 text-emerald-400" />
+          <span>{isConnectActive ? 'Configuração EA' : 'Conectar MT5'}</span>
         </button>
-        
-        {isDropdownOpen && (
-          <div className="absolute right-0 mt-2 w-48 bg-[#11161D] border border-[#222B38] rounded-lg shadow-xl z-50 py-1">
-            {CONN_ITEMS.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => {
-                  onViewChange(item.id);
-                  setIsDropdownOpen(false);
-                }}
-                className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-[#1F2733] hover:text-white"
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
     </header>
   );
