@@ -1,4 +1,4 @@
-﻿export type DashboardView =
+export type DashboardView =
   | 'overview'
   | 'charts'
   | 'buy-sell'
@@ -116,6 +116,7 @@ export interface AccountSnapshot {
   server?: string;
   broker?: string;
   mode: 'DEMO' | 'REAL';
+  marginMode?: 'NETTING' | 'HEDGE';
   balance: number;
   equity: number;
   margin: number;

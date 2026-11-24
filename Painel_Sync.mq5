@@ -1,4 +1,4 @@
-﻿////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // ------------------------------------------- Parte 1 ---------------------------------------------------//
 // ------------------------------------------- $parte1 = @' ----------------------------------------------//
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -261,6 +261,7 @@ void SendAccountAndRobotsTelemetry()
    string server    = AccountInfoString(ACCOUNT_SERVER);
    string broker    = AccountInfoString(ACCOUNT_COMPANY);
    string modeStr   = (AccountInfoInteger(ACCOUNT_TRADE_MODE) == ACCOUNT_TRADE_MODE_REAL) ? "REAL" : "DEMO";
+   long marginModeVal = AccountInfoInteger(ACCOUNT_MARGIN_MODE); string marginModeStr = (marginModeVal == ACCOUNT_MARGIN_MODE_RETAIL_HEDGING || marginModeVal == 2) ? "HEDGE" : "NETTING";
    double balance   = AccountInfoDouble(ACCOUNT_BALANCE);
    double equity    = AccountInfoDouble(ACCOUNT_EQUITY);
    double margin    = AccountInfoDouble(ACCOUNT_MARGIN);
@@ -273,6 +274,7 @@ void SendAccountAndRobotsTelemetry()
    json += ",\"server\":\"" + EscapeJson(server) + "\"";
    json += ",\"broker\":\"" + EscapeJson(broker) + "\"";
    json += ",\"mode\":\"" + modeStr + "\"";
+   json += ",\"marginMode\":\"" + marginModeStr + "\"";
    json += ",\"balance\":" + DoubleToString(balance, 2);
    json += ",\"equity\":" + DoubleToString(equity, 2);
    json += ",\"margin\":" + DoubleToString(margin, 2);

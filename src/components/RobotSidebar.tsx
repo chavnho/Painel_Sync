@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Pencil, Radio, Trash2, X } from 'lucide-react';
+import { Check, Pencil, Radio, X } from 'lucide-react';
 import type { AccountSnapshot, DashboardView, RobotStream } from '../types/trading';
 import { formatBrl } from '../utils/tradingMath';
 
@@ -11,7 +11,6 @@ interface RobotSidebarProps {
   account: AccountSnapshot | null;
   streamStatus: 'connecting' | 'listening' | 'error';
   lastSyncAt: string | null;
-  onClearSession: () => void;
   activeView: DashboardView;
   onViewChange: (view: DashboardView) => void;
 }
@@ -24,7 +23,6 @@ export function RobotSidebar({
   account,
   streamStatus,
   lastSyncAt,
-  onClearSession,
   activeView,
   onViewChange,
 }: RobotSidebarProps) {
@@ -280,39 +278,21 @@ export function RobotSidebar({
         )}
       </div>
 
-      {/* Rodapé com Saldo da Conta e Ações MT5 */}
-      <div className="p-4 border-t border-[#222B38] bg-[#0E1319] space-y-3">
-        {account && (
+      {/* Rodapé com Margem Disponível MT5 */}
+      {account && (
+        <div className="p-4 border-t border-[#222B38] bg-[#0E1319]">
+          <div className="space-y-1 text-xs">
           <div className="space-y-1 text-xs">
             <div className="flex items-center justify-between text-gray-400">
-              <span>Saldo da Conta</span>
-              <span className="font-mono tabular-nums text-gray-200 font-medium">
-                {formatBrl(account.balance, false)}
-              </span>
-            </div>
-            <div className="flex items-center justify-between text-gray-400">
-              <span>Patrimônio Líq.</span>
+              <span>Margem Disponível</span>
               <span className="font-mono tabular-nums text-gray-100 font-semibold">
-                {formatBrl(account.equity, false)}
+                {formatBrl(account.freeMargin ?? account.equity ?? account.balance, false)}
               </span>
             </div>
           </div>
-        )}
-
-        {robots.length > 0 && (
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={onClearSession}
-              title="Limpar dados recebidos no painel"
-              aria-label="Limpar sessão atual"
-              className="p-2 rounded-lg bg-[#1A222D] hover:bg-[#2A191E] border border-[#2C3747] hover:border-red-500/40 text-gray-400 hover:text-red-300 transition-colors cursor-pointer shrink-0"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-      </div>
+                  </div>
+        </div>
+      )}
     </aside>
   );
 }

@@ -1,4 +1,4 @@
-﻿import "dotenv/config";
+import "dotenv/config";
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -637,6 +637,7 @@ async function startServer() {
         server: body.account.server ? String(body.account.server) : undefined,
         broker: body.account.broker ? String(body.account.broker) : undefined,
         mode: body.account.mode === "REAL" ? "REAL" : "DEMO",
+        marginMode: String(body.account.marginMode || "").toUpperCase() === "HEDGE" ? "HEDGE" : "NETTING",
         balance: Number(body.account.balance) || 0,
         equity: Number(body.account.equity) || 0,
         margin: Number(body.account.margin) || 0,
@@ -747,7 +748,7 @@ async function startServer() {
       }
     }
 
-    if (normalizedList.length === 0) {
+    if (normalizedList.length === 0 && !Array.isArray(body.robots)) {
       pushPairingEvent(channel, {
         outcome: "error",
         httpStatus: 400,

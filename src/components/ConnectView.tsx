@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import {
   Activity,
   AlertCircle,
@@ -6,7 +6,8 @@ import {
   CheckCircle2,
   Copy,
   WifiOff,
-  Info
+  Info,
+  Trash2
 } from 'lucide-react';
 import type {
   DashboardTelemetry,
@@ -18,6 +19,7 @@ interface ConnectViewProps {
   streamStatus: 'connecting' | 'listening' | 'error';
   telemetry: DashboardTelemetry | null;
   pairingEvents: PairingAttemptEvent[];
+  onClearSession: () => void;
   creds: {
     channelId: string;
     token: string;
@@ -28,6 +30,7 @@ export function ConnectView({
   streamStatus,
   telemetry,
   pairingEvents,
+  onClearSession,
   creds
 }: ConnectViewProps) {
   const [copiedField, setCopiedField] = React.useState<'channelId' | 'token' | 'endpoint' | 'eaCode' | null>(null);
@@ -67,9 +70,22 @@ export function ConnectView({
   return (
     <div className="flex-1 flex flex-col p-8 space-y-8 bg-[#0B0E11] text-gray-100">
       <div className="max-w-4xl w-full mx-auto space-y-6">
-        <div className="flex items-center gap-3">
-          <h2 className="text-2xl font-bold">Configuração do Robô EA</h2>
-          <p className="text-gray-400 text-sm">Use as credenciais abaixo para configurar seu robô no MetaTrader 5.</p>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="text-2xl font-bold">Configuração do Robô EA</h2>
+            <p className="text-gray-400 text-sm">Use as credenciais abaixo para configurar seu robô no MetaTrader 5.</p>
+          </div>
+          {telemetry && (
+            <button
+              type="button"
+              onClick={onClearSession}
+              title="Limpar dados recebidos na sessão atual"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1A222D] hover:bg-[#2A191E] border border-[#2C3747] hover:border-red-500/40 text-xs font-medium text-gray-300 hover:text-red-300 transition-colors cursor-pointer shrink-0"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Limpar Sessão</span>
+            </button>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -166,7 +182,7 @@ export function ConnectView({
               <WifiOff className="w-5 h-5 text-gray-400" />
               Detalhes do Stream
             </h2>
-            <div className="space-y-2 text-sm">
+            <div className="divide-y divide-[#1E2633] text-sm [&>div]:py-2 [&>div:first-child]:pt-0 [&>div:last-child]:pb-0">
               <div className="flex justify-between">
                 <span className="text-gray-400">Canal:</span>
                 <span className="font-mono">{creds.channelId}</span>
@@ -189,25 +205,45 @@ export function ConnectView({
               Conta MT5
             </h2>
             {telemetry?.account ? (
-              <div className="space-y-2 text-sm">
+              <div className="divide-y divide-[#1E2633] text-sm [&>div]:py-2 [&>div:first-child]:pt-0 [&>div:last-child]:pb-0">
+                {(telemetry.account.broker || telemetry.account.server) && (
+                  <div className="flex justify-between gap-4">
+                    <span className="text-gray-400">Servidor:</span>
+                    <span className="font-mono text-gray-200 truncate">
+                      {telemetry.account.server || telemetry.account.broker}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Login:</span>
-                  <span className="font-mono">{telemetry.account.login}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Modo:</span>
-                  <span className="px-2 py-0.5 rounded bg-emerald-900/30 text-emerald-400 text-xs border border-emerald-800">
+                  <span className="text-gray-400">Tipo:</span>
+                  <span className={`font-mono font-bold px-1.5 py-0.5 rounded text-xs ${telemetry.account.mode === 'REAL' ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800/50' : 'bg-amber-950/60 text-amber-400 border border-amber-800/50'}`}>
                     {telemetry.account.mode}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Saldo:</span>
-                  <span className="font-mono">R$ {telemetry.account.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  <span className="text-gray-400">Modo:</span>
+                  <span className="font-mono font-semibold px-1.5 py-0.5 rounded text-xs bg-[#1A222D] text-gray-200 border border-[#2C3747]">
+                    {telemetry.account.marginMode ?? 'NETTING'}
+                  </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Equidade:</span>
-                  <span className="font-mono">R$ {telemetry.account.equity.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  <span className="text-gray-400">Conta:</span>
+                  <span className="font-mono text-gray-200">{telemetry.account.login}</span>
                 </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Margem Disponível:</span>
+                  <span className="font-mono font-semibold text-gray-100">
+                    R$ {(telemetry.account.freeMargin ?? telemetry.account.equity ?? telemetry.account.balance).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                {telemetry.account.margin > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Margem Retida:</span>
+                    <span className="font-mono text-amber-400">
+                      R$ {telemetry.account.margin.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="text-sm text-gray-500 italic">

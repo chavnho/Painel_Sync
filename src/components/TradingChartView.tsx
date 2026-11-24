@@ -79,6 +79,19 @@ const TF_MINUTES: Record<string, number> = {
   'M': 43200,
 };
 
+function isSameUnderlyingSymbol(symA: string, symB: string): boolean {
+  const a = symA.trim().toUpperCase();
+  const b = symB.trim().toUpperCase();
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const prefixes = ['WIN', 'IND', 'WDO', 'DOL', 'BIT', 'CCM', 'BGI', 'ICF'];
+  for (const p of prefixes) {
+    if (a.startsWith(p) && b.startsWith(p)) {
+      if (a.includes('$') || b.includes('$')) return true;
+    }
+  }
+  return false;
+}
 function getSymbolPriceFormat(symbol: string): {
   type: 'price';
   precision: number;
@@ -301,7 +314,7 @@ export function TradingChartView({
        const single = robots.find((r) => r.robotId === selectedRobotId);
        return single ? [single] : [];
      }
-     return robots.filter((r) => r.symbol === activeSymbol);
+     return robots.filter((r) => isSameUnderlyingSymbol(r.symbol, activeSymbol));
    }, [robots, activeSymbol, selectedRobotId]);
 
 

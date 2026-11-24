@@ -200,7 +200,6 @@ export default function App() {
           account={telemetry?.account ?? null}
           streamStatus={streamStatus}
           lastSyncAt={telemetry?.serverReceivedAt ?? null}
-          onClearSession={handleClearSession}
           activeView={activeView}
           onViewChange={setActiveView}
         />
@@ -267,6 +266,7 @@ export default function App() {
                 telemetry={telemetry}
                 pairingEvents={pairingEvents}
                 creds={creds}
+                onClearSession={handleClearSession}
               />
               <LiveLogView events={pairingEvents} />
             </div>
