@@ -153,17 +153,17 @@ export function BuySellAnalyticsView({
             <span className={metrics.buys.count > 0 ? "text-emerald-400 font-semibold" : "text-gray-400"}>
               Compras: {metrics.buys.count} operações ({buySharePct}%)
             </span>
-            <span className={metrics.sells.count > 0 ? "text-red-400 font-semibold" : "text-gray-400"}>
+            <span className={metrics.sells.count > 0 ? "text-rose-400 font-semibold" : "text-gray-400"}>
               Vendas: {metrics.sells.count} operações ({sellSharePct}%)
             </span>
           </div>
-          <div className="h-2.5 w-full rounded-full bg-[#1C2430] overflow-hidden flex">
+          <div className="h-2.5 w-full rounded-full bg-[#090D12] border border-[#1E2633] overflow-hidden flex gap-px">
             <div
-              className="h-full bg-emerald-500 transition-all"
+              className="h-full bg-emerald-500/70 transition-all"
               style={{ width: `${buySharePct}%` }}
             />
             <div
-              className="h-full bg-red-500 transition-all"
+              className="h-full bg-rose-500/70 transition-all"
               style={{ width: `${sellSharePct}%` }}
             />
           </div>
@@ -251,7 +251,7 @@ export function BuySellAnalyticsView({
           <section className="rounded-xl bg-[#0F141C] border border-[#1E2633] overflow-hidden">
             <div className="px-5 py-3.5 border-b border-[#1E2633] flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <TrendingDown className="w-4 h-4 text-red-400" />
+                <TrendingDown className="w-4 h-4 text-rose-400" />
                 <h2 className="text-sm font-semibold text-gray-100">
                   Operações de Venda (Short)
                 </h2>
