@@ -774,6 +774,7 @@ async function startServer() {
               merged.push({ ...incoming, index: merged.length });
             }
           }
+          merged.sort((a, b) => Number(a.time ?? 0) - Number(b.time ?? 0));
           const trimmed = merged.slice(-MAX_CHART_CANDLES).map((c, i) => ({ ...c, index: i }));
           chartCandlesCache.set(`${channelId}:${chartSymbol}:${chartTf}`, trimmed);
           chartCandlesCache.set(`${channelId}:${chartSymbol}:`, trimmed);
