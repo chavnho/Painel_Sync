@@ -55,6 +55,7 @@ export interface LiveSyncChannel {
   account: any;
   robots: Map<string, any>;
   symbols: string[];
+  activeContracts?: Record<string, string>;
   pairingEvents: PairingAttemptEvent[];
   subscribers: Set<any>;
 }

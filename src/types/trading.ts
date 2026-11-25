@@ -147,6 +147,7 @@ export interface DashboardTelemetry {
   robots: RobotStream[];
   serverReceivedAt: string;
   pairingEvents?: PairingAttemptEvent[];
+  activeContracts?: Record<string, string>;
 }
 
 export interface SideStats {

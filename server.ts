@@ -412,6 +412,7 @@ function buildSnapshotResponse(channelId: string, channel: LiveSyncChannel) {
     account,
     robots,
     symbols: channel.symbols,
+    activeContracts: channel.activeContracts,
     serverReceivedAt: new Date(channel.updatedAtMs).toISOString(),
     pairingEvents: channel.pairingEvents,
   };
@@ -477,6 +478,7 @@ async function startServer() {
       account: null,
       robots: new Map(),
       symbols: [],
+    activeContracts: {},
       pairingEvents: [],
       subscribers: new Set(),
     };
@@ -729,6 +731,9 @@ async function startServer() {
     }
 
     mergeChannelSymbols(channel, body.symbols);
+    if (body.activeContracts && typeof body.activeContracts === 'object') {
+      channel.activeContracts = { ...channel.activeContracts, ...(body.activeContracts as Record<string, string>) };
+    }
 
     const hasRobotPayload =
       Array.isArray(body.robots) ||

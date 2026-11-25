@@ -48,6 +48,7 @@ import { formatBrl, formatPrice } from '../utils/tradingMath';
 
 interface TradingChartViewProps {
   robots: RobotStream[];
+  activeContracts?: Record<string, string>;
   selectedRobotId: string | 'ALL';
   magicColors?: Record<number, number>;
   onNavigate: (view: DashboardView) => void;
@@ -180,6 +181,7 @@ function buildTimedCandles(rawCandles: LiveCandle[], tfMinutes: number): TimedCa
 
 export function TradingChartView({
   robots,
+  activeContracts = {},
   selectedRobotId,
   magicColors = {},
   onNavigate,
@@ -196,11 +198,20 @@ export function TradingChartView({
   const [searchQuery, setSearchQuery] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const previousSymbolRef = useRef<string>('');
+  const resolveCurrentSymbol = (rawSym?: string): string => {
+    const up = (rawSym || '').toUpperCase().trim();
+    if (!up) return '';
+    const m = /^(WDO|WIN|IND|DOL|BIT)[FGHJKMNQUVXZ]\d{2}$/.exec(up);
+    const root = m?.at(1);
+    if (root && activeContracts[root]) return activeContracts[root].toUpperCase();
+    return up;
+  };
+
 
   useEffect(() => {
     if (selectedRobotId !== 'ALL') {
       const found = robots.find((r) => r.robotId === selectedRobotId);
-      const nextSym = found?.symbol?.toUpperCase();
+      const nextSym = resolveCurrentSymbol(found?.symbol);
       if (nextSym && nextSym !== previousSymbolRef.current) {
         setSelectedSymbol(nextSym);
         setSearchQuery(nextSym);
@@ -214,8 +225,7 @@ export function TradingChartView({
       setSearchQuery(firstSym);
       previousSymbolRef.current = firstSym;
     }
-  }, [selectedRobotId,
-  robots]);
+  }, [selectedRobotId, robots, activeContracts]);
 
     const handleSymbolChange = async (val: string) => {
       const upper = val.toUpperCase();

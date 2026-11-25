@@ -291,6 +291,7 @@ export default function App() {
           {activeView === 'charts' && (
             <TradingChartView
               robots={robots}
+              activeContracts={telemetry?.activeContracts}
               magicColors={magicColors}
               selectedRobotId={selectedRobotId}
               onNavigate={setActiveView}

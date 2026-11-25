@@ -313,7 +313,44 @@ void SendAccountAndRobotsTelemetry()
       json += ",\"dailyPnlBrl\":" + DoubleToString(botDaily, 2);
       json += "}";
    }
-   json += "]}";
+   json += "],\"activeContracts\":{";
+   string roots[] = {"WDO", "WIN", "IND", "DOL", "BIT"};
+   int acCount = 0;
+   datetime nowTime = TimeCurrent();
+   for(int r = 0; r < ArraySize(roots); r++)
+   {
+      string root = roots[r];
+      string bestSym = "";
+      datetime bestExp = 0;
+      for(int j = 0; j < count; j++)
+      {
+         string s = added[j];
+         if(StringLen(s) != 6 || StringSubstr(s, 0, 3) != root) continue;
+         ushort mCh = StringGetCharacter(s, 3);
+         ushort y1  = StringGetCharacter(s, 4);
+         ushort y2  = StringGetCharacter(s, 5);
+         if(mCh < 'F' || mCh > 'Z' || y1 < '0' || y1 > '9' || y2 < '0' || y2 > '9') continue;
+         datetime exp = (datetime)SymbolInfoInteger(s, SYMBOL_EXPIRATION_TIME);
+         if(exp <= 0) continue;
+         MqlDateTime expDt;
+         TimeToStruct(exp, expDt);
+         int rollDays = (expDt.day_of_week == 1) ? 3 : 1; // 1 dia util antes do vencimento
+         datetime rolloverLimit = exp - (datetime)(rollDays * 86400);
+         if(rolloverLimit < nowTime) continue;
+         if(bestSym == "" || exp < bestExp)
+         {
+            bestSym = s;
+            bestExp = exp;
+         }
+      }
+      if(bestSym != "")
+      {
+         if(acCount > 0) json += ",";
+         json += "\"" + root + "\":\"" + EscapeJson(bestSym) + "\"";
+         acCount++;
+      }
+   }
+   json += "}}";
 
    if(InpDebug)
       Print("PainelSync [DEBUG] Telemetria: ", json);
