@@ -12,12 +12,13 @@ interface ConnectViewProps {
 }
 export function ConnectView({ streamStatus, telemetry, pairingEvents, onClearSession, creds }: ConnectViewProps) {
   const [copiedField, setCopiedField] = React.useState<'channelId' | 'token' | 'endpoint' | 'eaCode' | null>(null);
+  const [mqlMode, setMqlMode] = React.useState<'ea' | 'service'>('ea');
   const [logFilter, setLogFilter] = React.useState<'all' | 'orders' | 'positions' | 'connection' | 'server'>('all');
   const inferCat = (ev: PairingAttemptEvent) => ev.category ?? (ev.source === 'ping' ? 'connection' : ev.source === 'mt5' ? 'connection' : 'server');
   const filteredLogs = React.useMemo(() => logFilter === 'all' ? pairingEvents : pairingEvents.filter((ev) => inferCat(ev) === logFilter), [pairingEvents, logFilter]);
   const endpointUrl = window.location.origin;
 
-  const eaCode = React.useMemo(() => buildPainelSyncMql5({ endpointUrl, token: creds.token, channelId: creds.channelId }), [endpointUrl, creds.token, creds.channelId]);
+  const eaCode = React.useMemo(() => buildPainelSyncMql5({ endpointUrl, token: creds.token, channelId: creds.channelId, mode: mqlMode }), [endpointUrl, creds.token, creds.channelId, mqlMode]);
 
   const copyValue = async (field: 'channelId' | 'token' | 'endpoint' | 'eaCode', value: string) => {
     let ok = false;
@@ -79,9 +80,19 @@ export function ConnectView({ streamStatus, telemetry, pairingEvents, onClearSes
                 </div>
               ))}
             </div>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-[11px] text-gray-400">
+                <span>Tipo de Execução no MT5</span>
+                <span className="font-mono text-gray-500">{mqlMode === 'service' ? 'MQL5\\Services\\' : 'MQL5\\Experts\\'}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-1 bg-[#090D12] p-1 rounded-lg border border-[#1E2633]">
+                <button type="button" onClick={() => setMqlMode('ea')} className={`py-1.5 px-2 rounded text-[11px] font-medium transition-colors cursor-pointer ${mqlMode === 'ea' ? 'bg-[#1F2937] text-gray-100' : 'text-gray-400 hover:text-gray-200'}`}>Expert Advisor (Gráfico)</button>
+                <button type="button" onClick={() => setMqlMode('service')} className={`py-1.5 px-2 rounded text-[11px] font-medium transition-colors cursor-pointer ${mqlMode === 'service' ? 'bg-[#1F2937] text-gray-100' : 'text-gray-400 hover:text-gray-200'}`}>Serviço (2º Plano)</button>
+              </div>
+            </div>
             <button type="button" onClick={() => copyValue('eaCode', eaCode)} className="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold text-white transition-colors cursor-pointer">
               {copiedField === 'eaCode' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-              {copiedField === 'eaCode' ? 'Código copiado!' : 'Copiar código do EA (Painel_Sync.mq5)'}
+              {copiedField === 'eaCode' ? 'Código copiado!' : mqlMode === 'service' ? 'Copiar código do Serviço (Painel_Sync.mq5)' : 'Copiar código do EA (Painel_Sync.mq5)'}
             </button>
           </div>
           <div className="p-6 rounded-xl bg-[#0F141C] border border-[#1E2633] flex flex-col justify-between space-y-4">
