@@ -1,5 +1,17 @@
 # Changelog — Painel Sync MT5
 
+## [v0.7.0] - 2026-11-25
+
+### Adicionado
+- **Modo Serviço MQL5 em 2º Plano (`src/utils/mt5Bridge.ts` + `src/components/ConnectView.tsx`)**: Seletor na aba *Conectar MT5* para gerar o coletor tanto como **Serviço (`MQL5\\Services\\`, `#property service`)** — rodando de forma independente sem precisar de gráfico aberto — quanto como **Expert Advisor (`MQL5\\Experts\\`)**.
+- **Detecção Automática de Rolagem B3 D-1 (`Painel_Sync.mq5` + `server.ts` + `src/components/TradingChartView.tsx`)**: Identificação automática dos contratos vigentes (`WDO`, `WIN`, `IND`, `DOL`, `BIT`) via `SYMBOL_EXPIRATION_TIME` com margem de 1 dia útil antes do vencimento e redirecionamento automático de contratos vencidos no gráfico.
+- **Logs Categorizados no Servidor e MQL5 (`server.ts` + `Painel_Sync.mq5`)**: Emissão automática de eventos de abertura/cancelamento de ordens e abertura/fechamento de posições com filtros por categoria (*Todos*, *Ordens*, *Posições*, *Conexão*, *Servidor*) e parâmetros organizados em grupos (`input group`) no MetaTrader 5.
+- **Sistema Centralizado de Temas & Modal ao Vivo (`src/index.css` + `src/utils/themeTokens.ts` + `src/components/ThemeSettingsModal.tsx`)**: Variáveis CSS globais e modal interativo no cabeçalho com presets (*Institucional*, *Obsidiana OLED*, *Azul Ardósia*, *Grafite Suave*), seletores de cor em tempo real e escalas de fonte (*Compacta*, *Padrão*, *Ampliada*).
+
+### Melhorado
+- **Visão Geral & Curva de Resultado (`src/components/OverviewView.tsx` + `src/components/EquityBaselineChart.tsx`)**: *Histórico Consolidado* promovido para o topo da carteira, exibição do Drawdown Máximo histórico e percentual do capital, ponto inicial `R$ 0,00` e correção do parsing de datas do MT5 no hover sem recriar o gráfico a cada tick SSE.
+- **Legibilidade das Tabelas & Relatórios (`src/components/TradesLedgerView.tsx` + `src/components/WeeklyMonthlyReportView.tsx` + `src/components/BuySellAnalyticsView.tsx`)**: Alternância sutil de linhas (zebra striping), badges discretos de `COMPRA`/`VENDA`, alinhamento da paleta `rose`/`emerald` e restauração completa de caracteres UTF-8.
+
 ## [v0.6.0] - 2026-11-24
 
 ### Adicionado

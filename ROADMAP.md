@@ -2,17 +2,13 @@
 
 ## Concluído até v0.7.0
 - [x] Telemetria multi-robô agrupada por `MagicNumber` (`Painel_Sync.mq5` + `server.ts` via SSE).
+- [x] Execução flexível no MetaTrader 5 como **Serviço em 2º Plano (`#property service`)** ou **Expert Advisor**, com inputs organizados em grupos e logs categorizados.
+- [x] Detecção automática de contratos vigentes B3 com rolagem D-1 útil via `SYMBOL_EXPIRATION_TIME` e redirecionamento automático no gráfico.
 - [x] Gráficos em tela cheia com Snapshot + Delta incremental, série contínua vinculada, ordens pendentes e linhas de trade acima dos candles (`TradeLinesPrimitive`).
 - [x] Persistência histórica em SQLite nativo (`data/painel_sync.db` via `node:sqlite`), backfill retroativo de 90 dias, preferências de robôs ocultos e backup automático `VACUUM INTO`.
-- [x] Redesign institucional (`OverviewView` dividido em Pregão de Hoje vs Histórico Consolidado, `EquityBaselineChart` com `BaselineSeries` TradingView v5, `RobotSidebar` sincronizada e `RootErrorBoundary`).
-- [x] Código MQL5 100% embutido e sincronizado em `src/utils/mt5Bridge.ts`, cópia com fallback garantido em HTTP local (`ConnectView.tsx`) e barra de filtros unificada em `WeeklyMonthlyReportView.tsx`.
+- [x] Redesign institucional (*Histórico Consolidado* no topo, *Pregão de Hoje*, Drawdown Máximo histórico/diário, `EquityBaselineChart` estabilizado e tabelas com zebra striping).
+- [x] Sistema centralizado de temas (`src/index.css` + `UI_THEME`) com modal ao vivo (*Institucional*, *Obsidiana OLED*, *Azul Ardósia*, *Grafite Suave*).
 
-## Próximas Etapas
-1. **Unificação da Paleta Institucional (`#090D12` / `#0F141C`) nas Abas Restantes**:
-   - Aplicar os tokens de superfície nas views restantes (`DashboardHeader`, `TradingChartView`, `BuySellAnalyticsView`, `OperationsView` e `IndependentChartView`).
-2. **Atalhos de Teclado**:
-   - Atalhos `1..6` para alternar entre abas e `Esc` para retornar à Carteira Ativa.
-3. **Métricas Avançadas por Trade (MEP / MEN em Pontos)**:
-   - Captura da Máxima Excursão Positiva (MFE) e Máxima Excursão Negativa (MAE) em pontos no EA (`Painel_Sync.mq5`) e exibição nas tabelas de operações.
-4. **Comandos Operacionais Remotos via Fila `/pending`**:
-   - Encerrar posição aberta (`CLOSE_MAGIC`) ou cancelar ordens pendentes (`CANCEL_ORDERS`) de um `MagicNumber` específico com confirmação dupla na UI.
+## Próximos Passos (v0.8.0+)
+- [ ] **MEP / MEN em Pontos**: Capturar Máxima Excursão Positiva (MFE) e Máxima Excursão Negativa (MAE) por operação no MQL5 e exibir nas tabelas e relatórios.
+- [ ] **Comandos Operacionais Remotos**: Encerrar posição por MagicNumber (`CLOSE_MAGIC`) e cancelar ordens pendentes (`CANCEL_ORDERS`) diretamente pelo painel com confirmação dupla via fila `/pending`.
