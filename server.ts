@@ -830,6 +830,22 @@ async function startServer() {
       }
     }
 
+    if (Array.isArray(body.robots)) {
+      const activeIds = new Set(normalizedList.map((r) => r.robotId));
+      for (const [id, existingBot] of channel.robots.entries()) {
+        if (!activeIds.has(id) && (existingBot.position !== null || existingBot.pendingOrders.length > 0)) {
+          channel.robots.set(id, {
+            ...existingBot,
+            status: 'idle',
+            position: null,
+            pendingOrders: [],
+            floatingPnlBrl: 0,
+            lastUpdate: serverReceivedAt,
+          });
+        }
+      }
+    }
+
     if (normalizedList.length === 0 && !Array.isArray(body.robots)) {
       pushPairingEvent(channel, {
         outcome: "error",
