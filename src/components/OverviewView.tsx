@@ -215,6 +215,29 @@ export function OverviewView({
           </div>
         </div>
         <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" /><h2 className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Histórico Consolidado ({cumulativeStats.totalHistTrades} operações)</h2></div>
+            <button type="button" onClick={() => onNavigate('reports')} className="text-[11px] text-blue-400 hover:text-blue-300 cursor-pointer">Relatório completo →</button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="rounded-[10px] bg-[#0F141C] border border-[#1E293B] p-4">
+              <div className="text-[11px] uppercase tracking-wider text-slate-400">Saldo Acumulado</div>
+              <div className={`mt-1 text-2xl font-mono font-bold tabular-nums ${cumulativeStats.totalPnlBrl > 0 ? 'text-emerald-400' : cumulativeStats.totalPnlBrl < 0 ? 'text-rose-400' : 'text-slate-100'}`}>{formatBrl(cumulativeStats.totalPnlBrl)}</div>
+              <div className="mt-1.5 text-[11px] font-mono tabular-nums text-slate-500">Pico máximo: <span className="text-slate-300">{formatBrl(cumulativeStats.peakPnlBrl)}</span></div>
+            </div>
+            <div className="rounded-[10px] bg-[#0F141C] border border-[#1E293B] p-4">
+              <div className="text-[11px] uppercase tracking-wider text-slate-400">Média por Trade</div>
+              <div className={`mt-1 text-2xl font-mono font-bold tabular-nums ${cumulativeStats.expectancyBrl > 0 ? 'text-emerald-400' : cumulativeStats.expectancyBrl < 0 ? 'text-rose-400' : 'text-slate-100'}`}>{formatBrl(cumulativeStats.expectancyBrl)}</div>
+              <div className="mt-1.5 text-[11px] font-mono tabular-nums text-slate-400">{cumulativeStats.histWinRate}% acerto • Fator {cumulativeStats.histProfitFactor.toFixed(2)}</div>
+            </div>
+            <div className="rounded-[10px] bg-[#0F141C] border border-[#1E293B] p-4 flex flex-col justify-between">
+              <div className="text-[11px] uppercase tracking-wider text-slate-400">Gain Médio vs Loss Médio</div>
+              <div className="my-2 flex items-center justify-between text-xs font-mono font-bold tabular-nums"><span className="text-emerald-400">{formatBrl(cumulativeStats.avgWinBrl, false)}</span><span className="text-rose-400">{formatBrl(-cumulativeStats.avgLossBrl, false)}</span></div>
+              <div className="w-full h-2 rounded-full bg-[#161D27] overflow-hidden flex">{(() => { const tot = cumulativeStats.avgWinBrl + cumulativeStats.avgLossBrl; const wPct = tot > 0 ? Math.round((cumulativeStats.avgWinBrl / tot) * 100) : 50; return (<><div className="h-full bg-emerald-500" style={{ width: `${wPct}%` }} /><div className="h-full bg-rose-500" style={{ width: `${100 - wPct}%` }} /></>); })()}</div>
+            </div>
+          </div>
+        </section>
+        <section className="pt-2 border-t border-[#1E293B] space-y-3">
           <div className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /><h2 className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Pregão de Hoje</h2></div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className={`rounded-[10px] bg-[#0F141C] border border-[#1E293B] p-4 border-l-[3px] ${isPos ? 'border-l-emerald-500' : isNeg ? 'border-l-rose-500' : 'border-l-slate-600'}`}>
@@ -263,29 +286,6 @@ export function OverviewView({
               </div>
             </div>
           )}
-        </section>
-        <section className="pt-2 border-t border-[#1E293B] space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" /><h2 className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Histórico Consolidado ({cumulativeStats.totalHistTrades} operações)</h2></div>
-            <button type="button" onClick={() => onNavigate('reports')} className="text-[11px] text-blue-400 hover:text-blue-300 cursor-pointer">Relatório completo →</button>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="rounded-[10px] bg-[#0F141C] border border-[#1E293B] p-4">
-              <div className="text-[11px] uppercase tracking-wider text-slate-400">Saldo Acumulado</div>
-              <div className={`mt-1 text-2xl font-mono font-bold tabular-nums ${cumulativeStats.totalPnlBrl > 0 ? 'text-emerald-400' : cumulativeStats.totalPnlBrl < 0 ? 'text-rose-400' : 'text-slate-100'}`}>{formatBrl(cumulativeStats.totalPnlBrl)}</div>
-              <div className="mt-1.5 text-[11px] font-mono tabular-nums text-slate-500">Pico máximo: <span className="text-slate-300">{formatBrl(cumulativeStats.peakPnlBrl)}</span></div>
-            </div>
-            <div className="rounded-[10px] bg-[#0F141C] border border-[#1E293B] p-4">
-              <div className="text-[11px] uppercase tracking-wider text-slate-400">Média por Trade</div>
-              <div className={`mt-1 text-2xl font-mono font-bold tabular-nums ${cumulativeStats.expectancyBrl > 0 ? 'text-emerald-400' : cumulativeStats.expectancyBrl < 0 ? 'text-rose-400' : 'text-slate-100'}`}>{formatBrl(cumulativeStats.expectancyBrl)}</div>
-              <div className="mt-1.5 text-[11px] font-mono tabular-nums text-slate-400">{cumulativeStats.histWinRate}% acerto • Fator {cumulativeStats.histProfitFactor.toFixed(2)}</div>
-            </div>
-            <div className="rounded-[10px] bg-[#0F141C] border border-[#1E293B] p-4 flex flex-col justify-between">
-              <div className="text-[11px] uppercase tracking-wider text-slate-400">Gain Médio vs Loss Médio</div>
-              <div className="my-2 flex items-center justify-between text-xs font-mono font-bold tabular-nums"><span className="text-emerald-400">{formatBrl(cumulativeStats.avgWinBrl, false)}</span><span className="text-rose-400">{formatBrl(-cumulativeStats.avgLossBrl, false)}</span></div>
-              <div className="w-full h-2 rounded-full bg-[#161D27] overflow-hidden flex">{(() => { const tot = cumulativeStats.avgWinBrl + cumulativeStats.avgLossBrl; const wPct = tot > 0 ? Math.round((cumulativeStats.avgWinBrl / tot) * 100) : 50; return (<><div className="h-full bg-emerald-500" style={{ width: `${wPct}%` }} /><div className="h-full bg-rose-500" style={{ width: `${100 - wPct}%` }} /></>); })()}</div>
-            </div>
-          </div>
         </section>
       </div>
     </div>
