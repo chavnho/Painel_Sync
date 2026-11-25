@@ -85,7 +85,7 @@ export function WeeklyMonthlyReportView({ robots, selectedRobotId, magicColors =
           </div>
           <div className="p-4 space-y-1">
             <div className="text-xs text-gray-400">Drawdown Máximo</div>
-            <div className="text-xl font-mono font-bold tabular-nums text-amber-400">{formatBrl(-consolidated.maxDrawdownBrl, false)}</div>
+            <div className="text-xl font-mono font-bold tabular-nums text-rose-400/90">{formatBrl(-consolidated.maxDrawdownBrl, false)}</div>
             <div className="text-[11px] font-mono tabular-nums text-gray-500">Compras {consolidated.buyWinRatePct}% • Vendas {consolidated.sellWinRatePct}%</div>
           </div>
         </div>
@@ -113,7 +113,7 @@ export function WeeklyMonthlyReportView({ robots, selectedRobotId, magicColors =
                   return (
                     <g key={day.dateIso} onMouseEnter={() => setHoverDayIdx(idx)} className="cursor-crosshair">
                       <rect x={cx - slotW / 2} y={padT} width={slotW} height={plotH} fill={hoverDayIdx === idx ? '#161D27' : 'transparent'} />
-                      <rect x={cx - barWidth / 2} y={y} width={barWidth} height={Math.max(2, barLen)} rx={2} fill={isPos ? '#10B981' : '#EF4444'} opacity={hoverDayIdx === idx ? 1 : 0.85} />
+                      <rect x={cx - barWidth / 2} y={y} width={barWidth} height={Math.max(2, barLen)} rx={2} fill={isPos ? '#10B981' : '#F43F5E'} opacity={hoverDayIdx === idx ? 0.95 : 0.72} />
                       {(idx % labelStep === 0 || idx === dailySeries.length - 1) && (<text x={cx} y={chartH - 8} textAnchor="middle" fill="#9CA3AF" fontSize="9.5" fontFamily="JetBrains Mono, monospace">{day.dateLabel}</text>)}
                     </g>
                   );
@@ -124,7 +124,7 @@ export function WeeklyMonthlyReportView({ robots, selectedRobotId, magicColors =
         </section>
         <section className="rounded-xl bg-[#0F141C] border border-[#1E2633] overflow-hidden">
           <div className="px-5 py-3.5 border-b border-[#1E2633] flex flex-wrap items-center justify-between gap-2">
-            <div><h2 className="text-sm font-semibold text-gray-100">Consolidado por Robô — Taxa de Acerto & Fator de Lucro</h2><p className="text-xs text-gray-400">Clique em qualquer robô para filtrar o gráfico diário e os KPIs acima</p></div>
+            <div><h2 className="text-sm font-semibold text-gray-100">Consolidado por Robô • Taxa de Acerto & Fator de Lucro</h2><p className="text-xs text-gray-400">Clique em qualquer robô para filtrar o gráfico diário e os KPIs acima</p></div>
             <span className="text-xs font-mono text-gray-500">{report.rows.length} robôs no período</span>
           </div>
           <div className="overflow-x-auto">
@@ -145,7 +145,7 @@ export function WeeklyMonthlyReportView({ robots, selectedRobotId, magicColors =
                       <td className="px-4 py-3 text-right text-gray-300">{row.payoffRatio.toFixed(2)}x</td>
                       <td className="px-4 py-3 text-right text-emerald-400">+{formatBrl(row.grossProfitBrl, false)}</td>
                       <td className="px-4 py-3 text-right text-rose-400">-{formatBrl(row.grossLossBrl, false)}</td>
-                      <td className="px-4 py-3 text-right text-amber-400">{formatBrl(-row.maxDrawdownBrl, false)}</td>
+                      <td className="px-4 py-3 text-right text-rose-400/90">{formatBrl(-row.maxDrawdownBrl, false)}</td>
                       <td className={`px-4 py-3 text-right font-bold ${row.netPnlBrl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{formatBrl(row.netPnlBrl)}</td>
                     </tr>
                   );
@@ -161,7 +161,7 @@ export function WeeklyMonthlyReportView({ robots, selectedRobotId, magicColors =
                   <td className="px-4 py-3 text-right font-semibold text-gray-200">{consolidated.payoffRatio.toFixed(2)}x</td>
                   <td className="px-4 py-3 text-right font-semibold text-emerald-400">+{formatBrl(consolidated.grossProfitBrl, false)}</td>
                   <td className="px-4 py-3 text-right font-semibold text-rose-400">-{formatBrl(consolidated.grossLossBrl, false)}</td>
-                  <td className="px-4 py-3 text-right font-semibold text-amber-400">{formatBrl(-consolidated.maxDrawdownBrl, false)}</td>
+                  <td className="px-4 py-3 text-right font-semibold text-rose-400/90">{formatBrl(-consolidated.maxDrawdownBrl, false)}</td>
                   <td className={`px-4 py-3 text-right font-bold ${consolidated.netPnlBrl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{formatBrl(consolidated.netPnlBrl)}</td>
                 </tr>
               </tfoot>
