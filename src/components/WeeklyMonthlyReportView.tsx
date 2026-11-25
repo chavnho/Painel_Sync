@@ -44,7 +44,7 @@ export function WeeklyMonthlyReportView({ robots, selectedRobotId, magicColors =
 
   return (
     <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6 bg-[#090D12]">
-      <div className="max-w-7xl mx-auto space-y-6">
+      <div className="max-w-[1320px] mx-auto space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="space-y-0.5">
             <h1 className={UI_THEME.typography.pageTitle}>Relatório Histórico Consolidado</h1>

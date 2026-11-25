@@ -127,7 +127,7 @@ export function TradesLedgerView({
 
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden px-6 py-5">
-      <div className="max-w-7xl w-full mx-auto flex-1 flex flex-col min-h-0 gap-5">
+      <div className="max-w-[1320px] w-full mx-auto flex-1 flex flex-col min-h-0 gap-5">
         {/* Posições Abertas */}
         <section className="shrink-0 rounded-xl bg-[#0F141C] border border-[#1E2633] overflow-hidden">
           <div className="px-5 py-3.5 border-b border-[#1E2633] flex items-center justify-between">
@@ -400,8 +400,8 @@ export function TradesLedgerView({
             </div>
           ) : (
             <div className="flex-1 min-h-0 overflow-auto">
-              <table className="w-full text-left border-collapse text-[11px]">
-                <thead className="${UI_THEME.typography.tableHeader}">
+              <table className="w-full text-left border-collapse whitespace-nowrap">
+                <thead className={UI_THEME.typography.tableHeader}>
                   <tr>
                     <th className="px-4 py-3 font-semibold">Ticket</th>
                     <th className="px-4 py-3 font-semibold">Robô</th>
@@ -417,7 +417,7 @@ export function TradesLedgerView({
                 </thead>
                 <tbody className={UI_THEME.typography.tableBody}>
                   {filteredTrades.map((tr, idx) => (
-                    <tr key={tr.id} className={UI_THEME.surfaces.zebraRow}>
+                    <tr key={`${tr.robotId}_${tr.id}`} className={`${UI_THEME.surfaces.zebraRow} whitespace-nowrap`}>
                       <td className="px-3.5 py-2 text-slate-400">#{tr.id}</td>
                       <td className="px-3.5 py-2 font-sans text-slate-300"><div className="flex items-center gap-2"><span className={`w-2 h-2 rounded-full shrink-0 ${getRobotColorTheme(tr.magicNumber, magicColors).dot}`} /><span>{tr.robotName}</span></div></td>
                       <td className="px-3.5 py-2 text-slate-300">{tr.symbol}</td>

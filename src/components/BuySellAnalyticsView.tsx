@@ -122,8 +122,8 @@ export function BuySellAnalyticsView({
 
   return (
     <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="max-w-[1320px] mx-auto space-y-6">
+        <div className="flex flex-wrap xl:flex-nowrap items-center justify-between gap-3">
           <div className="space-y-0.5">
             <h1 className={UI_THEME.typography.pageTitle}>
               Análise de Compras vs Vendas
@@ -135,10 +135,14 @@ export function BuySellAnalyticsView({
           <div className="flex flex-wrap items-center gap-2">
             <PeriodFilterBar filter={periodFilter} />
           {selectedRobotId !== 'ALL' && scopedRobots.length === 1 ? (
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#0F141C] border border-[#1E2633] text-xs">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#0F141C] border border-[#1E2633] text-xs whitespace-nowrap shrink-0">
               <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${getRobotColorTheme(scopedRobots[0].magicNumber, magicColors).dot}`} />
               <span className="font-semibold text-gray-100">{scopedRobots[0].name}</span>
-              <span className="font-mono text-gray-400">#{scopedRobots[0].magicNumber} · {scopedRobots[0].symbol}</span>
+              <span className="font-mono text-gray-400">
+                {scopedRobots[0].name.includes(`#${scopedRobots[0].magicNumber}`)
+                  ? `· ${scopedRobots[0].symbol}`
+                  : `#${scopedRobots[0].magicNumber} · ${scopedRobots[0].symbol}`}
+              </span>
             </div>
           ) : (
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#0F141C] border border-[#1E2633] text-xs text-gray-300">
