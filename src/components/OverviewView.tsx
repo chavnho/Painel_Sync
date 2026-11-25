@@ -165,6 +165,8 @@ export function OverviewView({
     else { setSortKey(key); setSortDir('desc'); }
   };
 
+  const scopedHistoryTrades = useMemo(() => scopedRobots.flatMap((r) => (Array.isArray(r.historyTrades) && r.historyTrades.length > 0 ? r.historyTrades : (r.trades ?? []))), [scopedRobots]);
+
   if (robots.length === 0) {
     return (
       <div className="flex-1 overflow-y-auto px-6 py-8 bg-[#090D12]">
@@ -175,7 +177,6 @@ export function OverviewView({
     );
   }
 
-  const scopedHistoryTrades = useMemo(() => scopedRobots.flatMap((r) => (Array.isArray(r.historyTrades) && r.historyTrades.length > 0 ? r.historyTrades : (r.trades ?? []))), [scopedRobots]);
   const eqW = 780; const eqH = 210; const padL = 14; const padR = 72; const padT = 20; const padB = 20;
   const plotW = eqW - padL - padR; const plotH = eqH - padT - padB;
   let minEq = 0; let maxEq = 0; let rawPeak = 0; let rawTrough = 0;
