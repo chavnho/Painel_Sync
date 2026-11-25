@@ -220,6 +220,7 @@ export function TradingChartView({
   const [selectedTf, setSelectedTf] = useState<ChartTf>('M5');
   const [isFollowingRobot, setIsFollowingRobot] = useState<boolean>(true);
   const [reloadToken, setReloadToken] = useState<number>(0);
+  const forceRefreshRef = useRef<boolean>(false);
   const [marketSymbols, setMarketSymbols] = useState<string[]>(() => {
     const { channelId } = loadOrCreateMt5SyncCredentials();
     return readCachedSymbols(channelId);
@@ -392,7 +393,7 @@ export function TradingChartView({
               activeSymbol,
               selectedTf,
               {
-                force: reloadToken > 0,
+                force: forceRefreshRef.current,
                 timeoutMs: 8000,
                 intervalMs: 800,
                 signal: controller.signal,
@@ -439,6 +440,7 @@ export function TradingChartView({
     };
 
     loadLiveCandles(true);
+    forceRefreshRef.current = false;
     const interval = setInterval(() => {
       loadLiveCandles(false);
     }, 2000);
@@ -1231,7 +1233,7 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
 
           <button
             type="button"
-            onClick={() => setReloadToken((n) => n + 1)}
+            onClick={() => { forceRefreshRef.current = true; setReloadToken((n) => n + 1); }}
             disabled={!activeSymbol || isLoading}
             className="flex items-center gap-1.5 bg-[#0F141C] hover:bg-[#1E2633] border border-[#1E2633] rounded-lg px-3 py-1.5 text-xs font-medium text-gray-200 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap shrink-0"
             title="Solicitar candles atualizados ao MetaTrader 5"
