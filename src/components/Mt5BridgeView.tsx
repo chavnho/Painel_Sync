@@ -45,7 +45,7 @@ export function Mt5BridgeView({
     () =>
       buildPainelSyncMql5({
         endpointUrl,
-        token: creds.token,
+        token: creds.token, channelId: creds.channelId,
         magicNumber: magicInput,
         robotName: robotNameInput,
       }),

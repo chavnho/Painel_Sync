@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { PeriodFilterBar, usePeriodFilter } from './PeriodFilterBar';
 import { CalendarRange, Download } from 'lucide-react';
 import type { DashboardView, RobotStream } from '../types/trading';
-import { computeRobotHistoricalReport, exportReportCsv, formatBrl, type ReportPeriod } from '../utils/tradingMath';
+import { computeRobotHistoricalReport, exportReportCsv, formatBrl } from '../utils/tradingMath';
 
 interface WeeklyMonthlyReportViewProps {
   robots: RobotStream[];
@@ -12,11 +12,6 @@ interface WeeklyMonthlyReportViewProps {
   onSelectRobot: (robotId: string | 'ALL') => void;
   onNavigate: (view: DashboardView) => void;
 }
-const PERIOD_OPTIONS: Array<{ id: ReportPeriod; label: string; desc: string }> = [
-  { id: 'weekly', label: 'Semanal (7 dias)', desc: 'Últimos 7 dias corridos' },
-  { id: 'monthly_30', label: 'Mensal (30 dias)', desc: 'Últimos 30 dias corridos' },
-  { id: 'current_month', label: 'Mês Atual', desc: 'Do dia 01 até hoje' },
-];
 function profitFactorStatus(pf: number, totalTrades: number) {
   if (totalTrades === 0) return { label: 'Sem dados', colorClass: 'text-gray-500' };
   if (pf >= 1.5) return { label: 'Saudável', colorClass: 'text-emerald-400' };
@@ -24,29 +19,18 @@ function profitFactorStatus(pf: number, totalTrades: number) {
   return { label: 'Negativo', colorClass: 'text-red-400' };
 }
 export function WeeklyMonthlyReportView({ robots, selectedRobotId, magicColors = {}, onSelectRobot }: WeeklyMonthlyReportViewProps) {
-  const [period, setPeriod] = useState<ReportPeriod>('weekly');
   const [hoverDayIdx, setHoverDayIdx] = useState<number | null>(null);
   const periodFilter = usePeriodFilter(robots);
-  const hasManualDate = Boolean(periodFilter.startDate || periodFilter.endDate);
-
-  const scopedRobots = useMemo(
-    () => (selectedRobotId === 'ALL' ? robots : robots.filter((r) => r.robotId === selectedRobotId)),
-    [robots, selectedRobotId]
-  );
-  const report = useMemo(
-    () => computeRobotHistoricalReport(scopedRobots, period, { startDate: periodFilter.startDate, endDate: periodFilter.endDate }),
-    [scopedRobots, period, periodFilter.startDate, periodFilter.endDate]
-  );
-  const activePeriodMeta = PERIOD_OPTIONS.find((p) => p.id === period) ?? PERIOD_OPTIONS[0];
-  const activeLabel = hasManualDate ? periodFilter.periodSummaryLabel : activePeriodMeta.label;
-
+  const scopedRobots = useMemo(() => (selectedRobotId === 'ALL' ? robots : robots.filter((r) => r.robotId === selectedRobotId)), [robots, selectedRobotId]);
+  const report = useMemo(() => computeRobotHistoricalReport(scopedRobots, 'monthly_30', { startDate: periodFilter.startDate, endDate: periodFilter.endDate }), [scopedRobots, periodFilter.startDate, periodFilter.endDate]);
+  const activeLabel = periodFilter.periodSummaryLabel;
   if (robots.length === 0) {
     return (
       <div className="flex-1 overflow-y-auto px-6 py-10 bg-[#090D12]">
         <div className="max-w-2xl mx-auto rounded-xl bg-[#0F141C] border border-[#1E2633] p-8 text-center space-y-3">
           <CalendarRange className="w-7 h-7 text-gray-400 mx-auto" />
           <h2 className="font-display text-base font-semibold text-gray-100">Sem histórico disponível para relatório</h2>
-          <p className="text-xs text-gray-400 leading-relaxed">Conecte seu MetaTrader 5 para analisar a taxa de acerto e o fator de lucro semanal e mensal de cada robô.</p>
+          <p className="text-xs text-gray-400 leading-relaxed">Conecte seu MetaTrader 5 para analisar a taxa de acerto e o fator de lucro de cada robô.</p>
         </div>
       </div>
     );
@@ -61,33 +45,19 @@ export function WeeklyMonthlyReportView({ robots, selectedRobotId, magicColors =
   return (
     <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6 bg-[#090D12]">
       <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="space-y-0.5">
             <h1 className="font-display text-xl font-bold text-gray-100">Relatório Histórico Consolidado</h1>
-            <div className="text-xs text-gray-400">
-              <span>{hasManualDate ? periodFilter.periodSummaryLabel : activePeriodMeta.desc}</span>
-              <span className="mx-2 text-gray-600">•</span>
-              <span>{selectedRobotId === 'ALL' ? `${robots.length} robôs consolidados` : scopedRobots[0]?.name}</span>
-              <span className="mx-2 text-gray-600">•</span>
-              <span>{dailySeries.length} pregões com negócios</span>
-            </div>
+            <p className="text-xs text-gray-400">
+              {activeLabel} • {selectedRobotId === 'ALL' ? `${robots.length} robôs consolidados` : scopedRobots[0]?.name} • {dailySeries.length} pregões com negócios
+            </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <PeriodFilterBar filter={periodFilter} onManualDateChange={() => setHoverDayIdx(null)} />
-            <div role="tablist" aria-label="Período do relatório" className="flex items-center bg-[#0F141C] border border-[#1E2633] rounded-lg p-1">
-              {PERIOD_OPTIONS.map((opt) => {
-                const isActive = !hasManualDate && period === opt.id;
-                return (
-                  <button key={opt.id} type="button" role="tab" aria-selected={isActive} onClick={() => { periodFilter.clearDates(); setPeriod(opt.id); setHoverDayIdx(null); }} className={`px-3 py-1.5 rounded text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${isActive ? 'bg-[#1F2937] text-gray-100' : 'text-gray-400 hover:text-gray-200'}`}>
-                    {opt.label}
-                  </button>
-                );
-              })}
-            </div>
             {selectedRobotId !== 'ALL' && (
-              <button type="button" onClick={() => onSelectRobot('ALL')} className="px-3 py-2 rounded-lg bg-[#161D27] hover:bg-[#1E2633] border border-[#222B38] text-xs font-medium text-gray-200 transition-colors cursor-pointer">Consolidar Todos</button>
+              <button type="button" onClick={() => onSelectRobot('ALL')} className="h-8 px-3 rounded-lg bg-[#161D27] hover:bg-[#1E2633] border border-[#222B38] text-xs font-medium text-gray-200 transition-colors cursor-pointer flex items-center">Consolidar Todos</button>
             )}
-            <button type="button" onClick={() => exportReportCsv([...report.rows, report.consolidated], activeLabel)} className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#161D27] hover:bg-[#1E2633] border border-[#222B38] text-xs font-medium text-gray-100 transition-colors cursor-pointer">
+            <button type="button" onClick={() => exportReportCsv([...report.rows, report.consolidated], activeLabel)} className="h-8 flex items-center gap-1.5 px-3 rounded-lg bg-[#161D27] hover:bg-[#1E2633] border border-[#222B38] text-xs font-medium text-gray-100 transition-colors cursor-pointer">
               <Download className="w-3.5 h-3.5 text-emerald-400" /><span>Exportar CSV</span>
             </button>
           </div>

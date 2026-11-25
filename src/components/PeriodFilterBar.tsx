@@ -108,7 +108,7 @@ export function PeriodFilterBar({ filter, onManualDateChange }: PeriodFilterBarP
 
   return (
     <>
-      <div className="flex items-center gap-1 bg-[#0D1117] p-0.5 rounded-lg border border-[#1E2633]">
+      <div className="flex items-center gap-1 h-8 bg-[#0F141C] px-1 rounded-lg border border-[#1E2633]">
         <select
           value={selectedYear}
           onChange={(e) => {
@@ -116,7 +116,7 @@ export function PeriodFilterBar({ filter, onManualDateChange }: PeriodFilterBarP
             onManualDateChange?.();
           }}
           title="Selecionar Ano"
-          className="bg-transparent text-gray-200 text-[11px] font-semibold px-2 py-1 focus:outline-none cursor-pointer"
+          className="bg-transparent text-gray-200 text-xs font-semibold px-2 h-full focus:outline-none cursor-pointer"
         >
           {availableYears.map((yr) => (
             <option key={yr} value={yr} className="bg-[#0D1117] text-gray-200">
@@ -132,7 +132,7 @@ export function PeriodFilterBar({ filter, onManualDateChange }: PeriodFilterBarP
             onManualDateChange?.();
           }}
           title="Filtrar por Mês"
-          className="bg-transparent text-gray-200 text-[11px] font-medium px-2 py-1 focus:outline-none cursor-pointer"
+          className="bg-transparent text-gray-200 text-xs font-medium px-2 h-full focus:outline-none cursor-pointer"
         >
           <option value="ALL" className="bg-[#0D1117] text-gray-200">Todos os meses</option>
           <option value="01" className="bg-[#0D1117] text-gray-200">Janeiro</option>
@@ -150,7 +150,7 @@ export function PeriodFilterBar({ filter, onManualDateChange }: PeriodFilterBarP
         </select>
       </div>
 
-      <div className="flex items-center gap-1.5 bg-[#0D1117] px-2.5 py-1 rounded-lg border border-[#1E2633] text-[11px] text-gray-400">
+      <div className="flex items-center gap-1.5 h-8 bg-[#0F141C] px-2.5 rounded-lg border border-[#1E2633] text-xs text-gray-400">
         <span>De</span>
         <input
           type="date"
@@ -160,7 +160,7 @@ export function PeriodFilterBar({ filter, onManualDateChange }: PeriodFilterBarP
             setSelectedMonth('ALL');
             onManualDateChange?.();
           }}
-          className="bg-transparent text-gray-200 focus:outline-none [color-scheme:dark] text-[11px] cursor-pointer"
+          className="bg-transparent text-gray-200 focus:outline-none [color-scheme:dark] text-xs cursor-pointer"
         />
         <span className="text-gray-600">até</span>
         <input
@@ -171,7 +171,7 @@ export function PeriodFilterBar({ filter, onManualDateChange }: PeriodFilterBarP
             setSelectedMonth('ALL');
             onManualDateChange?.();
           }}
-          className="bg-transparent text-gray-200 focus:outline-none [color-scheme:dark] text-[11px] cursor-pointer"
+          className="bg-transparent text-gray-200 focus:outline-none [color-scheme:dark] text-xs cursor-pointer"
         />
         {(startDate || endDate) && (
           <button

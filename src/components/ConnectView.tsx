@@ -1,7 +1,7 @@
 import React from 'react';
 import { Check, Copy, Info, Trash2 } from 'lucide-react';
 import type { DashboardTelemetry, PairingAttemptEvent } from '../types/trading';
-import painelSyncSource from '../../Painel_Sync.mq5?raw';
+import { buildPainelSyncMql5 } from '../utils/mt5Bridge';
 
 interface ConnectViewProps {
   streamStatus: 'connecting' | 'listening' | 'error';
@@ -14,13 +14,7 @@ export function ConnectView({ streamStatus, telemetry, pairingEvents, onClearSes
   const [copiedField, setCopiedField] = React.useState<'channelId' | 'token' | 'endpoint' | 'eaCode' | null>(null);
   const endpointUrl = window.location.origin;
 
-  const eaCode = React.useMemo(() => {
-    const esc = (v: string) => v.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-    return painelSyncSource
-      .replace(/(input\s+string\s+InpEndpointUrl\s*=\s*")[^"]*(")/, (_m, s, e) => `${s}${esc(endpointUrl)}${e}`)
-      .replace(/(input\s+string\s+InpToken\s*=\s*")[^"]*(")/, (_m, s, e) => `${s}${esc(creds.token)}${e}`)
-      .replace(/(input\s+string\s+InpChannelId\s*=\s*")[^"]*(")/, (_m, s, e) => `${s}${esc(creds.channelId)}${e}`);
-  }, [endpointUrl, creds.token, creds.channelId]);
+  const eaCode = React.useMemo(() => buildPainelSyncMql5({ endpointUrl, token: creds.token, channelId: creds.channelId }), [endpointUrl, creds.token, creds.channelId]);
 
   const copyValue = async (field: 'channelId' | 'token' | 'endpoint' | 'eaCode', value: string) => {
     let ok = false;
