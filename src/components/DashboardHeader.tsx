@@ -70,7 +70,7 @@ export function DashboardHeader({
         className="font-display text-lg font-bold tracking-tight text-gray-100 whitespace-nowrap shrink-0 cursor-pointer hover:text-white transition-colors flex items-center gap-2"
       >
         Painel Sync
-        <span className="text-[10px] font-normal text-gray-500">v0.5.1</span>
+        <span className="text-[10px] font-normal text-gray-500">v0.7.0</span>
       </button>
 
       <nav aria-label="Navegação principal" className="hidden md:flex items-center gap-7">

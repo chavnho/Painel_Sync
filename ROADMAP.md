@@ -1,6 +1,6 @@
 # Roadmap — Painel Sync MT5
 
-## Concluído até v0.6.0
+## Concluído até v0.7.0
 - [x] Telemetria multi-robô agrupada por `MagicNumber` (`Painel_Sync.mq5` + `server.ts` via SSE).
 - [x] Gráficos em tela cheia com Snapshot + Delta incremental, série contínua vinculada, ordens pendentes e linhas de trade acima dos candles (`TradeLinesPrimitive`).
 - [x] Persistência histórica em SQLite nativo (`data/painel_sync.db` via `node:sqlite`), backfill retroativo de 90 dias, preferências de robôs ocultos e backup automático `VACUUM INTO`.
