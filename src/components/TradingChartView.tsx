@@ -20,10 +20,12 @@ import {
   type UTCTimestamp,
 } from 'lightweight-charts';
 import {
+  Bot,
   CandlestickChart,
   ChevronRight,
   Layers,
   Maximize2,
+  RefreshCw,
   TrendingDown,
   TrendingUp,
   ZoomIn,
@@ -41,9 +43,11 @@ import type {
 import {
   aggregateCandles,
   fetchCandles,
+  fetchSymbols,
   loadOrCreateMt5SyncCredentials,
   syncCandlesWithMt5,
 } from '../utils/mt5Bridge';
+import { SymbolAutocomplete } from './SymbolAutocomplete';
 import { formatBrl, formatPrice } from '../utils/tradingMath';
 
 interface TradingChartViewProps {
@@ -179,6 +183,32 @@ function buildTimedCandles(rawCandles: LiveCandle[], tfMinutes: number): TimedCa
   return out;
 }
 
+const SYMBOLS_CACHE_PREFIX = 'painel_sync_symbols_v1_';
+
+function readCachedSymbols(channelId: string): string[] {
+  try {
+    const raw = localStorage.getItem(`${SYMBOLS_CACHE_PREFIX}${channelId}`);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as { symbols?: unknown };
+    return Array.isArray(parsed.symbols)
+      ? parsed.symbols.map((s) => String(s)).filter(Boolean)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeCachedSymbols(channelId: string, symbols: string[]) {
+  try {
+    localStorage.setItem(
+      `${SYMBOLS_CACHE_PREFIX}${channelId}`,
+      JSON.stringify({ symbols, savedAt: Date.now() })
+    );
+  } catch {
+    // ignora falha de storage
+  }
+}
+
 export function TradingChartView({
   robots,
   activeContracts = {},
@@ -188,6 +218,12 @@ export function TradingChartView({
 }: TradingChartViewProps) {
   const [selectedSymbol, setSelectedSymbol] = useState<string>('');
   const [selectedTf, setSelectedTf] = useState<ChartTf>('M5');
+  const [isFollowingRobot, setIsFollowingRobot] = useState<boolean>(true);
+  const [reloadToken, setReloadToken] = useState<number>(0);
+  const [marketSymbols, setMarketSymbols] = useState<string[]>(() => {
+    const { channelId } = loadOrCreateMt5SyncCredentials();
+    return readCachedSymbols(channelId);
+  });
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [manualCandles, setManualCandles] = useState<LiveCandle[] | null>(null);
   const [manualError, setManualError] = useState<string | null>(null);
@@ -195,9 +231,8 @@ export function TradingChartView({
   const [hoveredTime, setHoveredTime] = useState<number | null>(null);
   const [isScrolledAway, setIsScrolledAway] = useState(false);
   const [subPaneMode, setSubPaneMode] = useState<'volume' | 'rsi' | 'pnl'>('volume');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showSuggestions, setShowSuggestions] = useState(false);
   const previousSymbolRef = useRef<string>('');
+
   const resolveCurrentSymbol = (rawSym?: string): string => {
     const up = (rawSym || '').toUpperCase().trim();
     if (!up) return '';
@@ -207,77 +242,78 @@ export function TradingChartView({
     return up;
   };
 
+  useEffect(() => {
+    let active = true;
+    const { channelId, token } = loadOrCreateMt5SyncCredentials();
+    fetchSymbols(channelId, token)
+      .then((list) => {
+        if (!active || !Array.isArray(list) || list.length === 0) return;
+        setMarketSymbols(list);
+        writeCachedSymbols(channelId, list);
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [reloadToken]);
+
+  const targetRobot = useMemo(() => {
+    if (selectedRobotId !== 'ALL') {
+      return robots.find((r) => r.robotId === selectedRobotId) ?? null;
+    }
+    return robots[0] ?? null;
+  }, [robots, selectedRobotId]);
 
   useEffect(() => {
-    if (selectedRobotId !== 'ALL') {
-      const found = robots.find((r) => r.robotId === selectedRobotId);
-      const nextSym = resolveCurrentSymbol(found?.symbol);
+    setIsFollowingRobot(true);
+  }, [selectedRobotId]);
+
+  useEffect(() => {
+    if (!isFollowingRobot) return;
+    if (targetRobot && targetRobot.symbol) {
+      const nextSym = resolveCurrentSymbol(targetRobot.symbol);
       if (nextSym && nextSym !== previousSymbolRef.current) {
         setSelectedSymbol(nextSym);
-        setSearchQuery(nextSym);
         previousSymbolRef.current = nextSym;
         setManualCandles(null);
         setManualError(null);
+        initialFitDoneRef.current = false;
       }
-    } else if (!previousSymbolRef.current && robots.length > 0 && robots[0].symbol) {
-      const firstSym = robots[0].symbol.toUpperCase();
-      setSelectedSymbol(firstSym);
-      setSearchQuery(firstSym);
-      previousSymbolRef.current = firstSym;
+      const upperTf = (targetRobot.timeframe || 'M5').toUpperCase() as ChartTf;
+      if (TIMEFRAMES.includes(upperTf)) setSelectedTf(upperTf);
+    } else if (!previousSymbolRef.current && marketSymbols.length > 0) {
+      const first = marketSymbols[0].toUpperCase();
+      setSelectedSymbol(first);
+      previousSymbolRef.current = first;
     }
-  }, [selectedRobotId, robots, activeContracts]);
+  }, [isFollowingRobot, targetRobot, activeContracts, marketSymbols]);
 
-    const handleSymbolChange = async (val: string) => {
-      const upper = val.toUpperCase();
-      setSearchQuery(val);
-      setSelectedSymbol(upper);
-
-      if (upper === previousSymbolRef.current) {
-        setShowSuggestions(false);
-        return;
-      }
-
+  const handleSelectSymbol = (rawVal: string) => {
+    const upper = rawVal.toUpperCase().trim();
+    if (!upper) return;
+    setIsFollowingRobot(false);
+    setSelectedSymbol(upper);
+    if (upper !== previousSymbolRef.current) {
       previousSymbolRef.current = upper;
       setManualCandles(null);
       setManualError(null);
+      setHoveredTime(null);
+      initialFitDoneRef.current = false;
+    }
+  };
 
-      if (upper === '') {
-        setShowSuggestions(false);
-        return;
-      }
-
-      setShowSuggestions(true);
-      setIsLoading(true);
-      try {
-        const { channelId, token } = loadOrCreateMt5SyncCredentials();
-        
-        // Verifica se já temos dados suficientes na telemetria para evitar fetch desnecessário
-        const hasTelemetry = symbolRobots.some(r => r.symbol === upper && (r.candlesByTimeframe?.[selectedTf.toUpperCase()]?.length ?? 0) > 0);
-        
-        if (!hasTelemetry) {
-          const result = await fetchCandles(
-            channelId,
-            token,
-            upper,
-            selectedTf
-          );
-
-          if (result && result.length > 0) {
-            setManualCandles(result);
-          } else {
-            setManualError('Dados não encontrados');
-          }
-        }
-      } catch (error) {
-        console.error(error);
-        const hasTelemetry = symbolRobots.some(r => r.symbol === upper && (r.candlesByTimeframe?.[selectedTf.toUpperCase()]?.length ?? 0) > 0);
-        if (!hasTelemetry) {
-          setManualError('Erro ao carregar dados');
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  const handleResumeFollowing = () => {
+    setIsFollowingRobot(true);
+    if (targetRobot && targetRobot.symbol) {
+      const nextSym = resolveCurrentSymbol(targetRobot.symbol);
+      setSelectedSymbol(nextSym);
+      previousSymbolRef.current = nextSym;
+      setManualCandles(null);
+      setManualError(null);
+      setHoveredTime(null);
+      initialFitDoneRef.current = false;
+      const upperTf = (targetRobot.timeframe || 'M5').toUpperCase() as ChartTf;
+      if (TIMEFRAMES.includes(upperTf)) setSelectedTf(upperTf);
+    }
+  };
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -289,15 +325,16 @@ export function TradingChartView({
   const subPriceLinesRef = useRef<IPriceLine[]>([]);
   const initialFitDoneRef = useRef<boolean>(false);
 
-  const availableSymbols = useMemo(
-    () => Array.from(new Set(robots.map((r) => r.symbol))),
-    [robots]
-  );
-
-  const filteredSymbols = useMemo(() => {
-    const query = searchQuery.toUpperCase();
-    return availableSymbols.filter(s => s.toUpperCase().includes(query));
-  }, [searchQuery, availableSymbols]);
+  const availableSymbols = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of robots) {
+      if (r.symbol) set.add(resolveCurrentSymbol(r.symbol));
+    }
+    for (const s of marketSymbols) {
+      if (s) set.add(s.toUpperCase());
+    }
+    return Array.from(set);
+  }, [robots, marketSymbols, activeContracts]);
 
   // Ao digitar um ativo, ele assume o foco. Se for um robô selecionado, ele também define.
   const activeSymbol = useMemo(() => {
@@ -322,9 +359,9 @@ export function TradingChartView({
    }, [robots, activeSymbol, selectedRobotId]);
 
 
-  // Sincroniza timeframe inicial quando troca de ativo
+  // Sincroniza timeframe inicial quando troca de ativo no modo Seguir Robo
   useEffect(() => {
-    if (!activeSymbol || symbolRobots.length === 0) return;
+    if (!isFollowingRobot || !activeSymbol || symbolRobots.length === 0) return;
     const upper = (symbolRobots[0]?.timeframe || 'M5').toUpperCase() as ChartTf;
     if (TIMEFRAMES.includes(upper)) {
       setSelectedTf(upper);
@@ -333,7 +370,7 @@ export function TradingChartView({
     }
     setHoveredTime(null);
     initialFitDoneRef.current = false;
-  }, [activeSymbol]);
+  }, [activeSymbol, isFollowingRobot]);
  
   // 1ª carga: Snapshot (150 velas se ainda não estiver em cache)
   // Ciclos seguintes (a cada 2s): lê direto da RAM do servidor com focus=1 (sem criar pedidos na fila)
@@ -355,7 +392,7 @@ export function TradingChartView({
               activeSymbol,
               selectedTf,
               {
-                force: false,
+                force: reloadToken > 0,
                 timeoutMs: 8000,
                 intervalMs: 800,
                 signal: controller.signal,
@@ -410,7 +447,7 @@ export function TradingChartView({
       controller.abort();
       clearInterval(interval);
     };
-  }, [activeSymbol, selectedTf]);
+  }, [activeSymbol, selectedTf, reloadToken]);
 
 
   // Seleciona a melhor série mestre de candles para o ativo + timeframe escolhido
@@ -1133,6 +1170,81 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
   return (
     <div className="flex-1 flex flex-col min-h-0 px-6 py-4 gap-3 overflow-hidden">
       <div className="w-full flex-1 flex flex-col min-h-0 gap-3">
+        <div className="shrink-0 flex flex-wrap items-center gap-2.5">
+          <SymbolAutocomplete
+            symbols={availableSymbols}
+            selectedSymbol={activeSymbol}
+            onSelect={handleSelectSymbol}
+            placeholder="Pesquisar ativo (ex: WIN, WDO, PETR4)..."
+          />
+
+          {robots.length > 0 && (
+            isFollowingRobot ? (
+              <button
+                type="button"
+                onClick={() => setIsFollowingRobot(false)}
+                title="Acompanhando automaticamente o robô selecionado. Clique para pausar ou pesquise qualquer ativo."
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-950/50 border border-emerald-700/60 text-emerald-300 hover:bg-emerald-950/80 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                Seguindo Robô{targetRobot ? `: ${targetRobot.name}` : ''}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleResumeFollowing}
+                title="Voltar a acompanhar o ativo e timeframe do robô selecionado"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-950/50 border border-amber-600/60 text-amber-300 hover:bg-amber-950/80 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              >
+                <Bot className="w-3.5 h-3.5" />
+                Voltar ao robô{targetRobot ? ` (${targetRobot.name})` : ''}
+              </button>
+            )
+          )}
+
+          <div
+            role="group"
+            aria-label="Tempo gráfico"
+            className="flex items-center bg-[#0F141C] border border-[#1E2633] rounded-lg p-0.5"
+          >
+            {TIMEFRAMES.map((tf) => {
+              const active = selectedTf === tf;
+              return (
+                <button
+                  key={tf}
+                  type="button"
+                  onClick={() => {
+                    setSelectedTf(tf);
+                    initialFitDoneRef.current = false;
+                  }}
+                  className={`px-2.5 py-1 rounded text-xs font-mono font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                    active
+                      ? 'bg-[#1F2937] text-gray-100'
+                      : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  {tf}
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setReloadToken((n) => n + 1)}
+            disabled={!activeSymbol || isLoading}
+            className="flex items-center gap-1.5 bg-[#0F141C] hover:bg-[#1E2633] border border-[#1E2633] rounded-lg px-3 py-1.5 text-xs font-medium text-gray-200 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap shrink-0"
+            title="Solicitar candles atualizados ao MetaTrader 5"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            Sincronizar MT5
+          </button>
+
+          {isLoading && (
+            <span className="text-[11px] text-blue-400 animate-pulse">Sincronizando...</span>
+          )}
+          {manualError && <span className="text-[11px] text-rose-400">{manualError}</span>}
+        </div>
         <div className="flex-1 flex flex-col min-h-0 rounded-xl bg-[#0F141C] border border-[#1E2633] overflow-hidden">
           <div className="shrink-0 px-4 py-2.5 border-b border-[#1E2633] flex flex-wrap items-center justify-between gap-3 text-xs min-h-[38px]">
             <div className="flex flex-wrap items-center gap-3 min-w-0 font-mono tabular-nums text-[11px]">

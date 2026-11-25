@@ -8,7 +8,6 @@ import { OverviewView } from './components/OverviewView';
 import { RobotSidebar } from './components/RobotSidebar';
 import { TradesLedgerView } from './components/TradesLedgerView';
 import { TradingChartView } from './components/TradingChartView';
-import { IndependentChartView } from './components/IndependentChartView';
 import { WeeklyMonthlyReportView } from './components/WeeklyMonthlyReportView';
 import { ConnectView } from './components/ConnectView';
 import { LiveLogView } from './components/LiveLogView';
@@ -29,12 +28,12 @@ export default function App() {
   const [activeView, setActiveView] = useState<DashboardView>('overview');
 
   useEffect(() => {
-    const viewOrder: DashboardView[] = ['overview', 'charts', 'buy-sell', 'operations', 'market-chart', 'reports'];
+    const viewOrder: DashboardView[] = ['overview', 'charts', 'buy-sell', 'operations', 'reports'];
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.altKey || e.metaKey) return;
       const el = e.target as HTMLElement | null;
       if (el && (['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) || el.isContentEditable)) return;
-      if (e.key >= '1' && e.key <= '6') {
+      if (e.key >= '1' && e.key <= '5') {
         const targetView = viewOrder[Number(e.key) - 1];
         if (targetView) { e.preventDefault(); setActiveView(targetView); }
       } else if (e.key === 'Escape') {
@@ -324,12 +323,6 @@ export default function App() {
               magicColors={magicColors}
               selectedRobotId={selectedRobotId}
               onSelectRobot={setSelectedRobotId}
-              onNavigate={setActiveView}
-            />
-          )}
-
-          {activeView === 'market-chart' && (
-            <IndependentChartView
               onNavigate={setActiveView}
             />
           )}
