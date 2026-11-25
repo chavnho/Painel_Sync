@@ -44,7 +44,7 @@ export function ConnectView({ streamStatus, telemetry, pairingEvents, onClearSes
       window.setTimeout(() => setCopiedField(null), 1500);
     }
   };
-  const statusColor = { connecting: 'text-blue-400', listening: 'text-emerald-400', error: 'text-red-400' } as const;
+  const statusColor = { connecting: 'text-blue-400', listening: 'text-emerald-400', error: 'text-rose-400' } as const;
 
   return (
     <div className="flex-1 overflow-y-auto p-8 space-y-8 bg-[#090D12] text-gray-100">
@@ -55,7 +55,7 @@ export function ConnectView({ streamStatus, telemetry, pairingEvents, onClearSes
             <p className="text-gray-400 text-sm">Use as credenciais abaixo para configurar seu robô no MetaTrader 5.</p>
           </div>
           {telemetry && (
-            <button type="button" onClick={onClearSession} title="Limpar dados recebidos na sessão atual" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#161D27] hover:bg-[#2A191E] border border-[#1E2633] hover:border-red-500/40 text-xs font-medium text-gray-300 hover:text-red-300 transition-colors cursor-pointer shrink-0">
+            <button type="button" onClick={onClearSession} title="Limpar dados recebidos na sessão atual" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#161D27] hover:bg-[#2A191E] border border-[#1E2633] hover:border-rose-500/40 text-xs font-medium text-gray-300 hover:text-rose-300 transition-colors cursor-pointer shrink-0">
               <Trash2 className="w-3.5 h-3.5" /><span>Limpar Sessão</span>
             </button>
           )}
@@ -100,7 +100,7 @@ export function ConnectView({ streamStatus, telemetry, pairingEvents, onClearSes
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-gray-300">Status do Stream</h3>
                 <div className="flex items-center gap-2">
-                  <span className={`w-2.5 h-2.5 rounded-full ${streamStatus === 'listening' ? 'bg-emerald-500 animate-pulse' : streamStatus === 'error' ? 'bg-red-500' : 'bg-blue-500'}`} />
+                  <span className={`w-2.5 h-2.5 rounded-full ${streamStatus === 'listening' ? 'bg-emerald-500 animate-pulse' : streamStatus === 'error' ? 'bg-rose-500/75' : 'bg-blue-500'}`} />
                   <span className={`text-xs font-mono font-bold ${statusColor[streamStatus]}`}>{streamStatus.toUpperCase()}</span>
                 </div>
               </div>
@@ -140,7 +140,7 @@ export function ConnectView({ streamStatus, telemetry, pairingEvents, onClearSes
           <div className="space-y-2">
             {filteredLogs.length === 0 ? (<p className="text-sm text-gray-500">Nenhum evento registrado.</p>) : (
               filteredLogs.map((ev) => (
-                <div key={ev.id} className={`p-3 rounded border text-xs flex justify-between items-start ${ev.outcome === 'success' ? 'border-emerald-900/50 bg-emerald-900/10' : ev.outcome === 'error' ? 'border-red-900/50 bg-red-900/10' : 'border-[#1E2633] bg-[#090D12]'}`}>
+                <div key={ev.id} className={`p-3 rounded border text-xs flex justify-between items-start ${ev.outcome === 'success' ? 'border-emerald-900/50 bg-emerald-900/10' : ev.outcome === 'error' ? 'border-rose-500/30 bg-rose-900/15' : 'border-[#1E2633] bg-[#090D12]'}`}>
                   <div className="space-y-1">
                     <div className="flex items-center gap-2"><span className="font-bold uppercase">{ev.source}</span><span className="text-gray-500">|</span><span className="text-gray-300">{ev.summary}</span></div>
                     <p className="text-[10px] text-gray-400 leading-relaxed">{ev.detail}</p>

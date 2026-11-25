@@ -16,7 +16,7 @@ function profitFactorStatus(pf: number, totalTrades: number) {
   if (totalTrades === 0) return { label: 'Sem dados', colorClass: 'text-gray-500' };
   if (pf >= 1.5) return { label: 'Saudável', colorClass: 'text-emerald-400' };
   if (pf >= 1.0) return { label: 'Neutro', colorClass: 'text-amber-400' };
-  return { label: 'Negativo', colorClass: 'text-red-400' };
+  return { label: 'Negativo', colorClass: 'text-rose-400' };
 }
 export function WeeklyMonthlyReportView({ robots, selectedRobotId, magicColors = {}, onSelectRobot }: WeeklyMonthlyReportViewProps) {
   const [hoverDayIdx, setHoverDayIdx] = useState<number | null>(null);
@@ -65,7 +65,7 @@ export function WeeklyMonthlyReportView({ robots, selectedRobotId, magicColors =
         <div className="grid grid-cols-2 lg:grid-cols-5 bg-[#0F141C] border border-[#1E2633] rounded-xl divide-y lg:divide-y-0 lg:divide-x divide-[#1E2633]">
           <div className="p-4 space-y-1">
             <div className="text-xs text-gray-400">Resultado do Período</div>
-            <div className={`text-xl font-mono font-bold tabular-nums ${consolidated.netPnlBrl > 0 ? 'text-emerald-400' : consolidated.netPnlBrl < 0 ? 'text-red-400' : 'text-gray-200'}`}>{formatBrl(consolidated.netPnlBrl)}</div>
+            <div className={`text-xl font-mono font-bold tabular-nums ${consolidated.netPnlBrl > 0 ? 'text-emerald-400' : consolidated.netPnlBrl < 0 ? 'text-rose-400' : 'text-gray-200'}`}>{formatBrl(consolidated.netPnlBrl)}</div>
             <div className="text-[11px] font-mono tabular-nums text-gray-500">Média {formatBrl(consolidated.avgTradeBrl)} / op</div>
           </div>
           <div className="p-4 space-y-1">
@@ -81,7 +81,7 @@ export function WeeklyMonthlyReportView({ robots, selectedRobotId, magicColors =
           <div className="p-4 space-y-1">
             <div className="text-xs text-gray-400">Lucro Bruto / Prejuízo Bruto</div>
             <div className="text-sm font-mono font-semibold tabular-nums text-emerald-400 pt-0.5">+{formatBrl(consolidated.grossProfitBrl, false)}</div>
-            <div className="text-[11px] font-mono tabular-nums text-red-400">-{formatBrl(consolidated.grossLossBrl, false)}</div>
+            <div className="text-[11px] font-mono tabular-nums text-rose-400">-{formatBrl(consolidated.grossLossBrl, false)}</div>
           </div>
           <div className="p-4 space-y-1">
             <div className="text-xs text-gray-400">Drawdown Máximo</div>
@@ -99,7 +99,7 @@ export function WeeklyMonthlyReportView({ robots, selectedRobotId, magicColors =
               <div className="flex items-center gap-4 text-xs font-mono tabular-nums">
                 <span className="text-gray-300 font-semibold">{hoveredDay.dateLabel}</span>
                 <span className="text-gray-400">{hoveredDay.tradesCount} ops ({hoveredDay.winRatePct}% acerto)</span>
-                <span className={hoveredDay.netPnlBrl >= 0 ? 'text-emerald-400 font-semibold' : 'text-red-400 font-semibold'}>{formatBrl(hoveredDay.netPnlBrl)}</span>
+                <span className={hoveredDay.netPnlBrl >= 0 ? 'text-emerald-400 font-semibold' : 'text-rose-400 font-semibold'}>{formatBrl(hoveredDay.netPnlBrl)}</span>
               </div>
             ) : (<span className="text-xs text-gray-500">Passe o mouse nas barras para ver o detalhe do pregão</span>)}
           </div>
@@ -140,13 +140,13 @@ export function WeeklyMonthlyReportView({ robots, selectedRobotId, magicColors =
                       <td className="px-4 py-3 font-sans"><div className="flex items-center gap-1.5 font-semibold text-gray-100"><span className={`w-2 h-2 rounded-full shrink-0 ${getRobotColorTheme(row.magicNumber, magicColors).dot}`} /><span>{row.robotName}</span></div><div className="text-[11px] font-mono text-gray-500">Magic #{row.magicNumber}</div></td>
                       <td className="px-4 py-3 text-gray-200 font-semibold">{row.symbol}</td>
                       <td className="px-4 py-3 text-right text-gray-300">{row.totalTrades} <span className="text-[11px] text-gray-500">({row.wins}/{row.losses})</span></td>
-                      <td className="px-4 py-3"><div className="flex items-center gap-2.5 min-w-[140px]"><div className="flex-1 h-1.5 rounded-full bg-[#1C2430] overflow-hidden"><div className={`h-full rounded-full ${row.winRatePct >= 55 ? 'bg-emerald-500' : row.winRatePct >= 45 ? 'bg-amber-400' : 'bg-red-500'}`} style={{ width: `${Math.min(100, row.winRatePct)}%` }} /></div><span className="w-10 text-right font-semibold text-gray-100">{row.winRatePct}%</span></div></td>
+                      <td className="px-4 py-3"><div className="flex items-center gap-2.5 min-w-[140px]"><div className="flex-1 h-1.5 rounded-full bg-[#090D12] border border-[#1E2633] overflow-hidden"><div className={`h-full rounded-full ${row.winRatePct >= 55 ? 'bg-emerald-500/75' : row.winRatePct >= 45 ? 'bg-amber-400/75' : 'bg-rose-500/75'}`} style={{ width: `${Math.min(100, row.winRatePct)}%` }} /></div><span className="w-10 text-right font-semibold text-gray-100">{row.winRatePct}%</span></div></td>
                       <td className={`px-4 py-3 text-right font-bold ${status.colorClass}`}>{row.profitFactor.toFixed(2)} <span className="text-[10px] font-sans font-normal text-gray-400">({status.label})</span></td>
                       <td className="px-4 py-3 text-right text-gray-300">{row.payoffRatio.toFixed(2)}x</td>
                       <td className="px-4 py-3 text-right text-emerald-400">+{formatBrl(row.grossProfitBrl, false)}</td>
-                      <td className="px-4 py-3 text-right text-red-400">-{formatBrl(row.grossLossBrl, false)}</td>
+                      <td className="px-4 py-3 text-right text-rose-400">-{formatBrl(row.grossLossBrl, false)}</td>
                       <td className="px-4 py-3 text-right text-amber-400">{formatBrl(-row.maxDrawdownBrl, false)}</td>
-                      <td className={`px-4 py-3 text-right font-bold ${row.netPnlBrl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{formatBrl(row.netPnlBrl)}</td>
+                      <td className={`px-4 py-3 text-right font-bold ${row.netPnlBrl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{formatBrl(row.netPnlBrl)}</td>
                     </tr>
                   );
                 })}
@@ -160,9 +160,9 @@ export function WeeklyMonthlyReportView({ robots, selectedRobotId, magicColors =
                   <td className={`px-4 py-3 text-right font-bold ${pfState.colorClass}`}>{consolidated.profitFactor.toFixed(2)}</td>
                   <td className="px-4 py-3 text-right font-semibold text-gray-200">{consolidated.payoffRatio.toFixed(2)}x</td>
                   <td className="px-4 py-3 text-right font-semibold text-emerald-400">+{formatBrl(consolidated.grossProfitBrl, false)}</td>
-                  <td className="px-4 py-3 text-right font-semibold text-red-400">-{formatBrl(consolidated.grossLossBrl, false)}</td>
+                  <td className="px-4 py-3 text-right font-semibold text-rose-400">-{formatBrl(consolidated.grossLossBrl, false)}</td>
                   <td className="px-4 py-3 text-right font-semibold text-amber-400">{formatBrl(-consolidated.maxDrawdownBrl, false)}</td>
-                  <td className={`px-4 py-3 text-right font-bold ${consolidated.netPnlBrl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{formatBrl(consolidated.netPnlBrl)}</td>
+                  <td className={`px-4 py-3 text-right font-bold ${consolidated.netPnlBrl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{formatBrl(consolidated.netPnlBrl)}</td>
                 </tr>
               </tfoot>
             </table>

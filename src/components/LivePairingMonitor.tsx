@@ -162,7 +162,7 @@ export function LivePairingMonitor({
                   : streamStatus === 'listening'
                     ? 'text-sky-300'
                     : streamStatus === 'error'
-                      ? 'text-red-400'
+                      ? 'text-rose-400'
                       : 'text-gray-300'
               }
             >
@@ -303,7 +303,7 @@ export function LivePairingMonitor({
                   {isSuccess ? (
                     <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                   ) : isError ? (
-                    <XCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                    <XCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
                   ) : (
                     <Clock className="w-4 h-4 text-sky-300 shrink-0 mt-0.5" />
                   )}
@@ -315,7 +315,7 @@ export function LivePairingMonitor({
                           isSuccess
                             ? 'text-emerald-400'
                             : isError
-                              ? 'text-red-400'
+                              ? 'text-rose-400'
                               : 'text-sky-300'
                         }`}
                       >
@@ -337,7 +337,7 @@ export function LivePairingMonitor({
                       className={
                         evt.httpStatus >= 200 && evt.httpStatus < 300
                           ? 'text-emerald-400'
-                          : 'text-red-400'
+                          : 'text-rose-400'
                       }
                     >
                       HTTP {evt.httpStatus}

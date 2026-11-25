@@ -1149,7 +1149,7 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
                     Máx <strong className="text-emerald-400">{formatPrice(activeCandle.high, activeSymbol)}</strong>
                   </span>
                   <span className="text-gray-400">
-                    Mín <strong className="text-red-400">{formatPrice(activeCandle.low, activeSymbol)}</strong>
+                    Mín <strong className="text-rose-400">{formatPrice(activeCandle.low, activeSymbol)}</strong>
                   </span>
                   <span className="text-gray-400">
                     F <strong className="text-gray-100">{formatPrice(activeCandle.close, activeSymbol)}</strong>
@@ -1169,7 +1169,7 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
                         m.type === 'buy'
                           ? 'text-emerald-400'
                           : m.type === 'sell'
-                            ? 'text-red-400'
+                            ? 'text-rose-400'
                             : 'text-amber-300'
                       }`}
                     >

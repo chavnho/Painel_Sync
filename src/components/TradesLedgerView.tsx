@@ -140,7 +140,7 @@ export function TradesLedgerView({
                 className={
                   openPositions.reduce((a, p) => a + p.floatingPnlBrl, 0) >= 0
                     ? 'text-emerald-400'
-                    : 'text-red-400'
+                    : 'text-rose-400'
                 }
               >
                 {formatBrl(openPositions.reduce((a, p) => a + p.floatingPnlBrl, 0))}
@@ -182,7 +182,7 @@ export function TradesLedgerView({
                       <td className="px-4 py-3">
                         <span
                           className={`inline-flex items-center gap-1 font-sans font-semibold ${
-                            pos.side === 'COMPRA' ? 'text-emerald-400' : 'text-red-400'
+                            pos.side === 'COMPRA' ? 'text-emerald-400' : 'text-rose-400'
                           }`}
                         >
                           {pos.side === 'COMPRA' ? (
@@ -200,7 +200,7 @@ export function TradesLedgerView({
                       <td className="px-4 py-3 text-right text-gray-100">
                         {formatPrice(pos.currentPrice, pos.symbol)}
                       </td>
-                      <td className="px-4 py-3 text-right text-red-300">
+                      <td className="px-4 py-3 text-right text-rose-300">
                         {pos.sl > 0 ? formatPrice(pos.sl, pos.symbol) : '—'}
                       </td>
                       <td className="px-4 py-3 text-right text-emerald-300">
@@ -208,14 +208,14 @@ export function TradesLedgerView({
                       </td>
                       <td
                         className={`px-4 py-3 text-right ${
-                          pos.pointsOpen >= 0 ? 'text-emerald-400' : 'text-red-400'
+                          pos.pointsOpen >= 0 ? 'text-emerald-400' : 'text-rose-400'
                         }`}
                       >
                         {pos.pointsOpen > 0 ? `+${pos.pointsOpen}` : pos.pointsOpen}
                       </td>
                       <td
                         className={`px-4 py-3 text-right font-bold ${
-                          pos.floatingPnlBrl >= 0 ? 'text-emerald-400' : 'text-red-400'
+                          pos.floatingPnlBrl >= 0 ? 'text-emerald-400' : 'text-rose-400'
                         }`}
                       >
                         {formatBrl(pos.floatingPnlBrl)}
@@ -238,7 +238,7 @@ export function TradesLedgerView({
                 </h2>
                 <p className="text-xs font-mono tabular-nums text-gray-400">
                   Resultado filtrado:{' '}
-                  <strong className={totalFilteredPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                  <strong className={totalFilteredPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
                     {formatBrl(totalFilteredPnl)}
                   </strong>
                 </p>
@@ -424,7 +424,7 @@ export function TradesLedgerView({
                       <td className="px-4 py-2.5">
                         <span
                           className={`inline-flex items-center gap-1 font-sans font-semibold ${
-                            tr.side === 'COMPRA' ? 'text-emerald-400' : 'text-red-400'
+                            tr.side === 'COMPRA' ? 'text-emerald-400' : 'text-rose-400'
                           }`}
                         >
                           {tr.side === 'COMPRA' ? (
@@ -447,14 +447,14 @@ export function TradesLedgerView({
                       <td className="px-4 py-2.5 text-right text-gray-300">{tr.volume}</td>
                       <td
                         className={`px-4 py-2.5 text-right ${
-                          tr.points >= 0 ? 'text-emerald-400' : 'text-red-400'
+                          tr.points >= 0 ? 'text-emerald-400' : 'text-rose-400'
                         }`}
                       >
                         {tr.points > 0 ? `+${tr.points}` : tr.points}
                       </td>
                       <td
                         className={`px-4 py-2.5 text-right font-bold ${
-                          tr.pnlBrl >= 0 ? 'text-emerald-400' : 'text-red-400'
+                          tr.pnlBrl >= 0 ? 'text-emerald-400' : 'text-rose-400'
                         }`}
                       >
                         {formatBrl(tr.pnlBrl)}

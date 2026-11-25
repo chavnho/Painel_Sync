@@ -49,7 +49,7 @@ export function LiveLogView({ events }: LiveLogViewProps) {
             <span className="text-gray-600 shrink-0">[{log.timestamp}]</span>
             <span className={
               log.type === 'success' ? 'text-emerald-400' : 
-              log.type === 'error' ? 'text-red-400' : 
+              log.type === 'error' ? 'text-rose-400' : 
               'text-gray-300'
             }>
               {log.message}

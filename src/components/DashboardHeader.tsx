@@ -57,7 +57,7 @@ export function DashboardHeader({
         ? 'text-amber-400'
         : 'text-emerald-400'
       : streamStatus === 'error'
-        ? 'text-red-400'
+        ? 'text-rose-400'
         : 'text-gray-300';
 
   return (

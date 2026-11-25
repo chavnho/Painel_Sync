@@ -92,7 +92,7 @@ export function RobotSidebar({
                 totalDailyPnl > 0
                   ? 'text-emerald-400'
                   : totalDailyPnl < 0
-                    ? 'text-red-400'
+                    ? 'text-rose-400'
                     : 'text-gray-300'
               }`}
             >
@@ -242,7 +242,7 @@ export function RobotSidebar({
                           bot.dailyPnlBrl > 0
                             ? 'text-emerald-400'
                             : bot.dailyPnlBrl < 0
-                              ? 'text-red-400'
+                              ? 'text-rose-400'
                               : 'text-gray-300'
                         }`}
                       >

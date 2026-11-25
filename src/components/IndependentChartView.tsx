@@ -608,7 +608,7 @@ export function IndependentChartView({
           {isLoading && (
             <span className="text-[10px] text-blue-400 animate-pulse">Carregando...</span>
           )}
-          {manualError && <span className="text-[10px] text-red-400">{manualError}</span>}
+          {manualError && <span className="text-[10px] text-rose-400">{manualError}</span>}
 
           <div
             role="group"
@@ -672,7 +672,7 @@ export function IndependentChartView({
                       Máx <strong className="text-emerald-400">{formatPrice(c.high, selectedSymbol)}</strong>
                     </span>
                     <span className="text-gray-400">
-                      Mín <strong className="text-red-400">{formatPrice(c.low, selectedSymbol)}</strong>
+                      Mín <strong className="text-rose-400">{formatPrice(c.low, selectedSymbol)}</strong>
                     </span>
                     <span className="text-gray-400">
                       F <strong className="text-gray-100">{formatPrice(c.close, selectedSymbol)}</strong>
