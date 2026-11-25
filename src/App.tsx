@@ -36,7 +36,6 @@ export default function App() {
         const targetView = viewOrder[Number(e.key) - 1];
         if (targetView) { e.preventDefault(); setActiveView(targetView); }
       } else if (e.key === 'Escape') {
-        setActiveView('overview');
         setSelectedRobotId('ALL');
       }
     };
