@@ -58,6 +58,7 @@ export function applyThemeToDom(cfg: CustomThemeConfig): void {
   r.setProperty('--fs-kpi-lg', fs.kpi);
   r.setProperty('--fs-table', fs.table);
   r.setProperty('--fs-micro', fs.micro);
+  window.dispatchEvent(new CustomEvent('painel-theme-change', { detail: cfg }));
 }
 
 export function loadSavedTheme(): CustomThemeConfig {

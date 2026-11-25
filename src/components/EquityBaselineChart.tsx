@@ -139,6 +139,22 @@ export function EquityBaselineChart({ todayTrades, historyTrades, floatingPnlBrl
       else setHoverInfo(null);
     });
 
+    const applyChartTheme = () => {
+      const cs = getComputedStyle(document.documentElement);
+      const bg = cs.getPropertyValue('--color-canvas').trim() || '#090D12';
+      const txt = cs.getPropertyValue('--color-text-secondary').trim() || '#94A3B8';
+      const brd = cs.getPropertyValue('--color-border-subtle').trim() || '#1E293B';
+      const prof = cs.getPropertyValue('--color-profit').trim() || '#10B981';
+      const loss = cs.getPropertyValue('--color-loss').trim() || '#F43F5E';
+      chart.applyOptions({
+        layout: { background: { type: ColorType.Solid, color: bg }, textColor: txt },
+        rightPriceScale: { borderColor: brd },
+        timeScale: { borderColor: brd },
+      });
+      series.applyOptions({ topLineColor: prof, bottomLineColor: loss });
+    };
+    applyChartTheme();
+    window.addEventListener('painel-theme-change', applyChartTheme);
     const ro = new ResizeObserver(() => {
       if (containerRef.current && chartRef.current && containerRef.current.clientWidth > 0) {
         chartRef.current.applyOptions({ width: containerRef.current.clientWidth });
@@ -147,6 +163,7 @@ export function EquityBaselineChart({ todayTrades, historyTrades, floatingPnlBrl
     });
     ro.observe(el);
     return () => {
+      window.removeEventListener('painel-theme-change', applyChartTheme);
       ro.disconnect();
       chart.remove();
       chartRef.current = null;

@@ -44,6 +44,40 @@
   }
 }
 
+/* Mapeamento dinâmico global do tema para todas as abas */
+.bg-\[\#090D12\], .bg-\[\#070A0E\] {
+  background-color: var(--color-canvas) !important;
+}
+
+.bg-\[\#0F141C\], .bg-\[\#131922\] {
+  background-color: var(--color-surface) !important;
+}
+
+.bg-\[\#161D27\], .bg-\[\#18202B\], .bg-\[\#141A23\], .bg-\[\#141B25\],
+.hover\:bg-\[\#131922\]:hover, .hover\:bg-\[\#161D27\]:hover, .hover\:bg-\[\#161E2B\]:hover, .hover\:bg-\[\#1E2633\]:hover {
+  background-color: var(--color-surface-elevated) !important;
+}
+
+.border-\[\#1E2633\], .border-\[\#1E293B\], .border-\[\#2E3A4B\], .divide-\[\#1E2633\] > :not(:last-child) {
+  border-color: var(--color-border-subtle) !important;
+}
+
+.text-slate-100, .text-slate-200, .text-slate-300, .text-gray-100, .text-gray-200, .text-gray-300 {
+  color: var(--color-text-primary) !important;
+}
+
+.text-emerald-400 {
+  color: var(--color-profit) !important;
+}
+
+.text-rose-400, .text-red-400 {
+  color: var(--color-loss) !important;
+}
+
+table td, table th {
+  font-size: var(--fs-table);
+}
+
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
@@ -58,7 +92,7 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #232B36;
+  background: var(--color-border-subtle);
   border-radius: 3px;
 }
 
