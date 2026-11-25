@@ -154,19 +154,19 @@ export function TradesLedgerView({
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
+              <table className="w-full text-left border-collapse text-[11px]">
                 <thead className="bg-[#090D12] text-[11px] text-gray-400 border-b border-[#1E2633]">
                   <tr>
-                    <th className="px-4 py-2.5 font-medium">Robô / Magic</th>
-                    <th className="px-4 py-2.5 font-medium">Ativo</th>
-                    <th className="px-4 py-2.5 font-medium">Lado</th>
-                    <th className="px-4 py-2.5 font-medium text-right">Volume</th>
-                    <th className="px-4 py-2.5 font-medium text-right">Entrada</th>
-                    <th className="px-4 py-2.5 font-medium text-right">Atual</th>
-                    <th className="px-4 py-2.5 font-medium text-right">Stop Loss</th>
-                    <th className="px-4 py-2.5 font-medium text-right">Take Profit</th>
-                    <th className="px-4 py-2.5 font-medium text-right">Pontos</th>
-                    <th className="px-4 py-2.5 font-medium text-right">Flutuante (R$)</th>
+                    <th className="px-3.5 py-2 font-medium">Robô / Magic</th>
+                    <th className="px-3.5 py-2 font-medium">Ativo</th>
+                    <th className="px-3.5 py-2 font-medium">Lado</th>
+                    <th className="px-3.5 py-2 font-medium text-right">Volume</th>
+                    <th className="px-3.5 py-2 font-medium text-right">Entrada</th>
+                    <th className="px-3.5 py-2 font-medium text-right">Atual</th>
+                    <th className="px-3.5 py-2 font-medium text-right">Stop Loss</th>
+                    <th className="px-3.5 py-2 font-medium text-right">Take Profit</th>
+                    <th className="px-3.5 py-2 font-medium text-right">Pontos</th>
+                    <th className="px-3.5 py-2 font-medium text-right">Flutuante (R$)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#1B222D] font-mono tabular-nums">
@@ -400,7 +400,7 @@ export function TradesLedgerView({
             </div>
           ) : (
             <div className="flex-1 min-h-0 overflow-auto">
-              <table className="w-full text-left border-collapse text-xs">
+              <table className="w-full text-left border-collapse text-[11px]">
                 <thead className="bg-[#090D12] text-[10px] uppercase tracking-wider text-slate-400 border-b border-[#1E2633] sticky top-0 z-10">
                   <tr>
                     <th className="px-4 py-3 font-semibold">Ticket</th>
@@ -418,10 +418,10 @@ export function TradesLedgerView({
                 <tbody className="divide-y divide-[#1E2633]/80 font-mono tabular-nums">
                   {filteredTrades.map((tr, idx) => (
                     <tr key={tr.id} className={`transition-colors hover:bg-[#161E2B] ${idx % 2 === 1 ? 'bg-[#0B0F16]/70' : ''}`}>
-                      <td className="px-4 py-2.5 text-slate-400">#{tr.id}</td>
-                      <td className="px-4 py-2.5 font-sans text-slate-300"><div className="flex items-center gap-2"><span className={`w-2 h-2 rounded-full shrink-0 ${getRobotColorTheme(tr.magicNumber, magicColors).dot}`} /><span>{tr.robotName}</span></div></td>
-                      <td className="px-4 py-2.5 text-slate-300">{tr.symbol}</td>
-                      <td className="px-4 py-2.5">
+                      <td className="px-3.5 py-2 text-slate-400">#{tr.id}</td>
+                      <td className="px-3.5 py-2 font-sans text-slate-300"><div className="flex items-center gap-2"><span className={`w-2 h-2 rounded-full shrink-0 ${getRobotColorTheme(tr.magicNumber, magicColors).dot}`} /><span>{tr.robotName}</span></div></td>
+                      <td className="px-3.5 py-2 text-slate-300">{tr.symbol}</td>
+                      <td className="px-3.5 py-2">
                         <span
                           className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-sans font-semibold border ${
                             tr.side === 'COMPRA'
@@ -437,30 +437,30 @@ export function TradesLedgerView({
                           <span>{tr.side}</span>
                         </span>
                       </td>
-                      <td className="px-4 py-2.5">
+                      <td className="px-3.5 py-2">
                         <span className="text-slate-500">{tr.entryDate ? `${tr.entryDate.slice(5)} ` : ''}{tr.entryTime}</span>
                         <span className="text-slate-600 mx-1.5">•</span>
                         <span className="text-slate-300">{formatPrice(tr.entryPrice, tr.symbol)}</span>
                       </td>
-                      <td className="px-4 py-2.5">
+                      <td className="px-3.5 py-2">
                         <span className="text-slate-500">{tr.exitDate ? `${tr.exitDate.slice(5)} ` : ''}{tr.exitTime}</span>
                         <span className="text-slate-600 mx-1.5">•</span>
                         <span className="text-slate-300">{formatPrice(tr.exitPrice, tr.symbol)}</span>
                       </td>
-                      <td className="px-4 py-2.5 font-sans">
+                      <td className="px-3.5 py-2 font-sans">
                         <span className="inline-block px-2 py-0.5 rounded bg-[#141B25] border border-[#1E2633] text-[11px] text-slate-300">
                           {tr.reason}
                         </span>
                       </td>
-                      <td className="px-4 py-2.5 text-right text-slate-300">{tr.volume}</td>
+                      <td className="px-3.5 py-2 text-right text-slate-300">{tr.volume}</td>
                       <td
-                        className={`px-4 py-2.5 text-right font-medium ${
+                        className={`px-3.5 py-2 text-right font-medium ${
                           tr.points >= 0 ? 'text-emerald-400' : 'text-rose-400'
                         }`}
                       >
                         {tr.points > 0 ? `+${tr.points}` : tr.points}
                       </td>
-                      <td className="px-4 py-2.5 text-right">
+                      <td className="px-3.5 py-2 text-right">
                         <span
                           className={`inline-block px-2 py-0.5 rounded font-bold ${
                             tr.pnlBrl >= 0
