@@ -88,12 +88,15 @@ export function OverviewView({
       for (const tr of src) allHist.push(tr);
     }
     allHist.sort((a, b) => `${a.exitDate ?? ''} ${a.exitTime}`.localeCompare(`${b.exitDate ?? ''} ${b.exitTime}`));
+    let histMaxDd = 0;
     for (const tr of allHist) {
       running += tr.pnlBrl;
       if (running > peak) peak = running;
+      if (peak - running > histMaxDd) histMaxDd = peak - running;
     }
     const totalPnlBrl = Number((running + metrics.floatingPnlBrl).toFixed(2));
     if (totalPnlBrl > peak) peak = totalPnlBrl;
+    if (peak - totalPnlBrl > histMaxDd) histMaxDd = peak - totalPnlBrl;
     const winTrades = allHist.filter((t) => t.pnlBrl > 0);
     const lossTrades = allHist.filter((t) => t.pnlBrl < 0);
     const grossWin = winTrades.reduce((s, t) => s + t.pnlBrl, 0);
@@ -108,6 +111,7 @@ export function OverviewView({
       totalPnlBrl,
       peakPnlBrl: Number(peak.toFixed(2)),
       fromPeakBrl: Number((totalPnlBrl - peak).toFixed(2)),
+      histMaxDrawdownBrl: Number(histMaxDd.toFixed(2)),
       totalHistTrades: allHist.length,
       avgWinBrl: Number(avgWinBrl.toFixed(2)),
       avgLossBrl: Number(avgLossBrl.toFixed(2)),
@@ -223,7 +227,7 @@ export function OverviewView({
             <div className="rounded-[10px] bg-[#0F141C] border border-[#1E293B] p-4">
               <div className="text-[11px] uppercase tracking-wider text-slate-400">Saldo Acumulado</div>
               <div className={`mt-1 text-2xl font-mono font-bold tabular-nums ${cumulativeStats.totalPnlBrl > 0 ? 'text-emerald-400' : cumulativeStats.totalPnlBrl < 0 ? 'text-rose-400' : 'text-slate-100'}`}>{formatBrl(cumulativeStats.totalPnlBrl)}</div>
-              <div className="mt-1.5 text-[11px] font-mono tabular-nums text-slate-500">Pico máximo: <span className="text-slate-300">{formatBrl(cumulativeStats.peakPnlBrl)}</span></div>
+              <div className="mt-1.5 text-[11px] font-mono tabular-nums text-slate-500">Pico: <span className="text-slate-300">{formatBrl(cumulativeStats.peakPnlBrl)}</span> • DD Máx: <span className="text-rose-400/90">{formatBrl(-cumulativeStats.histMaxDrawdownBrl, false)}</span></div>
             </div>
             <div className="rounded-[10px] bg-[#0F141C] border border-[#1E293B] p-4">
               <div className="text-[11px] uppercase tracking-wider text-slate-400">Média por Trade</div>
@@ -233,7 +237,7 @@ export function OverviewView({
             <div className="rounded-[10px] bg-[#0F141C] border border-[#1E293B] p-4 flex flex-col justify-between">
               <div className="text-[11px] uppercase tracking-wider text-slate-400">Gain Médio vs Loss Médio</div>
               <div className="my-2 flex items-center justify-between text-xs font-mono font-bold tabular-nums"><span className="text-emerald-400">{formatBrl(cumulativeStats.avgWinBrl, false)}</span><span className="text-rose-400">{formatBrl(-cumulativeStats.avgLossBrl, false)}</span></div>
-              <div className="w-full h-2 rounded-full bg-[#161D27] overflow-hidden flex">{(() => { const tot = cumulativeStats.avgWinBrl + cumulativeStats.avgLossBrl; const wPct = tot > 0 ? Math.round((cumulativeStats.avgWinBrl / tot) * 100) : 50; return (<><div className="h-full bg-emerald-500" style={{ width: `${wPct}%` }} /><div className="h-full bg-rose-500" style={{ width: `${100 - wPct}%` }} /></>); })()}</div>
+              <div className="w-full h-2 rounded-full bg-[#090D12] border border-[#1E2633] overflow-hidden flex gap-px">{(() => { const tot = cumulativeStats.avgWinBrl + cumulativeStats.avgLossBrl; const wPct = tot > 0 ? Math.round((cumulativeStats.avgWinBrl / tot) * 100) : 50; return (<><div className="h-full bg-emerald-500/70" style={{ width: `${wPct}%` }} /><div className="h-full bg-rose-500/70" style={{ width: `${100 - wPct}%` }} /></>); })()}</div>
             </div>
           </div>
         </section>
@@ -247,7 +251,7 @@ export function OverviewView({
             </div>
             <div className="rounded-[10px] bg-[#0F141C] border border-[#1E293B] p-4">
               <div className="text-[11px] uppercase tracking-wider text-slate-400">Drawdown Hoje</div>
-              <div className={`mt-1 text-[28px] leading-tight font-mono font-bold tabular-nums ${metrics.maxDrawdownBrl > 0 ? 'text-amber-400' : 'text-slate-200'}`}>{formatBrl(-metrics.maxDrawdownBrl, false)}</div>
+              <div className={`mt-1 text-[28px] leading-tight font-mono font-bold tabular-nums ${metrics.maxDrawdownBrl > 0 ? 'text-rose-400/90' : 'text-slate-200'}`}>{formatBrl(-metrics.maxDrawdownBrl, false)}</div>
               <div className="mt-1.5 text-[11px] font-mono tabular-nums text-slate-500">{metrics.totalTrades} operação(ões) encerrada(s) hoje</div>
             </div>
           </div>
