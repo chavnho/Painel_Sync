@@ -1,3 +1,4 @@
+import { EquityBaselineChart } from './EquityBaselineChart';
 import { useMemo, useState } from 'react';
 import {
   Activity,
@@ -174,6 +175,7 @@ export function OverviewView({
     );
   }
 
+  const scopedHistoryTrades = useMemo(() => scopedRobots.flatMap((r) => (Array.isArray(r.historyTrades) && r.historyTrades.length > 0 ? r.historyTrades : (r.trades ?? []))), [scopedRobots]);
   const eqW = 780; const eqH = 210; const padL = 14; const padR = 72; const padT = 20; const padB = 20;
   const plotW = eqW - padL - padR; const plotH = eqH - padT - padB;
   let minEq = 0; let maxEq = 0; let rawPeak = 0; let rawTrough = 0;
@@ -225,19 +227,7 @@ export function OverviewView({
               <div className="mt-1.5 text-[11px] font-mono tabular-nums text-slate-500">{metrics.totalTrades} operação(ões) encerrada(s) hoje</div>
             </div>
           </div>
-          <div className="rounded-[10px] bg-[#0F141C] border border-[#1E293B] overflow-hidden">
-            <div className="px-4 py-2.5 border-b border-[#1E293B] flex items-center justify-between text-xs"><span className="font-medium text-slate-200">Curva do Dia</span>{hoveredPoint ? <span className="font-mono tabular-nums text-slate-300">{hoveredPoint.label} • <strong className={hoveredPoint.cumulativePnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}>{formatBrl(hoveredPoint.cumulativePnl)}</strong></span> : <span className="font-mono tabular-nums text-[11px] text-slate-400">Máx {formatBrl(rawPeak)} • Mín {formatBrl(rawTrough)}</span>}</div>
-            <div className="p-2.5 bg-[#090D12]">
-              <svg viewBox={`0 0 ${eqW} ${eqH}`} className="w-full max-h-[200px] block select-none" onMouseLeave={() => setHoverEqIdx(null)}>
-                <defs><linearGradient id="eqGradPos" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#10B981" stopOpacity="0.25" /><stop offset="100%" stopColor="#10B981" stopOpacity="0" /></linearGradient><linearGradient id="eqGradNeg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#F43F5E" stopOpacity="0.02" /><stop offset="100%" stopColor="#F43F5E" stopOpacity="0.25" /></linearGradient></defs>
-                {[0, 0.5, 1].map((r) => { const y = padT + r * plotH; const price = maxEq - r * (maxEq - minEq); return (<g key={r}><line x1={padL} x2={eqW - padR} y1={y} y2={y} stroke="#161E29" strokeWidth={1} /><text x={eqW - padR + 8} y={y + 3.5} fill="#64748B" fontSize="10" fontFamily="JetBrains Mono, monospace">{price >= 0 ? `+${price.toFixed(0)}` : price.toFixed(0)}</text></g>); })}
-                <line x1={padL} x2={eqW - padR} y1={zeroY} y2={zeroY} stroke="#475569" strokeDasharray="4 4" strokeWidth={1} />
-                {eqAreaPath && <path d={eqAreaPath} fill={metrics.netPnlBrl >= 0 ? 'url(#eqGradPos)' : 'url(#eqGradNeg)'} />}
-                {eqLinePath && <path d={eqLinePath} fill="none" stroke={metrics.netPnlBrl >= 0 ? '#10B981' : '#F43F5E'} strokeWidth={2.25} strokeLinejoin="round" />}
-                {equitySeries.map((pt, idx) => { const cx = xEq(idx); const cy = yEq(pt.cumulativePnl); const bandW = plotW / Math.max(1, equitySeries.length); return (<g key={idx} onMouseEnter={() => setHoverEqIdx(idx)} className="cursor-crosshair"><rect x={cx - bandW / 2} y={padT} width={bandW} height={plotH} fill="transparent" /><circle cx={cx} cy={cy} r={hoverEqIdx === idx ? 4.5 : 2.5} fill={pt.side === 'COMPRA' ? '#10B981' : pt.side === 'VENDA' ? '#F43F5E' : '#94A3B8'} stroke="#090D12" strokeWidth={1} /></g>); })}
-              </svg>
-            </div>
-          </div>
+          <EquityBaselineChart todayTrades={allTrades} historyTrades={scopedHistoryTrades} floatingPnlBrl={metrics.floatingPnlBrl} />
           <div className="rounded-[10px] bg-[#0F141C] border border-[#1E293B] overflow-hidden">
             <table className="w-full text-left border-collapse text-xs">
               <thead className="bg-[#161D27]/60 text-[11px] uppercase tracking-wider text-slate-400 border-b border-[#1E293B]">
