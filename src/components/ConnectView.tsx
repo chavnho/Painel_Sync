@@ -12,6 +12,9 @@ interface ConnectViewProps {
 }
 export function ConnectView({ streamStatus, telemetry, pairingEvents, onClearSession, creds }: ConnectViewProps) {
   const [copiedField, setCopiedField] = React.useState<'channelId' | 'token' | 'endpoint' | 'eaCode' | null>(null);
+  const [logFilter, setLogFilter] = React.useState<'all' | 'orders' | 'positions' | 'connection' | 'server'>('all');
+  const inferCat = (ev: PairingAttemptEvent) => ev.category ?? (ev.source === 'ping' ? 'connection' : ev.source === 'mt5' ? 'connection' : 'server');
+  const filteredLogs = React.useMemo(() => logFilter === 'all' ? pairingEvents : pairingEvents.filter((ev) => inferCat(ev) === logFilter), [pairingEvents, logFilter]);
   const endpointUrl = window.location.origin;
 
   const eaCode = React.useMemo(() => buildPainelSyncMql5({ endpointUrl, token: creds.token, channelId: creds.channelId }), [endpointUrl, creds.token, creds.channelId]);
@@ -115,10 +118,17 @@ export function ConnectView({ streamStatus, telemetry, pairingEvents, onClearSes
           ) : (<div className="text-sm text-gray-500 italic">Aguardando dados da conta...</div>)}
         </div>
         <div className="p-6 rounded-xl bg-[#0F141C] border border-[#1E2633]">
-          <h2 className="text-lg font-semibold mb-4">Log de Pareamento</h2>
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+            <h2 className="text-lg font-semibold">Log de Eventos & Pareamento</h2>
+            <div className="flex flex-wrap items-center gap-1 bg-[#090D12] p-1 rounded-lg border border-[#1E2633]">
+              {([['all','Todos'],['orders','Ordens'],['positions','Posições'],['connection','Conexão'],['server','Servidor']] as const).map(([k, lbl]) => (
+                <button key={k} type="button" onClick={() => setLogFilter(k)} className={`px-2.5 py-1 rounded text-[11px] font-medium transition-colors cursor-pointer ${logFilter === k ? 'bg-[#1F2937] text-gray-100' : 'text-gray-400 hover:text-gray-200'}`}>{lbl}</button>
+              ))}
+            </div>
+          </div>
           <div className="space-y-2">
-            {pairingEvents.length === 0 ? (<p className="text-sm text-gray-500">Nenhum evento registrado.</p>) : (
-              pairingEvents.map((ev) => (
+            {filteredLogs.length === 0 ? (<p className="text-sm text-gray-500">Nenhum evento registrado.</p>) : (
+              filteredLogs.map((ev) => (
                 <div key={ev.id} className={`p-3 rounded border text-xs flex justify-between items-start ${ev.outcome === 'success' ? 'border-emerald-900/50 bg-emerald-900/10' : ev.outcome === 'error' ? 'border-red-900/50 bg-red-900/10' : 'border-[#1E2633] bg-[#090D12]'}`}>
                   <div className="space-y-1">
                     <div className="flex items-center gap-2"><span className="font-bold uppercase">{ev.source}</span><span className="text-gray-500">|</span><span className="text-gray-300">{ev.summary}</span></div>

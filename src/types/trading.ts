@@ -132,6 +132,7 @@ export interface PairingAttemptEvent {
   outcome: 'success' | 'error' | 'info';
   httpStatus: number;
   source: 'mt5' | 'ping' | 'unknown';
+  category?: 'orders' | 'positions' | 'connection' | 'server';
   summary: string;
   detail: string;
   symbol?: string;
