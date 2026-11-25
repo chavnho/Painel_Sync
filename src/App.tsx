@@ -1,3 +1,4 @@
+import { initSavedTheme } from './components/ThemeSettingsModal';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BuySellAnalyticsView } from './components/BuySellAnalyticsView';
 import { DashboardHeader } from './components/DashboardHeader';
@@ -24,6 +25,7 @@ import {
 } from './utils/mt5Bridge';
 
 export default function App() {
+  useEffect(() => { initSavedTheme(); }, []);
   const [activeView, setActiveView] = useState<DashboardView>('overview');
 
   useEffect(() => {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { AlertTriangle, Radio, Settings2 } from 'lucide-react';
+import { AlertTriangle, Palette, Radio, Settings2 } from 'lucide-react';
+import { ThemeSettingsModal } from './ThemeSettingsModal';
 import type { AccountSnapshot, DashboardView } from '../types/trading';
 
 interface DashboardHeaderProps {
@@ -30,6 +31,7 @@ export function DashboardHeader({
 }: DashboardHeaderProps) {
   const isConnectActive = activeView === 'connect';
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
+  const [themeModalOpen, setThemeModalOpen] = useState(false);
 
   useEffect(() => {
     const id = window.setInterval(() => setNowMs(Date.now()), 1000);
@@ -97,14 +99,23 @@ export function DashboardHeader({
             {isStale ? <AlertTriangle className="w-3.5 h-3.5 shrink-0 animate-pulse" /> : <Radio className="w-3.5 h-3.5 shrink-0" />}
             <span>{statusText}</span>
           </span>
-          <span className="text-gray-600">·</span>
+          <span className="text-gray-600">•</span>
           <span className="text-[11px] font-mono text-gray-400 tabular-nums whitespace-nowrap">
             {account
               ? `${account.broker ? account.broker.split(' ')[0] : account.server || 'MT5'} · ${account.mode}`
               : 'Canal pronto'}
-            {lastSyncAt ? ` · ${new Date(lastSyncAt).toLocaleTimeString('pt-BR')}` : ''}
+            {lastSyncAt ? ` • ${new Date(lastSyncAt).toLocaleTimeString('pt-BR')}` : ''}
           </span>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setThemeModalOpen(true)}
+          title="Personalizar tema e fontes"
+          className="inline-flex items-center justify-center p-2 rounded-lg bg-[#18202B] hover:bg-[#1E2836] text-slate-300 hover:text-white border border-[#2E3A4B] hover:border-slate-500 transition-colors cursor-pointer"
+        >
+          <Palette className="w-3.5 h-3.5 text-slate-300" />
+        </button>
 
         <button
           type="button"
@@ -119,6 +130,7 @@ export function DashboardHeader({
           <span>{isConnectActive ? 'Configuração EA' : 'Conectar MT5'}</span>
         </button>
       </div>
+      <ThemeSettingsModal open={themeModalOpen} onClose={() => setThemeModalOpen(false)} />
     </header>
   );
 }
