@@ -119,7 +119,7 @@ export function PeriodFilterBar({ filter, onManualDateChange }: PeriodFilterBarP
           className="bg-transparent text-gray-200 text-xs font-semibold px-2 h-full focus:outline-none cursor-pointer"
         >
           {availableYears.map((yr) => (
-            <option key={yr} value={yr} className="bg-[#0D1117] text-gray-200">
+            <option key={yr} value={yr} className="bg-[#090D12] text-gray-200">
               {yr}
             </option>
           ))}
@@ -134,19 +134,19 @@ export function PeriodFilterBar({ filter, onManualDateChange }: PeriodFilterBarP
           title="Filtrar por Mês"
           className="bg-transparent text-gray-200 text-xs font-medium px-2 h-full focus:outline-none cursor-pointer"
         >
-          <option value="ALL" className="bg-[#0D1117] text-gray-200">Todos os meses</option>
-          <option value="01" className="bg-[#0D1117] text-gray-200">Janeiro</option>
-          <option value="02" className="bg-[#0D1117] text-gray-200">Fevereiro</option>
-          <option value="03" className="bg-[#0D1117] text-gray-200">Março</option>
-          <option value="04" className="bg-[#0D1117] text-gray-200">Abril</option>
-          <option value="05" className="bg-[#0D1117] text-gray-200">Maio</option>
-          <option value="06" className="bg-[#0D1117] text-gray-200">Junho</option>
-          <option value="07" className="bg-[#0D1117] text-gray-200">Julho</option>
-          <option value="08" className="bg-[#0D1117] text-gray-200">Agosto</option>
-          <option value="09" className="bg-[#0D1117] text-gray-200">Setembro</option>
-          <option value="10" className="bg-[#0D1117] text-gray-200">Outubro</option>
-          <option value="11" className="bg-[#0D1117] text-gray-200">Novembro</option>
-          <option value="12" className="bg-[#0D1117] text-gray-200">Dezembro</option>
+          <option value="ALL" className="bg-[#090D12] text-gray-200">Todos os meses</option>
+          <option value="01" className="bg-[#090D12] text-gray-200">Janeiro</option>
+          <option value="02" className="bg-[#090D12] text-gray-200">Fevereiro</option>
+          <option value="03" className="bg-[#090D12] text-gray-200">Março</option>
+          <option value="04" className="bg-[#090D12] text-gray-200">Abril</option>
+          <option value="05" className="bg-[#090D12] text-gray-200">Maio</option>
+          <option value="06" className="bg-[#090D12] text-gray-200">Junho</option>
+          <option value="07" className="bg-[#090D12] text-gray-200">Julho</option>
+          <option value="08" className="bg-[#090D12] text-gray-200">Agosto</option>
+          <option value="09" className="bg-[#090D12] text-gray-200">Setembro</option>
+          <option value="10" className="bg-[#090D12] text-gray-200">Outubro</option>
+          <option value="11" className="bg-[#090D12] text-gray-200">Novembro</option>
+          <option value="12" className="bg-[#090D12] text-gray-200">Dezembro</option>
         </select>
       </div>
 

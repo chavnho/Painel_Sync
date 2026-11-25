@@ -79,7 +79,7 @@ export function Mt5BridgeView({
             <button
               type="button"
               onClick={onRegenerateToken}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#263040] text-xs font-medium text-gray-200 transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#1E2633] text-xs font-medium text-gray-200 transition-colors cursor-pointer"
             >
               <RefreshCw className="w-3.5 h-3.5 text-gray-400" />
               <span>Novo Token</span>
@@ -98,7 +98,7 @@ export function Mt5BridgeView({
         />
 
         {/* Garantia Somente Leitura */}
-        <div className="rounded-xl bg-[#11161D] border border-[#222B38] px-5 py-3.5 flex items-center gap-3 text-xs text-emerald-400">
+        <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] px-5 py-3.5 flex items-center gap-3 text-xs text-emerald-400">
           <ShieldCheck className="w-4 h-4 shrink-0" />
           <span>
             Segurança: o Painel Sync nunca envia ou modifica ordens na sua conta. Todos os conectores apenas leem posições, candles e histórico do dia.
@@ -107,13 +107,13 @@ export function Mt5BridgeView({
 
         {/* Credenciais do Canal */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="rounded-xl bg-[#11161D] border border-[#222B38] p-4 space-y-2">
+          <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] p-4 space-y-2">
             <div className="flex items-center gap-1.5 text-xs font-medium text-gray-400">
               <Globe className="w-3.5 h-3.5 text-sky-400" />
               <span>1. URL Base para WebRequest (MT5)</span>
             </div>
             <div className="flex items-center gap-2">
-              <code className="flex-1 text-xs font-mono text-sky-300 truncate bg-[#0B0E11] px-3 py-2 rounded-lg border border-[#1E2633]">
+              <code className="flex-1 text-xs font-mono text-sky-300 truncate bg-[#090D12] px-3 py-2 rounded-lg border border-[#1E2633]">
                 {originUrl || endpointUrl}
               </code>
               <button
@@ -131,12 +131,12 @@ export function Mt5BridgeView({
             </div>
           </div>
 
-          <div className="rounded-xl bg-[#11161D] border border-[#222B38] p-4 space-y-2">
+          <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] p-4 space-y-2">
             <div className="text-xs font-medium text-gray-400">
               2. Endpoint Completo (InpEndpointUrl)
             </div>
             <div className="flex items-center gap-2">
-              <code className="flex-1 text-xs font-mono text-sky-300 truncate bg-[#0B0E11] px-3 py-2 rounded-lg border border-[#1E2633]">
+              <code className="flex-1 text-xs font-mono text-sky-300 truncate bg-[#090D12] px-3 py-2 rounded-lg border border-[#1E2633]">
                 {endpointUrl}
               </code>
               <button
@@ -154,13 +154,13 @@ export function Mt5BridgeView({
             </div>
           </div>
 
-          <div className="rounded-xl bg-[#11161D] border border-[#222B38] p-4 space-y-2">
+          <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] p-4 space-y-2">
             <div className="flex items-center gap-1.5 text-xs font-medium text-gray-400">
               <KeyRound className="w-3.5 h-3.5 text-amber-400" />
               <span>3. Token de Pareamento (InpSyncToken)</span>
             </div>
             <div className="flex items-center gap-2">
-              <code className="flex-1 text-xs font-mono text-emerald-300 truncate bg-[#0B0E11] px-3 py-2 rounded-lg border border-[#1E2633]">
+              <code className="flex-1 text-xs font-mono text-emerald-300 truncate bg-[#090D12] px-3 py-2 rounded-lg border border-[#1E2633]">
                 {creds.token}
               </code>
               <button
@@ -180,7 +180,7 @@ export function Mt5BridgeView({
         </div>
 
         {/* Conector EA MQL5 */}
-        <div className="rounded-xl bg-[#11161D] border border-[#222B38] overflow-hidden">
+        <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] overflow-hidden">
           <div className="px-5 py-3.5 border-b border-[#1E2633] flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold text-gray-100">
@@ -222,7 +222,7 @@ export function Mt5BridgeView({
                     type="number"
                     value={magicInput}
                     onChange={(e) => setMagicInput(Number(e.target.value) || 0)}
-                    className="w-full bg-[#0B0E11] border border-[#222B38] rounded-lg px-3 py-1.5 text-xs font-mono text-gray-100"
+                    className="w-full bg-[#090D12] border border-[#1E2633] rounded-lg px-3 py-1.5 text-xs font-mono text-gray-100"
                   />
                 </div>
                 <div>
@@ -237,11 +237,11 @@ export function Mt5BridgeView({
                     type="text"
                     value={robotNameInput}
                     onChange={(e) => setRobotNameInput(e.target.value)}
-                    className="w-full bg-[#0B0E11] border border-[#222B38] rounded-lg px-3 py-1.5 text-xs font-mono text-gray-100"
+                    className="w-full bg-[#090D12] border border-[#1E2633] rounded-lg px-3 py-1.5 text-xs font-mono text-gray-100"
                   />
                 </div>
               </div>
-              <div className="rounded-lg bg-[#0B0E11] border border-[#1E2633] p-3.5 text-xs text-gray-300 space-y-1.5 leading-relaxed">
+              <div className="rounded-lg bg-[#090D12] border border-[#1E2633] p-3.5 text-xs text-gray-300 space-y-1.5 leading-relaxed">
                 <div className="font-semibold text-gray-100">
                   Checklist após colocar o .ex5 no gráfico:
                 </div>
@@ -268,7 +268,7 @@ export function Mt5BridgeView({
               </div>
             </div>
 
-            <pre className="max-h-96 overflow-auto rounded-lg bg-[#0B0E11] border border-[#1E2633] p-4 text-[11px] font-mono text-gray-300 leading-relaxed">
+            <pre className="max-h-96 overflow-auto rounded-lg bg-[#090D12] border border-[#1E2633] p-4 text-[11px] font-mono text-gray-300 leading-relaxed">
               {mql5Code}
             </pre>
           </div>

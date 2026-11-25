@@ -87,7 +87,7 @@ export function BuySellAnalyticsView({
   if (robots.length === 0) {
     return (
       <div className="flex-1 overflow-y-auto px-6 py-10">
-        <div className="max-w-2xl mx-auto rounded-xl bg-[#11161D] border border-[#222B38] p-8 text-center space-y-3">
+        <div className="max-w-2xl mx-auto rounded-xl bg-[#0F141C] border border-[#1E2633] p-8 text-center space-y-3">
           <BarChart3 className="w-7 h-7 text-gray-400 mx-auto" />
           <h2 className="font-display text-base font-semibold text-gray-100">
             Sem operações para analisar compras e vendas
@@ -134,13 +134,13 @@ export function BuySellAnalyticsView({
           <div className="flex flex-wrap items-center gap-2">
             <PeriodFilterBar filter={periodFilter} />
           {selectedRobotId !== 'ALL' && scopedRobots.length === 1 ? (
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#11161D] border border-[#222B38] text-xs">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#0F141C] border border-[#1E2633] text-xs">
               <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${getRobotColorTheme(scopedRobots[0].magicNumber, magicColors).dot}`} />
               <span className="font-semibold text-gray-100">{scopedRobots[0].name}</span>
               <span className="font-mono text-gray-400">#{scopedRobots[0].magicNumber} · {scopedRobots[0].symbol}</span>
             </div>
           ) : (
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#11161D] border border-[#222B38] text-xs text-gray-300">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#0F141C] border border-[#1E2633] text-xs text-gray-300">
               Todos os Robôs ({scopedRobots.length})
             </div>
           )}
@@ -148,7 +148,7 @@ export function BuySellAnalyticsView({
         </div>
 
         {/* Proporção Compra / Venda */}
-        <div className="rounded-xl bg-[#11161D] border border-[#222B38] p-5 space-y-3">
+        <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] p-5 space-y-3">
           <div className="flex items-center justify-between text-xs font-mono tabular-nums">
             <span className={metrics.buys.count > 0 ? "text-emerald-400 font-semibold" : "text-gray-400"}>
               Compras: {metrics.buys.count} operações ({buySharePct}%)
@@ -172,7 +172,7 @@ export function BuySellAnalyticsView({
         {/* Comparativo Lado a Lado: Compras x Vendas */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Bloco Compras */}
-          <section className="rounded-xl bg-[#11161D] border border-[#222B38] overflow-hidden">
+          <section className="rounded-xl bg-[#0F141C] border border-[#1E2633] overflow-hidden">
             <div className="px-5 py-3.5 border-b border-[#1E2633] flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-emerald-400" />
@@ -248,7 +248,7 @@ export function BuySellAnalyticsView({
           </section>
 
           {/* Bloco Vendas */}
-          <section className="rounded-xl bg-[#11161D] border border-[#222B38] overflow-hidden">
+          <section className="rounded-xl bg-[#0F141C] border border-[#1E2633] overflow-hidden">
             <div className="px-5 py-3.5 border-b border-[#1E2633] flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <TrendingDown className="w-4 h-4 text-red-400" />
@@ -325,7 +325,7 @@ export function BuySellAnalyticsView({
         </div>
 
         {/* Desempenho por Horário do Pregão */}
-        <section className="rounded-xl bg-[#11161D] border border-[#222B38] overflow-hidden">
+        <section className="rounded-xl bg-[#0F141C] border border-[#1E2633] overflow-hidden">
           <div className="px-5 py-3.5 border-b border-[#1E2633] flex items-center justify-between">
             <div>
               <h2 className="text-sm font-semibold text-gray-100">
@@ -337,7 +337,7 @@ export function BuySellAnalyticsView({
             </div>
           </div>
 
-          <div className="p-4 bg-[#0B0E11]">
+          <div className="p-4 bg-[#090D12]">
             <svg viewBox={`0 0 ${barW} ${barH}`} className="w-full h-auto block select-none">
               <line
                 x1={padL}
@@ -399,7 +399,7 @@ export function BuySellAnalyticsView({
         </section>
 
         {/* Tabela de Resultado por Ativo */}
-        <section className="rounded-xl bg-[#11161D] border border-[#222B38] overflow-hidden">
+        <section className="rounded-xl bg-[#0F141C] border border-[#1E2633] overflow-hidden">
           <div className="px-5 py-3.5 border-b border-[#1E2633]">
             <h2 className="text-sm font-semibold text-gray-100">
               Compras & Vendas por Ativo
@@ -407,7 +407,7 @@ export function BuySellAnalyticsView({
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
-              <thead className="bg-[#0E1319] text-[11px] text-gray-400 border-b border-[#1E2633]">
+              <thead className="bg-[#090D12] text-[11px] text-gray-400 border-b border-[#1E2633]">
                 <tr>
                   <th className="px-4 py-2.5 font-medium">Ativo</th>
                   <th className="px-4 py-2.5 font-medium text-right">Qtd Compras</th>
@@ -419,7 +419,7 @@ export function BuySellAnalyticsView({
               </thead>
               <tbody className="divide-y divide-[#1B222D] font-mono tabular-nums">
                 {bySymbol.map((row) => (
-                  <tr key={row.symbol} className="hover:bg-[#171E27]">
+                  <tr key={row.symbol} className="hover:bg-[#131922]">
                     <td className="px-4 py-3 font-semibold text-gray-100">{row.symbol}</td>
                     <td className="px-4 py-3 text-right text-gray-300">{row.buys}</td>
                     <td

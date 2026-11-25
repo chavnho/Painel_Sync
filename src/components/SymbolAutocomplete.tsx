@@ -93,7 +93,7 @@ export function SymbolAutocomplete({
 
   return (
     <div className="relative" ref={dropdownRef}>
-      <div className="flex items-center gap-2 bg-[#11161D] border border-[#263040] rounded-lg px-3 py-1.5">
+      <div className="flex items-center gap-2 bg-[#0F141C] border border-[#1E2633] rounded-lg px-3 py-1.5">
         <span className="text-xs text-gray-400">Ativo:</span>
         <input
           type="text"
@@ -120,7 +120,7 @@ export function SymbolAutocomplete({
       {isOpen && (
         <div
           ref={listRef}
-          className="absolute z-50 mt-1 w-full max-h-60 overflow-y-auto bg-[#11161D] border border-[#263040] rounded-lg shadow-xl"
+          className="absolute z-50 mt-1 w-full max-h-60 overflow-y-auto bg-[#0F141C] border border-[#1E2633] rounded-lg shadow-xl"
         >
           {filteredSymbols.length === 0 ? (
             <div className="px-3 py-2 text-xs text-gray-500">

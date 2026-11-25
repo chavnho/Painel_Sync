@@ -51,7 +51,7 @@ export function ConnectView({ streamStatus, telemetry, pairingEvents, onClearSes
             <p className="text-gray-400 text-sm">Use as credenciais abaixo para configurar seu robô no MetaTrader 5.</p>
           </div>
           {telemetry && (
-            <button type="button" onClick={onClearSession} title="Limpar dados recebidos na sessão atual" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#161D27] hover:bg-[#2A191E] border border-[#222B38] hover:border-red-500/40 text-xs font-medium text-gray-300 hover:text-red-300 transition-colors cursor-pointer shrink-0">
+            <button type="button" onClick={onClearSession} title="Limpar dados recebidos na sessão atual" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#161D27] hover:bg-[#2A191E] border border-[#1E2633] hover:border-red-500/40 text-xs font-medium text-gray-300 hover:text-red-300 transition-colors cursor-pointer shrink-0">
               <Trash2 className="w-3.5 h-3.5" /><span>Limpar Sessão</span>
             </button>
           )}
@@ -107,7 +107,7 @@ export function ConnectView({ streamStatus, telemetry, pairingEvents, onClearSes
             <div className="divide-y divide-[#1E2633] text-sm [&>div]:py-2 [&>div:first-child]:pt-0 [&>div:last-child]:pb-0">
               {(telemetry.account.broker || telemetry.account.server) && (<div className="flex justify-between gap-4"><span className="text-gray-400">Servidor:</span><span className="font-mono text-gray-200 truncate">{telemetry.account.server || telemetry.account.broker}</span></div>)}
               <div className="flex justify-between"><span className="text-gray-400">Tipo:</span><span className={`font-mono font-bold px-1.5 py-0.5 rounded text-xs ${telemetry.account.mode === 'REAL' ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800/50' : 'bg-amber-950/60 text-amber-400 border border-amber-800/50'}`}>{telemetry.account.mode}</span></div>
-              <div className="flex justify-between"><span className="text-gray-400">Modo:</span><span className="font-mono font-semibold px-1.5 py-0.5 rounded text-xs bg-[#161D27] text-gray-200 border border-[#222B38]">{telemetry.account.marginMode ?? 'NETTING'}</span></div>
+              <div className="flex justify-between"><span className="text-gray-400">Modo:</span><span className="font-mono font-semibold px-1.5 py-0.5 rounded text-xs bg-[#161D27] text-gray-200 border border-[#1E2633]">{telemetry.account.marginMode ?? 'NETTING'}</span></div>
               <div className="flex justify-between"><span className="text-gray-400">Conta:</span><span className="font-mono text-gray-200">{telemetry.account.login}</span></div>
               <div className="flex justify-between"><span className="text-gray-400">Margem Disponível:</span><span className="font-mono font-semibold text-gray-100">R$ {(telemetry.account.freeMargin ?? telemetry.account.equity ?? telemetry.account.balance).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></div>
               {telemetry.account.margin > 0 && (<div className="flex justify-between"><span className="text-gray-400">Margem Retida:</span><span className="font-mono text-amber-400">R$ {telemetry.account.margin.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></div>)}

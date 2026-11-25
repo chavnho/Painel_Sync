@@ -2,11 +2,11 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --color-canvas: #0B0E11;
-  --color-surface: #11161D;
+  --color-canvas: #090D12;
+  --color-surface: #0F141C;
   --color-surface-elevated: #18202B;
   --color-surface-subtle: #141A23;
-  --color-border-subtle: #222B38;
+  --color-border-subtle: #1E2633;
   --color-border-strong: #334155;
   --color-profit: #10B981;
   --color-loss: #EF4444;

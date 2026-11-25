@@ -229,7 +229,7 @@ export default function App() {
   }, []);
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-[#0B0E11] text-gray-100 overflow-hidden">
+    <div className="h-screen w-screen flex flex-col bg-[#090D12] text-gray-100 overflow-hidden">
       <DashboardHeader
         activeView={activeView}
         onViewChange={setActiveView}
@@ -255,7 +255,7 @@ export default function App() {
           onViewChange={setActiveView}
         />
 
-        <main className="flex-1 flex flex-col min-w-0 h-full bg-[#0B0E11] overflow-hidden">
+        <main className="flex-1 flex flex-col min-w-0 h-full bg-[#090D12] overflow-hidden">
           {activeView === 'overview' && (
             <OverviewView
               robots={robots}

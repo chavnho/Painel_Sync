@@ -113,7 +113,7 @@ export function TradesLedgerView({
   if (robots.length === 0) {
     return (
       <div className="flex-1 overflow-y-auto px-6 py-10">
-        <div className="max-w-2xl mx-auto rounded-xl bg-[#11161D] border border-[#222B38] p-8 text-center space-y-3">
+        <div className="max-w-2xl mx-auto rounded-xl bg-[#0F141C] border border-[#1E2633] p-8 text-center space-y-3">
           <h2 className="font-display text-base font-semibold text-gray-100">
             Nenhuma operação registrada
           </h2>
@@ -129,7 +129,7 @@ export function TradesLedgerView({
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden px-6 py-5">
       <div className="max-w-7xl w-full mx-auto flex-1 flex flex-col min-h-0 gap-5">
         {/* Posições Abertas */}
-        <section className="shrink-0 rounded-xl bg-[#11161D] border border-[#222B38] overflow-hidden">
+        <section className="shrink-0 rounded-xl bg-[#0F141C] border border-[#1E2633] overflow-hidden">
           <div className="px-5 py-3.5 border-b border-[#1E2633] flex items-center justify-between">
             <h2 className="text-sm font-semibold text-gray-100">
               Posições em Aberto ({openPositions.length})
@@ -155,7 +155,7 @@ export function TradesLedgerView({
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
-                <thead className="bg-[#0E1319] text-[11px] text-gray-400 border-b border-[#1E2633]">
+                <thead className="bg-[#090D12] text-[11px] text-gray-400 border-b border-[#1E2633]">
                   <tr>
                     <th className="px-4 py-2.5 font-medium">Robô / Magic</th>
                     <th className="px-4 py-2.5 font-medium">Ativo</th>
@@ -171,7 +171,7 @@ export function TradesLedgerView({
                 </thead>
                 <tbody className="divide-y divide-[#1B222D] font-mono tabular-nums">
                   {openPositions.map((pos) => (
-                    <tr key={pos.id} className="hover:bg-[#171E27]">
+                    <tr key={pos.id} className="hover:bg-[#131922]">
                       <td className="px-4 py-3 font-sans">
                         <div className="flex items-center gap-1.5 font-semibold text-gray-100"><span className={`w-2 h-2 rounded-full shrink-0 ${getRobotColorTheme(pos.magicNumber, magicColors).dot}`} /><span>{pos.robotName}</span></div>
                         <div className="text-[11px] font-mono text-gray-500">
@@ -229,7 +229,7 @@ export function TradesLedgerView({
         </section>
 
         {/* Livro Completo de Compras e Vendas */}
-        <section className="flex-1 flex flex-col min-h-0 rounded-xl bg-[#11161D] border border-[#222B38] overflow-hidden">
+        <section className="flex-1 flex flex-col min-h-0 rounded-xl bg-[#0F141C] border border-[#1E2633] overflow-hidden">
           <div className="px-5 py-3.5 border-b border-[#1E2633] flex flex-col gap-3">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-baseline gap-3">
@@ -252,7 +252,7 @@ export function TradesLedgerView({
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Buscar ativo, robô, ticket..."
-                    className="bg-[#0B0E11] border border-[#222B38] focus:border-emerald-500 focus:outline-none rounded-lg pl-8 pr-3 py-1.5 text-xs text-gray-100 placeholder:text-gray-500 w-52"
+                    className="bg-[#090D12] border border-[#1E2633] focus:border-emerald-500 focus:outline-none rounded-lg pl-8 pr-3 py-1.5 text-xs text-gray-100 placeholder:text-gray-500 w-52"
                   />
                 </div>
 
@@ -270,7 +270,7 @@ export function TradesLedgerView({
 
             <div className="flex flex-wrap lg:flex-nowrap items-center justify-center gap-2">
 
-              <div className="flex flex-wrap items-center gap-1.5 bg-[#0B0E11] border border-[#222B38] rounded-lg px-2 py-1">
+              <div className="flex flex-wrap items-center gap-1.5 bg-[#090D12] border border-[#1E2633] rounded-lg px-2 py-1">
                 <select
                   aria-label="Ano"
                   value={selectedYear}
@@ -278,7 +278,7 @@ export function TradesLedgerView({
                   className="bg-transparent text-xs text-gray-200 font-medium focus:outline-none cursor-pointer pr-1"
                 >
                   {availableYears.map((yr) => (
-                    <option key={yr} value={yr} className="bg-[#11161D] text-gray-100">
+                    <option key={yr} value={yr} className="bg-[#0F141C] text-gray-100">
                       {yr}
                     </option>
                   ))}
@@ -292,19 +292,19 @@ export function TradesLedgerView({
                   onChange={(e) => handleSelectMonthPreset(selectedYear, e.target.value)}
                   className="bg-transparent text-xs text-gray-200 font-medium focus:outline-none cursor-pointer pr-1"
                 >
-                  <option value="ALL" className="bg-[#11161D]">Todos os meses</option>
-                  <option value="1" className="bg-[#11161D]">Janeiro</option>
-                  <option value="2" className="bg-[#11161D]">Fevereiro</option>
-                  <option value="3" className="bg-[#11161D]">Março</option>
-                  <option value="4" className="bg-[#11161D]">Abril</option>
-                  <option value="5" className="bg-[#11161D]">Maio</option>
-                  <option value="6" className="bg-[#11161D]">Junho</option>
-                  <option value="7" className="bg-[#11161D]">Julho</option>
-                  <option value="8" className="bg-[#11161D]">Agosto</option>
-                  <option value="9" className="bg-[#11161D]">Setembro</option>
-                  <option value="10" className="bg-[#11161D]">Outubro</option>
-                  <option value="11" className="bg-[#11161D]">Novembro</option>
-                  <option value="12" className="bg-[#11161D]">Dezembro</option>
+                  <option value="ALL" className="bg-[#0F141C]">Todos os meses</option>
+                  <option value="1" className="bg-[#0F141C]">Janeiro</option>
+                  <option value="2" className="bg-[#0F141C]">Fevereiro</option>
+                  <option value="3" className="bg-[#0F141C]">Março</option>
+                  <option value="4" className="bg-[#0F141C]">Abril</option>
+                  <option value="5" className="bg-[#0F141C]">Maio</option>
+                  <option value="6" className="bg-[#0F141C]">Junho</option>
+                  <option value="7" className="bg-[#0F141C]">Julho</option>
+                  <option value="8" className="bg-[#0F141C]">Agosto</option>
+                  <option value="9" className="bg-[#0F141C]">Setembro</option>
+                  <option value="10" className="bg-[#0F141C]">Outubro</option>
+                  <option value="11" className="bg-[#0F141C]">Novembro</option>
+                  <option value="12" className="bg-[#0F141C]">Dezembro</option>
                 </select>
 
                 <span className="text-gray-700">|</span>
@@ -318,7 +318,7 @@ export function TradesLedgerView({
                       setStartDate(e.target.value);
                       setSelectedMonth('ALL');
                     }}
-                    className="bg-[#11161D] border border-[#222B38] rounded px-1.5 py-0.5 text-xs text-gray-200 focus:border-emerald-500 focus:outline-none [color-scheme:dark]"
+                    className="bg-[#0F141C] border border-[#1E2633] rounded px-1.5 py-0.5 text-xs text-gray-200 focus:border-emerald-500 focus:outline-none [color-scheme:dark]"
                   />
                 </label>
 
@@ -331,7 +331,7 @@ export function TradesLedgerView({
                       setEndDate(e.target.value);
                       setSelectedMonth('ALL');
                     }}
-                    className="bg-[#11161D] border border-[#222B38] rounded px-1.5 py-0.5 text-xs text-gray-200 focus:border-emerald-500 focus:outline-none [color-scheme:dark]"
+                    className="bg-[#0F141C] border border-[#1E2633] rounded px-1.5 py-0.5 text-xs text-gray-200 focus:border-emerald-500 focus:outline-none [color-scheme:dark]"
                   />
                 </label>
 
@@ -346,7 +346,7 @@ export function TradesLedgerView({
                 )}
               </div>
 
-              <div className="flex items-center bg-[#0B0E11] border border-[#222B38] rounded-lg p-0.5">
+              <div className="flex items-center bg-[#090D12] border border-[#1E2633] rounded-lg p-0.5">
                 {(
                   [
                     { id: 'ALL', label: 'Todos' },
@@ -369,7 +369,7 @@ export function TradesLedgerView({
                 ))}
               </div>
 
-              <div className="flex items-center bg-[#0B0E11] border border-[#222B38] rounded-lg p-0.5">
+              <div className="flex items-center bg-[#090D12] border border-[#1E2633] rounded-lg p-0.5">
                 {(
                   [
                     { id: 'ALL', label: 'Tudo' },
@@ -401,7 +401,7 @@ export function TradesLedgerView({
           ) : (
             <div className="flex-1 min-h-0 overflow-auto">
               <table className="w-full text-left border-collapse text-xs">
-                <thead className="bg-[#0E1319] text-[11px] text-gray-400 border-b border-[#1E2633] sticky top-0">
+                <thead className="bg-[#090D12] text-[11px] text-gray-400 border-b border-[#1E2633] sticky top-0">
                   <tr>
                     <th className="px-4 py-2.5 font-medium">Ticket</th>
                     <th className="px-4 py-2.5 font-medium">Robô</th>
@@ -417,7 +417,7 @@ export function TradesLedgerView({
                 </thead>
                 <tbody className="divide-y divide-[#1B222D] font-mono tabular-nums">
                   {filteredTrades.map((tr) => (
-                    <tr key={tr.id} className="hover:bg-[#171E27]">
+                    <tr key={tr.id} className="hover:bg-[#131922]">
                       <td className="px-4 py-2.5 text-gray-500">#{tr.id}</td>
                       <td className="px-4 py-2.5 font-sans text-gray-200"><div className="flex items-center gap-1.5"><span className={`w-2 h-2 rounded-full shrink-0 ${getRobotColorTheme(tr.magicNumber, magicColors).dot}`} /><span>{tr.robotName}</span></div></td>
                       <td className="px-4 py-2.5 text-gray-200 font-semibold">{tr.symbol}</td>

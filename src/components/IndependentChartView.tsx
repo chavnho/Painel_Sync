@@ -326,7 +326,7 @@ export function IndependentChartView({
     const chart = createChart(container, {
       autoSize: true,
       layout: {
-        background: { type: ColorType.Solid, color: '#0B0E11' },
+        background: { type: ColorType.Solid, color: '#090D12' },
         textColor: '#9CA3AF',
         fontFamily: 'JetBrains Mono, ui-monospace, monospace',
         fontSize: 11,
@@ -613,7 +613,7 @@ export function IndependentChartView({
           <div
             role="group"
             aria-label="Tempo gráfico"
-            className="flex items-center bg-[#11161D] border border-[#222B38] rounded-lg p-0.5"
+            className="flex items-center bg-[#0F141C] border border-[#1E2633] rounded-lg p-0.5"
           >
             {TIMEFRAMES.map((tf) => {
               const active = selectedTf === tf;
@@ -638,7 +638,7 @@ export function IndependentChartView({
             type="button"
             onClick={() => setReloadToken((n) => n + 1)}
             disabled={!selectedSymbol || isLoading}
-            className="flex items-center gap-1.5 bg-[#11161D] hover:bg-[#1E2633] border border-[#222B38] rounded-lg px-3 py-1.5 text-xs font-medium text-gray-200 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex items-center gap-1.5 bg-[#0F141C] hover:bg-[#1E2633] border border-[#1E2633] rounded-lg px-3 py-1.5 text-xs font-medium text-gray-200 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             title="Solicitar candles atualizados ao MetaTrader 5"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
@@ -646,7 +646,7 @@ export function IndependentChartView({
           </button>
         </div>
 
-        <div className="flex-1 flex flex-col min-h-0 rounded-xl bg-[#11161D] border border-[#222B38] overflow-hidden">
+        <div className="flex-1 flex flex-col min-h-0 rounded-xl bg-[#0F141C] border border-[#1E2633] overflow-hidden">
           <div className="shrink-0 px-4 py-2.5 border-b border-[#1E2633] flex flex-wrap items-center justify-between gap-3 text-xs min-h-[38px]">
             <div className="flex flex-wrap items-center gap-3 min-w-0">
               {(() => {
@@ -686,7 +686,7 @@ export function IndependentChartView({
             </div>
           </div>
 
-          <div className="flex-1 min-h-[420px] bg-[#0B0E11] p-1 relative">
+          <div className="flex-1 min-h-[420px] bg-[#090D12] p-1 relative">
             <div ref={containerRef} className="w-full h-full" />
             {(!manualCandles || manualCandles.length === 0) && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-6 pointer-events-none">

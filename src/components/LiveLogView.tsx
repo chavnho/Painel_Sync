@@ -32,7 +32,7 @@ export function LiveLogView({ events }: LiveLogViewProps) {
   }, [logs]);
 
   return (
-    <div className="h-32 bg-[#0A0D10] border-t border-[#222B38] p-4 overflow-hidden flex flex-col">
+    <div className="h-32 bg-[#090D12] border-t border-[#1E2633] p-4 overflow-hidden flex flex-col">
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-[10px] uppercase tracking-wider font-bold text-gray-500">Live Event Feed</h3>
         <span className="text-[10px] text-emerald-500 animate-pulse">● Live</span>
@@ -65,7 +65,7 @@ export function LiveLogView({ events }: LiveLogViewProps) {
           background: transparent;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #222B38;
+          background: #1E2633;
           border-radius: 2px;
         }
       `}</style>

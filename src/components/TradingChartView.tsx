@@ -588,7 +588,7 @@ export function TradingChartView({
     const chart = createChart(container, {
       autoSize: true,
       layout: {
-        background: { type: ColorType.Solid, color: '#0B0E11' },
+        background: { type: ColorType.Solid, color: '#090D12' },
         textColor: '#9CA3AF',
         fontFamily: 'JetBrains Mono, ui-monospace, monospace',
         fontSize: 11,
@@ -1107,7 +1107,7 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
   if (!activeSymbol) {
     return (
       <div className="flex-1 overflow-y-auto px-6 py-10">
-        <div className="max-w-2xl mx-auto rounded-xl bg-[#11161D] border border-[#222B38] p-8 text-center space-y-3">
+        <div className="max-w-2xl mx-auto rounded-xl bg-[#0F141C] border border-[#1E2633] p-8 text-center space-y-3">
           <CandlestickChart className="w-7 h-7 text-gray-400 mx-auto" />
           <h2 className="font-display text-base font-semibold text-gray-100">
             Nenhum gráfico disponível ainda
@@ -1123,7 +1123,7 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
   return (
     <div className="flex-1 flex flex-col min-h-0 px-6 py-4 gap-3 overflow-hidden">
       <div className="w-full flex-1 flex flex-col min-h-0 gap-3">
-        <div className="flex-1 flex flex-col min-h-0 rounded-xl bg-[#11161D] border border-[#222B38] overflow-hidden">
+        <div className="flex-1 flex flex-col min-h-0 rounded-xl bg-[#0F141C] border border-[#1E2633] overflow-hidden">
           <div className="shrink-0 px-4 py-2.5 border-b border-[#1E2633] flex flex-wrap items-center justify-between gap-3 text-xs min-h-[38px]">
             <div className="flex flex-wrap items-center gap-3 min-w-0 font-mono tabular-nums text-[11px]">
               <span className="font-semibold text-gray-100">
@@ -1199,7 +1199,7 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
                 className={`px-2 py-0.5 rounded text-[11px] font-medium border transition-colors cursor-pointer shrink-0 ${
                   showMarkers
                     ? 'bg-emerald-950/50 border-emerald-700/50 text-emerald-300'
-                    : 'bg-[#0B0E11] border-[#222B38] text-gray-400 hover:text-gray-200'
+                    : 'bg-[#090D12] border-[#1E2633] text-gray-400 hover:text-gray-200'
                 }`}
               >
                 Trades
@@ -1207,7 +1207,7 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
             </div>
           </div>
 
-          <div className="flex-1 min-h-0 bg-[#0B0E11] relative">
+          <div className="flex-1 min-h-0 bg-[#090D12] relative">
             <div ref={containerRef} className="w-full h-full" />
             {allCandles.length === 0 && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-6 pointer-events-none">

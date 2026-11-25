@@ -55,9 +55,9 @@ export function WeeklyMonthlyReportView({ robots, selectedRobotId, magicColors =
           <div className="flex flex-wrap items-center gap-2">
             <PeriodFilterBar filter={periodFilter} onManualDateChange={() => setHoverDayIdx(null)} />
             {selectedRobotId !== 'ALL' && (
-              <button type="button" onClick={() => onSelectRobot('ALL')} className="h-8 px-3 rounded-lg bg-[#161D27] hover:bg-[#1E2633] border border-[#222B38] text-xs font-medium text-gray-200 transition-colors cursor-pointer flex items-center">Consolidar Todos</button>
+              <button type="button" onClick={() => onSelectRobot('ALL')} className="h-8 px-3 rounded-lg bg-[#161D27] hover:bg-[#1E2633] border border-[#1E2633] text-xs font-medium text-gray-200 transition-colors cursor-pointer flex items-center">Consolidar Todos</button>
             )}
-            <button type="button" onClick={() => exportReportCsv([...report.rows, report.consolidated], activeLabel)} className="h-8 flex items-center gap-1.5 px-3 rounded-lg bg-[#161D27] hover:bg-[#1E2633] border border-[#222B38] text-xs font-medium text-gray-100 transition-colors cursor-pointer">
+            <button type="button" onClick={() => exportReportCsv([...report.rows, report.consolidated], activeLabel)} className="h-8 flex items-center gap-1.5 px-3 rounded-lg bg-[#161D27] hover:bg-[#1E2633] border border-[#1E2633] text-xs font-medium text-gray-100 transition-colors cursor-pointer">
               <Download className="w-3.5 h-3.5 text-emerald-400" /><span>Exportar CSV</span>
             </button>
           </div>
@@ -151,7 +151,7 @@ export function WeeklyMonthlyReportView({ robots, selectedRobotId, magicColors =
                   );
                 })}
               </tbody>
-              <tfoot className="bg-[#090D12] border-t border-[#222B38] font-mono tabular-nums text-xs">
+              <tfoot className="bg-[#090D12] border-t border-[#1E2633] font-mono tabular-nums text-xs">
                 <tr>
                   <td className="px-4 py-3 font-sans font-bold text-gray-100">Total Consolidado ({report.rows.length} robôs)</td>
                   <td className="px-4 py-3 text-gray-400">—</td>

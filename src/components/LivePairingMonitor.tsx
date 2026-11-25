@@ -142,7 +142,7 @@ export function LivePairingMonitor({
   return (
     <section
       aria-label="Monitor de Pareamento em Tempo Real"
-      className="rounded-xl bg-[#11161D] border border-[#222B38] overflow-hidden"
+      className="rounded-xl bg-[#0F141C] border border-[#1E2633] overflow-hidden"
     >
       {/* Cabeçalho do Monitor */}
       <div className="px-5 py-4 border-b border-[#1E2633] flex flex-wrap items-center justify-between gap-4">
@@ -198,7 +198,7 @@ export function LivePairingMonitor({
             type="button"
             onClick={runExternalProbe}
             disabled={probe.status === 'checking'}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#263040] text-xs font-medium text-gray-200 transition-colors cursor-pointer disabled:opacity-60 whitespace-nowrap shrink-0"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#1E2633] text-xs font-medium text-gray-200 transition-colors cursor-pointer disabled:opacity-60 whitespace-nowrap shrink-0"
           >
             <RefreshCw
               className={`w-3.5 h-3.5 text-sky-300 shrink-0 ${
@@ -214,7 +214,7 @@ export function LivePairingMonitor({
               onClick={onClearPairingLog}
               title="Limpar histórico de pareamento"
               aria-label="Limpar histórico de pareamento"
-              className="p-2 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#263040] text-gray-400 hover:text-gray-200 transition-colors cursor-pointer shrink-0"
+              className="p-2 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#1E2633] text-gray-400 hover:text-gray-200 transition-colors cursor-pointer shrink-0"
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -223,7 +223,7 @@ export function LivePairingMonitor({
       </div>
 
       {/* Diagnóstico de Alcance Externo (Cookies vs MT5 WebRequest) */}
-      <div className="px-5 py-3 border-b border-[#1E2633] bg-[#0E1319] flex items-start gap-3 text-xs">
+      <div className="px-5 py-3 border-b border-[#1E2633] bg-[#090D12] flex items-start gap-3 text-xs">
         {probe.status === 'checking' ? (
           <>
             <Globe className="w-4 h-4 text-sky-300 shrink-0 mt-0.5" />
@@ -342,7 +342,7 @@ export function LivePairingMonitor({
 
       {/* Rodapé discreto apenas quando já há último evento */}
       {latestEvent && (
-        <div className="px-5 py-2.5 border-t border-[#1E2633] bg-[#0E1319] flex flex-wrap items-center justify-between gap-2 text-[11px] text-gray-500 font-mono tabular-nums">
+        <div className="px-5 py-2.5 border-t border-[#1E2633] bg-[#090D12] flex flex-wrap items-center justify-between gap-2 text-[11px] text-gray-500 font-mono tabular-nums">
           <span>
             Último evento: {latestEvent.outcome === 'success' ? 'OK' : 'Falha'} (HTTP{' '}
             {latestEvent.httpStatus})

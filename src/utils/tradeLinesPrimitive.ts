@@ -60,7 +60,7 @@ class TradeLinesRenderer implements IPrimitivePaneRenderer {
 
         ctx.beginPath();
         ctx.fillStyle = item.dotColor;
-        ctx.strokeStyle = '#0B0E11';
+        ctx.strokeStyle = '#090D12';
         ctx.lineWidth = 1.5 * hpr;
         ctx.arc(x1, y1, 4.5 * hpr, 0, Math.PI * 2);
         ctx.fill();
@@ -68,7 +68,7 @@ class TradeLinesRenderer implements IPrimitivePaneRenderer {
 
         ctx.beginPath();
         ctx.fillStyle = item.dotColor;
-        ctx.strokeStyle = '#0B0E11';
+        ctx.strokeStyle = '#090D12';
         ctx.lineWidth = 1.5 * hpr;
         ctx.arc(x2, y2, 4.5 * hpr, 0, Math.PI * 2);
         ctx.fill();

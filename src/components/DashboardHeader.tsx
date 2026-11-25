@@ -61,7 +61,7 @@ export function DashboardHeader({
         : 'text-gray-300';
 
   return (
-    <header className="h-14 shrink-0 bg-[#11161D] border-b border-[#222B38] px-6 flex items-center justify-between gap-6">
+    <header className="h-14 shrink-0 bg-[#0F141C] border-b border-[#1E2633] px-6 flex items-center justify-between gap-6">
       <button
         type="button"
         onClick={() => onViewChange('overview')}
@@ -92,7 +92,7 @@ export function DashboardHeader({
       </nav>
 
       <div className="shrink-0 flex items-center gap-3">
-        <div className={`hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#0B0E11] border text-xs transition-colors ${isStale ? 'border-amber-500/60 bg-amber-950/20' : 'border-[#222B38]'}`}>
+        <div className={`hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#090D12] border text-xs transition-colors ${isStale ? 'border-amber-500/60 bg-amber-950/20' : 'border-[#1E2633]'}`}>
           <span className={`inline-flex items-center gap-1.5 font-medium whitespace-nowrap ${statusColorClass}`}>
             {isStale ? <AlertTriangle className="w-3.5 h-3.5 shrink-0 animate-pulse" /> : <Radio className="w-3.5 h-3.5 shrink-0" />}
             <span>{statusText}</span>

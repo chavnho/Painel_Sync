@@ -176,7 +176,7 @@ export function RobotSidebar({
                         }}
                         placeholder={`Robô #${bot.magicNumber}`}
                         autoFocus
-                        className="w-full bg-[#0B0E11] border border-[#334155] rounded px-1.5 py-0.5 text-xs font-semibold text-gray-100 focus:outline-none focus:border-emerald-500"
+                        className="w-full bg-[#090D12] border border-[#334155] rounded px-1.5 py-0.5 text-xs font-semibold text-gray-100 focus:outline-none focus:border-emerald-500"
                       />
                       <button
                         type="button"
@@ -273,7 +273,7 @@ export function RobotSidebar({
 
       {/* Rodapé com Margem Disponível MT5 */}
       {account && (
-        <div className="p-4 border-t border-[#222B38] bg-[#090D12]/60">
+        <div className="p-4 border-t border-[#1E2633] bg-[#090D12]/60">
           <div className="space-y-1 text-xs">
           <div className="space-y-1 text-xs">
             <div className="flex items-center justify-between text-gray-400">
