@@ -4,12 +4,15 @@
 @theme {
   --color-canvas: #090D12;
   --color-surface: #0F141C;
-  --color-surface-elevated: #18202B;
-  --color-surface-subtle: #141A23;
+  --color-surface-elevated: #161E2B;
+  --color-surface-subtle: #0B0F16;
   --color-border-subtle: #1E2633;
   --color-border-strong: #334155;
   --color-profit: #10B981;
-  --color-loss: #EF4444;
+  --color-loss: #F43F5E;
+  --color-text-primary: #CBD5E1;
+  --color-text-secondary: #94A3B8;
+  --color-text-muted: #64748B;
 }
 
 @layer base {
@@ -17,12 +20,17 @@
     --font-display: 'Plus Jakarta Sans', system-ui, sans-serif;
     --font-sans: 'DM Sans', system-ui, sans-serif;
     --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    --fs-page-title: 1.25rem;
+    --fs-section-title: 0.875rem;
+    --fs-kpi-lg: 1.5rem;
+    --fs-table: 0.75rem;
+    --fs-micro: 0.6875rem;
   }
 
   body {
     font-family: var(--font-sans);
     background-color: var(--color-canvas);
-    color: #F3F4F6;
+    color: var(--color-text-primary);
     overflow: hidden;
   }
 

@@ -103,13 +103,35 @@ export function getRobotColorTheme(
 
 export function getPnlTextClass(value: number): string {
   if (value > 0) return 'text-emerald-400';
-  if (value < 0) return 'text-red-400';
+  if (value < 0) return 'text-rose-400';
   return 'text-gray-400';
 }
 
 export function getSideTextClass(side: 'COMPRA' | 'VENDA'): string {
-  return side === 'COMPRA' ? 'text-emerald-400' : 'text-red-400';
+  return side === 'COMPRA' ? 'text-emerald-400' : 'text-rose-400';
 }
 
 export const MAX_CHART_CANDLES = 1000;
 export const INITIAL_CHART_VIEW_BARS = 300;
+
+export const UI_THEME = {
+  surfaces: {
+    canvas: 'bg-[var(--color-canvas)]',
+    card: 'bg-[var(--color-surface)] border border-[var(--color-border-subtle)] rounded-xl',
+    zebraRow: 'odd:bg-transparent even:bg-[var(--color-surface-subtle)]/70 hover:bg-[var(--color-surface-elevated)] transition-colors',
+  },
+  typography: {
+    pageTitle: 'font-display text-[length:var(--fs-page-title)] font-bold text-slate-200',
+    sectionTitle: 'text-[length:var(--fs-section-title)] font-semibold text-slate-200',
+    kpiValue: 'text-[length:var(--fs-kpi-lg)] font-mono font-bold tabular-nums',
+    tableHeader: 'bg-[var(--color-canvas)] text-[10px] uppercase tracking-wider text-slate-400 border-b border-[var(--color-border-subtle)] sticky top-0 z-10',
+    tableBody: 'divide-y divide-[var(--color-border-subtle)]/80 font-mono tabular-nums text-[length:var(--fs-table)] text-slate-300',
+    microMuted: 'text-[length:var(--fs-micro)] text-slate-400',
+  },
+  semantic: {
+    profitText: 'text-emerald-400',
+    lossText: 'text-rose-400',
+    profitBadge: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/25',
+    lossBadge: 'bg-rose-500/10 text-rose-400 border border-rose-500/25',
+  },
+} as const;

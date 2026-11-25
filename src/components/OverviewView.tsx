@@ -1,3 +1,4 @@
+import { UI_THEME } from '../utils/themeTokens';
 import { EquityBaselineChart } from './EquityBaselineChart';
 import { useMemo, useState } from 'react';
 import {
@@ -224,17 +225,17 @@ export function OverviewView({
             <button type="button" onClick={() => onNavigate('reports')} className="text-[11px] text-blue-400 hover:text-blue-300 cursor-pointer">Relatório completo →</button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="rounded-[10px] bg-[#0F141C] border border-[#1E293B] p-4">
+            <div className={`${UI_THEME.surfaces.card} p-4`}>
               <div className="text-[11px] uppercase tracking-wider text-slate-400">Saldo Acumulado</div>
               <div className={`mt-1 text-2xl font-mono font-bold tabular-nums ${cumulativeStats.totalPnlBrl > 0 ? 'text-emerald-400' : cumulativeStats.totalPnlBrl < 0 ? 'text-rose-400' : 'text-slate-100'}`}>{formatBrl(cumulativeStats.totalPnlBrl)}</div>
               <div className="mt-1.5 text-[11px] font-mono tabular-nums text-slate-500">Pico: <span className="text-slate-300">{formatBrl(cumulativeStats.peakPnlBrl)}</span> • DD Máx: <span className="text-rose-400/90">{formatBrl(-cumulativeStats.histMaxDrawdownBrl, false)}</span></div>
             </div>
-            <div className="rounded-[10px] bg-[#0F141C] border border-[#1E293B] p-4">
+            <div className={`${UI_THEME.surfaces.card} p-4`}>
               <div className="text-[11px] uppercase tracking-wider text-slate-400">Média por Trade</div>
               <div className={`mt-1 text-2xl font-mono font-bold tabular-nums ${cumulativeStats.expectancyBrl > 0 ? 'text-emerald-400' : cumulativeStats.expectancyBrl < 0 ? 'text-rose-400' : 'text-slate-100'}`}>{formatBrl(cumulativeStats.expectancyBrl)}</div>
               <div className="mt-1.5 text-[11px] font-mono tabular-nums text-slate-400">{cumulativeStats.histWinRate}% acerto • Fator {cumulativeStats.histProfitFactor.toFixed(2)}</div>
             </div>
-            <div className="rounded-[10px] bg-[#0F141C] border border-[#1E293B] p-4 flex flex-col justify-between">
+            <div className={`${UI_THEME.surfaces.card} p-4 flex flex-col justify-between`}>
               <div className="text-[11px] uppercase tracking-wider text-slate-400">Gain Médio vs Loss Médio</div>
               <div className="my-2 flex items-center justify-between text-xs font-mono font-bold tabular-nums"><span className="text-emerald-400">{formatBrl(cumulativeStats.avgWinBrl, false)}</span><span className="text-rose-400">{formatBrl(-cumulativeStats.avgLossBrl, false)}</span></div>
               <div className="w-full h-2 rounded-full bg-[#090D12] border border-[#1E2633] overflow-hidden flex gap-px">{(() => { const tot = cumulativeStats.avgWinBrl + cumulativeStats.avgLossBrl; const wPct = tot > 0 ? Math.round((cumulativeStats.avgWinBrl / tot) * 100) : 50; return (<><div className="h-full bg-emerald-500/70" style={{ width: `${wPct}%` }} /><div className="h-full bg-rose-500/70" style={{ width: `${100 - wPct}%` }} /></>); })()}</div>
@@ -249,14 +250,14 @@ export function OverviewView({
               <div className={`mt-1 text-[28px] leading-tight font-mono font-bold tabular-nums ${isPos ? 'text-emerald-400' : isNeg ? 'text-rose-400' : 'text-slate-100'}`}>{formatBrl(metrics.netPnlBrl)}</div>
               {openPositions.length > 0 && <div className="mt-1.5 text-[11px] font-mono tabular-nums text-slate-400">Flutuante: <span className={metrics.floatingPnlBrl >= 0 ? 'text-emerald-400' : 'text-rose-400'}>{formatBrl(metrics.floatingPnlBrl)}</span></div>}
             </div>
-            <div className="rounded-[10px] bg-[#0F141C] border border-[#1E293B] p-4">
+            <div className={`${UI_THEME.surfaces.card} p-4`}>
               <div className="text-[11px] uppercase tracking-wider text-slate-400">Drawdown Hoje</div>
               <div className={`mt-1 text-[28px] leading-tight font-mono font-bold tabular-nums ${metrics.maxDrawdownBrl > 0 ? 'text-rose-400/90' : 'text-slate-200'}`}>{formatBrl(-metrics.maxDrawdownBrl, false)}</div>
               <div className="mt-1.5 text-[11px] font-mono tabular-nums text-slate-500">{metrics.totalTrades} operação(ões) encerrada(s) hoje</div>
             </div>
           </div>
           <EquityBaselineChart todayTrades={allTrades} historyTrades={scopedHistoryTrades} floatingPnlBrl={metrics.floatingPnlBrl} />
-          <div className="rounded-[10px] bg-[#0F141C] border border-[#1E293B] overflow-hidden">
+          <div className={`${UI_THEME.surfaces.card} overflow-hidden`}>
             <table className="w-full text-left border-collapse text-xs">
               <thead className="bg-[#161D27]/60 text-[11px] uppercase tracking-wider text-slate-400 border-b border-[#1E293B]">
                 <tr><th className="px-4 py-2.5 font-medium">Robô</th><th className="px-4 py-2.5 font-medium">Ativo</th><th className="px-4 py-2.5 font-medium">Posição</th><th className="px-4 py-2.5 font-medium text-right">Resultado Hoje</th><th className="px-4 py-2.5 font-medium text-right w-16">Gráfico</th></tr>
@@ -278,7 +279,7 @@ export function OverviewView({
             </table>
           </div>
           {allTrades.length > 0 && (
-            <div className="rounded-[10px] bg-[#0F141C] border border-[#1E293B] overflow-hidden">
+            <div className={`${UI_THEME.surfaces.card} overflow-hidden`}>
               <div className="px-4 py-2.5 border-b border-[#1E293B] flex items-center justify-between"><span className="text-xs font-medium text-slate-200">Execuções Hoje ({allTrades.length})</span><button type="button" onClick={() => onNavigate('operations')} className="text-[11px] text-blue-400 hover:text-blue-300 cursor-pointer">Ver todas →</button></div>
               <div className="divide-y divide-[#1E293B]/60">
                 {allTrades.slice(0, 5).map((tr) => (

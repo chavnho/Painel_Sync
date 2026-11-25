@@ -1,4 +1,4 @@
-import { getRobotColorTheme } from '../utils/themeTokens';
+import { getRobotColorTheme, UI_THEME } from '../utils/themeTokens';
 import { useMemo, useState } from 'react';
 import { Download, Search, TrendingDown, TrendingUp } from 'lucide-react';
 import type { DashboardView, OpenPosition, RobotStream } from '../types/trading';
@@ -154,7 +154,7 @@ export function TradesLedgerView({
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-[11px]">
+              <table className="w-full text-left border-collapse">
                 <thead className="bg-[#090D12] text-[11px] text-gray-400 border-b border-[#1E2633]">
                   <tr>
                     <th className="px-3.5 py-2 font-medium">Robô / Magic</th>
@@ -401,7 +401,7 @@ export function TradesLedgerView({
           ) : (
             <div className="flex-1 min-h-0 overflow-auto">
               <table className="w-full text-left border-collapse text-[11px]">
-                <thead className="bg-[#090D12] text-[10px] uppercase tracking-wider text-slate-400 border-b border-[#1E2633] sticky top-0 z-10">
+                <thead className="${UI_THEME.typography.tableHeader}">
                   <tr>
                     <th className="px-4 py-3 font-semibold">Ticket</th>
                     <th className="px-4 py-3 font-semibold">Robô</th>
@@ -415,9 +415,9 @@ export function TradesLedgerView({
                     <th className="px-4 py-3 font-semibold text-right">Resultado</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#1E2633]/80 font-mono tabular-nums">
+                <tbody className={UI_THEME.typography.tableBody}>
                   {filteredTrades.map((tr, idx) => (
-                    <tr key={tr.id} className={`transition-colors hover:bg-[#161E2B] ${idx % 2 === 1 ? 'bg-[#0B0F16]/70' : ''}`}>
+                    <tr key={tr.id} className={UI_THEME.surfaces.zebraRow}>
                       <td className="px-3.5 py-2 text-slate-400">#{tr.id}</td>
                       <td className="px-3.5 py-2 font-sans text-slate-300"><div className="flex items-center gap-2"><span className={`w-2 h-2 rounded-full shrink-0 ${getRobotColorTheme(tr.magicNumber, magicColors).dot}`} /><span>{tr.robotName}</span></div></td>
                       <td className="px-3.5 py-2 text-slate-300">{tr.symbol}</td>

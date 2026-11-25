@@ -1,4 +1,4 @@
-import { getRobotColorTheme } from '../utils/themeTokens';
+import { getRobotColorTheme, UI_THEME } from '../utils/themeTokens';
 import { useMemo, useState } from 'react';
 import { PeriodFilterBar, usePeriodFilter } from './PeriodFilterBar';
 import { CalendarRange, Download } from 'lucide-react';
@@ -47,7 +47,7 @@ export function WeeklyMonthlyReportView({ robots, selectedRobotId, magicColors =
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="space-y-0.5">
-            <h1 className="font-display text-xl font-bold text-gray-100">Relatório Histórico Consolidado</h1>
+            <h1 className={UI_THEME.typography.pageTitle}>Relatório Histórico Consolidado</h1>
             <p className="text-xs text-gray-400">
               {activeLabel} • {selectedRobotId === 'ALL' ? `${robots.length} robôs consolidados` : scopedRobots[0]?.name} • {dailySeries.length} pregões com negócios
             </p>
@@ -129,10 +129,10 @@ export function WeeklyMonthlyReportView({ robots, selectedRobotId, magicColors =
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
-              <thead className="bg-[#090D12] text-[11px] text-gray-400 border-b border-[#1E2633]">
+              <thead className={UI_THEME.typography.tableHeader}>
                 <tr><th className="px-4 py-2.5 font-medium">Robô / Magic</th><th className="px-4 py-2.5 font-medium">Ativo</th><th className="px-4 py-2.5 font-medium text-right">Ops (G / L)</th><th className="px-4 py-2.5 font-medium">Taxa de Acerto (Win Rate)</th><th className="px-4 py-2.5 font-medium text-right">Fator de Lucro</th><th className="px-4 py-2.5 font-medium text-right">Payoff</th><th className="px-4 py-2.5 font-medium text-right">Lucro Bruto</th><th className="px-4 py-2.5 font-medium text-right">Prejuízo Bruto</th><th className="px-4 py-2.5 font-medium text-right">DD Máx</th><th className="px-4 py-2.5 font-medium text-right">Resultado Líq.</th></tr>
               </thead>
-              <tbody className="divide-y divide-[#1E2633] font-mono tabular-nums">
+              <tbody className={UI_THEME.typography.tableBody}>
                 {report.rows.map((row) => {
                   const status = profitFactorStatus(row.profitFactor, row.totalTrades), isSelected = selectedRobotId === row.robotId;
                   return (

@@ -1,3 +1,4 @@
+import { UI_THEME } from '../utils/themeTokens';
 import { getPnlTextClass, getRobotColorTheme } from '../utils/themeTokens';
 import { useMemo } from 'react';
 import { PeriodFilterBar, usePeriodFilter } from './PeriodFilterBar';
@@ -124,7 +125,7 @@ export function BuySellAnalyticsView({
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="space-y-0.5">
-            <h1 className="font-display text-xl font-bold text-gray-100">
+            <h1 className={UI_THEME.typography.pageTitle}>
               Análise de Compras vs Vendas
             </h1>
             <p className="text-xs text-gray-400">
