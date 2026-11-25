@@ -36,16 +36,18 @@ export function RobotSidebar({
   const [editingMagic, setEditingMagic] = useState<number | null>(null);
   const [draftName, setDraftName] = useState('');
   const [showHidden, setShowHidden] = useState(false);
-  const hiddenCount = robots.filter((r) => r.hidden).length;
-  const visibleRobots = showHidden ? robots : robots.filter((r) => !r.hidden);
-  const totalDailyPnl = robots.reduce((acc, r) => acc + r.dailyPnlBrl, 0);
-  const totalTrades = robots.reduce((acc, r) => acc + r.trades.length, 0);
-  const totalOpen = robots.filter((r) => r.position !== null).length;
+  const unhidden = robots.filter((r) => !r.hidden);
+  const hiddenCount = robots.length - unhidden.length;
+  const activePool = unhidden.length > 0 ? unhidden : robots;
+  const visibleRobots = showHidden ? robots : unhidden;
+  const totalDailyPnl = activePool.reduce((acc, r) => acc + r.dailyPnlBrl, 0);
+  const totalTrades = activePool.reduce((acc, r) => acc + (r.trades?.length ?? 0), 0);
+  const totalOpen = activePool.filter((r) => r.position !== null).length;
 
   return (
-    <aside className="w-64 lg:w-72 shrink-0 bg-[#11161D] border-r border-[#222B38] flex flex-col h-full select-none">
+    <aside className="w-64 lg:w-72 shrink-0 bg-[#0F141C] border-r border-[#1E293B] flex flex-col h-full select-none">
       {/* Navegação mobile compacta */}
-      <div className="md:hidden px-3 py-2 border-b border-[#222B38] flex items-center gap-1 overflow-x-auto">
+      <div className="md:hidden px-3 py-2 border-b border-[#1E293B] flex items-center gap-1 overflow-x-auto">
         {(
           [
             { id: 'overview', label: 'Geral' },
@@ -71,7 +73,7 @@ export function RobotSidebar({
       </div>
 
       {/* Resumo da Carteira / Seletor "Todos os Robôs" */}
-      <div className="p-3 border-b border-[#222B38]">
+      <div className="p-3 border-b border-[#1E293B]">
         <button
           type="button"
           onClick={() => onSelectRobot('ALL')}
@@ -83,7 +85,7 @@ export function RobotSidebar({
         >
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-semibold text-gray-100 truncate">
-              Todos os Robôs ({robots.length})
+              Carteira Ativa ({activePool.length})
             </span>
             <span
               className={`text-xs font-mono font-semibold tabular-nums whitespace-nowrap ${
@@ -131,9 +133,9 @@ export function RobotSidebar({
         ) : (
           visibleRobots.map((bot, idx) => { const colorTheme = getRobotColorTheme(bot.magicNumber, magicColors);
             const selected = selectedRobotId === bot.robotId;
-            const wins = bot.trades.filter((t) => t.pnlBrl >= 0).length;
+            const wins = (bot.trades ?? []).filter((t) => t.pnlBrl >= 0).length;
             const winRate =
-              bot.trades.length > 0 ? Math.round((wins / bot.trades.length) * 100) : 0;
+              (bot.trades ?? []).length > 0 ? Math.round((wins / (bot.trades ?? []).length) * 100) : 0;
 
             const isEditing = editingMagic === bot.magicNumber;
 
@@ -206,7 +208,7 @@ export function RobotSidebar({
                           style={{ backgroundColor: colorTheme.hex }} className="w-2.5 h-2.5 rounded-full shrink-0 cursor-pointer"
                         />
                         <span className="text-xs font-semibold text-gray-100 truncate">
-                          {bot.name}
+                          {bot.name.replace(new RegExp(`\\s*#${bot.magicNumber}$`), '')}
                         </span>
                         <button
                           type="button"
@@ -215,8 +217,7 @@ export function RobotSidebar({
                             setEditingMagic(bot.magicNumber);
                             setDraftName(bot.name);
                           }}
-                          title="Renomear robô"
-                          className="p-0.5 text-gray-500 hover:text-gray-200 rounded transition-colors cursor-pointer shrink-0"
+                          title="Renomear robô" className="p-0.5 text-slate-500 hover:text-slate-200 rounded opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity cursor-pointer shrink-0"
                         >
                           <Pencil className="w-3 h-3" />
                         </button>
@@ -251,29 +252,18 @@ export function RobotSidebar({
                   )}
                 </div>
 
-                <div className="mt-1 flex items-center justify-between text-[11px] text-gray-400 font-mono tabular-nums">
-                  <span>
-                    {bot.symbol} · {bot.timeframe} · #{bot.magicNumber}
-                  </span>
-                </div>
-
-                <div className="mt-1.5 flex items-center justify-between text-[11px]">
-                  <span
-                    className={
-                      bot.position?.side === 'COMPRA'
-                        ? 'text-emerald-400 font-medium'
-                        : bot.position?.side === 'VENDA'
-                          ? 'text-red-400 font-medium'
-                          : 'text-gray-500'
-                    }
-                  >
-                    {bot.position
-                      ? `${bot.position.side} ${bot.position.volume}x`
-                      : 'Zerado (Flat)'}
-                  </span>
-                  <span className="font-mono tabular-nums text-gray-400">
-                    {bot.trades.length} ops · {winRate}%
-                  </span>
+                <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px] font-mono tabular-nums">
+                  <span className="text-slate-400 truncate">#{bot.magicNumber} • {bot.symbol} • {bot.timeframe || 'M5'}</span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {bot.position ? (
+                      <span className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${bot.position.side === 'COMPRA' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/15 text-rose-300 border border-rose-500/30'}`}>
+                        {bot.position.side === 'COMPRA' ? 'BUY' : 'SELL'} {bot.position.volume}x
+                      </span>
+                    ) : (
+                      <span className="px-1.5 py-0.2 rounded text-[10px] bg-[#161D27] text-slate-400 border border-[#1E293B]">FLAT</span>
+                    )}
+                    <span className="text-slate-500">{(bot.trades ?? []).length}op</span>
+                  </div>
                 </div>
               </div>
             );
@@ -283,7 +273,7 @@ export function RobotSidebar({
 
       {/* Rodapé com Margem Disponível MT5 */}
       {account && (
-        <div className="p-4 border-t border-[#222B38] bg-[#0E1319]">
+        <div className="p-4 border-t border-[#222B38] bg-[#090D12]/60">
           <div className="space-y-1 text-xs">
           <div className="space-y-1 text-xs">
             <div className="flex items-center justify-between text-gray-400">
