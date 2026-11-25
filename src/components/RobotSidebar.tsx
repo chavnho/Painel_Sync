@@ -217,8 +217,7 @@ export function RobotSidebar({
                             setEditingMagic(bot.magicNumber);
                             setDraftName(bot.name);
                           }}
-                          title="Renomear robô"
-                          className="p-0.5 text-gray-500 hover:text-gray-200 rounded transition-colors cursor-pointer shrink-0"
+                          title="Renomear robô" className="p-0.5 text-slate-500 hover:text-slate-200 rounded opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity cursor-pointer shrink-0"
                         >
                           <Pencil className="w-3 h-3" />
                         </button>
@@ -253,29 +252,18 @@ export function RobotSidebar({
                   )}
                 </div>
 
-                <div className="mt-1 flex items-center justify-between text-[11px] text-gray-400 font-mono tabular-nums">
-                  <span>
-                    {bot.symbol} · {bot.timeframe} · #{bot.magicNumber}
-                  </span>
-                </div>
-
-                <div className="mt-1.5 flex items-center justify-between text-[11px]">
-                  <span
-                    className={
-                      bot.position?.side === 'COMPRA'
-                        ? 'text-emerald-400 font-medium'
-                        : bot.position?.side === 'VENDA'
-                          ? 'text-red-400 font-medium'
-                          : 'text-gray-500'
-                    }
-                  >
-                    {bot.position
-                      ? `${bot.position.side} ${bot.position.volume}x`
-                      : 'Zerado (Flat)'}
-                  </span>
-                  <span className="font-mono tabular-nums text-gray-400">
-                    {(bot.trades ?? []).length} ops · {winRate}%
-                  </span>
+                <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px] font-mono tabular-nums">
+                  <span className="text-slate-400 truncate">#{bot.magicNumber} • {bot.symbol} • {bot.timeframe || 'M5'}</span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {bot.position ? (
+                      <span className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${bot.position.side === 'COMPRA' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/15 text-rose-300 border border-rose-500/30'}`}>
+                        {bot.position.side === 'COMPRA' ? 'BUY' : 'SELL'} {bot.position.volume}x
+                      </span>
+                    ) : (
+                      <span className="px-1.5 py-0.2 rounded text-[10px] bg-[#161D27] text-slate-400 border border-[#1E293B]">FLAT</span>
+                    )}
+                    <span className="text-slate-500">{(bot.trades ?? []).length}op</span>
+                  </div>
                 </div>
               </div>
             );
