@@ -303,7 +303,7 @@ export function TradingChartView({
         }
       }
     } else if (!previousSymbolRef.current && marketSymbols.length > 0) {
-      const first = marketSymbols.toUpperCase();
+      const first = marketSymbols[0].toUpperCase();
       setSelectedSymbol(first);
       previousSymbolRef.current = first;
     }
@@ -1187,37 +1187,13 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
   return (
     <div className="flex-1 flex flex-col min-h-0 px-6 py-4 gap-3 overflow-hidden">
       <div className="w-full flex-1 flex flex-col min-h-0 gap-3">
-        <div className="shrink-0 flex flex-wrap items-center gap-2.5">
+        <div className="shrink-0 flex flex-wrap items-center justify-center gap-2.5">
           <SymbolAutocomplete
             symbols={availableSymbols}
             selectedSymbol={activeSymbol}
             onSelect={handleSelectSymbol}
             placeholder="Pesquisar ativo (ex: WIN, WDO, PETR4)..."
           />
-
-          {robots.length > 0 && (
-            isFollowingRobot ? (
-              <button
-                type="button"
-                onClick={() => setIsFollowingRobot(false)}
-                title="Acompanhando automaticamente o robô selecionado. Clique para pausar ou pesquise qualquer ativo."
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-950/50 border border-emerald-700/60 text-emerald-300 hover:bg-emerald-950/80 transition-colors cursor-pointer whitespace-nowrap shrink-0"
-              >
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                Seguindo Robô{targetRobot ? `: ${targetRobot.name}` : ''}
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleResumeFollowing}
-                title="Voltar a acompanhar o ativo e timeframe do robô selecionado"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-950/50 border border-amber-600/60 text-amber-300 hover:bg-amber-950/80 transition-colors cursor-pointer whitespace-nowrap shrink-0"
-              >
-                <Bot className="w-3.5 h-3.5" />
-                Voltar ao robô{targetRobot ? ` (${targetRobot.name})` : ''}
-              </button>
-            )
-          )}
 
           <div
             role="group"
@@ -1249,6 +1225,30 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
               );
             })}
           </div>
+
+          {robots.length > 0 && (
+            isFollowingRobot ? (
+              <button
+                type="button"
+                onClick={() => setIsFollowingRobot(false)}
+                title="Acompanhando automaticamente o robô selecionado. Clique para pausar ou pesquise qualquer ativo."
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-950/50 border border-emerald-700/60 text-emerald-300 hover:bg-emerald-950/80 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                Seguindo Robô{targetRobot ? `: ${targetRobot.name}` : ''}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleResumeFollowing}
+                title="Voltar a acompanhar o ativo e timeframe do robô selecionado"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-950/50 border border-amber-600/60 text-amber-300 hover:bg-amber-950/80 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              >
+                <Bot className="w-3.5 h-3.5" />
+                Voltar ao robô{targetRobot ? ` (${targetRobot.name})` : ''}
+              </button>
+            )
+          )}
 
           <button
             type="button"
