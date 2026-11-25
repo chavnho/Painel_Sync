@@ -74,8 +74,25 @@
   color: var(--color-loss) !important;
 }
 
-table td, table th {
-  font-size: var(--fs-table);
+/* Mapeamento dinâmico global de tamanhos de fonte do tema */
+.text-\[10px\], .text-\[11px\] {
+  font-size: var(--fs-micro) !important;
+}
+
+.text-xs, table td, table th {
+  font-size: var(--fs-table) !important;
+}
+
+.text-sm, .text-base {
+  font-size: var(--fs-section-title) !important;
+}
+
+.text-lg, .text-xl {
+  font-size: var(--fs-page-title) !important;
+}
+
+.text-2xl, .text-3xl {
+  font-size: var(--fs-kpi-lg) !important;
 }
 
 .tabular-nums {
