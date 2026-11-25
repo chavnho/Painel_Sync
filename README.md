@@ -1,12 +1,12 @@
-# Painel Sync MT5 (v0.5.1)
+# Painel Sync MT5 (v0.6.0)
 
-Dashboard web em tempo real para monitoramento e análise de múltiplos robôs (Expert Advisors) no MetaTrader 5, desenvolvido com arquitetura bidirecional entre um coletor único MQL5 (`Painel_Sync.mq5`), servidor Node.js/Express com SSE e SQLite nativo (`server.ts` + `src/db/tradesDb.ts`) e interface React + TypeScript + Lightweight Charts.
+Dashboard web em tempo real para monitoramento e análise institucional de múltiplos robôs (Expert Advisors) no MetaTrader 5, desenvolvido com arquitetura bidirecional entre um coletor único MQL5 (`Painel_Sync.mq5`), servidor Node.js/Express com SSE e SQLite nativo (`server.ts` + `src/db/tradesDb.ts`) e interface React + TypeScript + Lightweight Charts v5.
 
 ## Arquitetura
 
-- **EA Coletor Único (`Painel_Sync.mq5`)**: Varre posições abertas, ordens pendentes e histórico de execuções da conta agrupados por `MagicNumber`, além de atender solicitações sob demanda de candles via `/pending`.
-- **Backend, Stream & Persistência (`server.ts` + `src/db/tradesDb.ts`)**: Normaliza a telemetria da conta e dos robôs, transmite atualizações em tempo real via Server-Sent Events (SSE) e persiste automaticamente o histórico de operações em SQLite nativo (`data/painel_sync.db`, deduplicado por `account_login` e `deal_ticket`).
-- **Frontend & Design Tokens (`src/` + `src/utils/themeTokens.ts`)**: Interface escura padronizada com tokens Tailwind v4 (`@theme`), gráficos em tela cheia, nomes amigáveis e tags de cor determinísticas por `MagicNumber` propagadas por todo o sistema.
+- **EA Coletor Único (`src/utils/mt5Bridge.ts` / `Painel_Sync.mq5`)**: Código MQL5 100% embutido no frontend com injeção automática de `Endpoint`, `Channel ID` e `Auth Token`. Varre posições abertas, ordens pendentes e histórico de execuções agrupados por `MagicNumber`, além de atender solicitações sob demanda de candles via `/pending`.
+- **Backend, Stream & Persistência (`server.ts` + `src/db/tradesDb.ts`)**: Normaliza a telemetria da conta e dos robôs, transmite atualizações em tempo real via Server-Sent Events (SSE) e persiste automaticamente o histórico de operações e preferências em SQLite nativo (`data/painel_sync.db`).
+- **Frontend Institucional (`src/` + `src/utils/themeTokens.ts`)**: Paleta escura institucional (`#090D12` / `#0F141C`), curva de capital interativa `EquityBaselineChart` (`BaselineSeries` TradingView v5), sidebar sincronizada com a carteira ativa, `RootErrorBoundary` e relatórios históricos consolidados.
 
 ## Como Executar
 

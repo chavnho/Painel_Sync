@@ -1,5 +1,19 @@
 # Changelog — Painel Sync MT5
 
+## [v0.6.0] - 2026-11-24
+
+### Adicionado
+- **Redesign Institucional da Carteira (`src/components/OverviewView.tsx` + `src/components/EquityBaselineChart.tsx`)**: Separação clara entre *Pregão de Hoje* (Resultado com flutuante, Drawdown Hoje, curva `BaselineSeries` do TradingView v5 e tabela enxuta do dia) e *Histórico Consolidado* (Saldo Acumulado, Média por Trade e barra proporcional Gain vs Loss).
+- **Proteção Global de Renderização (`src/main.tsx`)**: Instalação do `RootErrorBoundary` com captura e exibição de stack trace.
+
+### Melhorado
+- **Sidebar Sincronizada (`src/components/RobotSidebar.tsx`)**: Exibição alinhada aos robôs visíveis (`Carteira Ativa (N)`), cards minimalistas em 2 linhas e badges `BUY` / `SELL` / `FLAT`.
+- **EA MQL5 Autocontido no Código-Fonte (`src/utils/mt5Bridge.ts` + `src/components/ConnectView.tsx` + `src/components/Mt5BridgeView.tsx`)**: Template completo do `Painel_Sync.mq5` embutido diretamente no TypeScript com injeção automática de `Endpoint`, `Channel ID` e `Auth Token`, sem depender de arquivo `.mq5` externo.
+- **Barra de Filtros Alinhada (`src/components/PeriodFilterBar.tsx` + `src/components/WeeklyMonthlyReportView.tsx`)**: Remoção de botões redundantes de período rápido, cabeçalho em linha única na aba *Relatórios* e padronização visual (`#090D12` / `#0F141C`).
+
+### Corrigido
+- **Botão de Cópia do Código do EA (`src/components/ConnectView.tsx`)**: Adicionado fallback `document.execCommand('copy')` para ambientes HTTP/rede local sem HTTPS e restauração de encoding UTF-8.
+
 ## - 2026-11-24
 
 ### Adicionado
