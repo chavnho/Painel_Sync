@@ -47,6 +47,7 @@ export interface PairingAttemptEvent {
   candlesCount?: number;
   tradesCount?: number;
   magicNumber?: number;
+  category?: "orders" | "positions" | "connection" | "server";
 }
 
 export interface LiveSyncChannel {

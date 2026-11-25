@@ -824,6 +824,7 @@ async function startServer() {
       ? body.robots
       : (body.isManualRequest ? [] : [body as Record<string, unknown>]);
 
+    const prevRobotsSnap = new Map(channel.robots);
     const normalizedList: NormalizedRobot[] = [];
     for (const rawBot of incomingRobots) {
       if (!rawBot || typeof rawBot !== "object") continue;
@@ -835,6 +836,28 @@ async function startServer() {
       }
     }
 
+    if (Array.isArray(body.robots)) {
+      for (const bot of normalizedList) {
+        const prev = prevRobotsSnap.get(bot.robotId);
+        const prevOrds = new Map<string, NormalizedPendingOrder>((prev?.pendingOrders ?? new Array<NormalizedPendingOrder>()).map((o: NormalizedPendingOrder) => [o.id, o]));
+        const currOrds = new Map(bot.pendingOrders.map((o) => [o.id, o]));
+        for (const [oid, ord] of currOrds) {
+          if (!prevOrds.has(oid)) pushPairingEvent(channel, { outcome: 'info', httpStatus: 200, source: 'mt5', category: 'orders', symbol: bot.symbol, magicNumber: bot.magicNumber, summary: `Ordem aberta: ${ord.orderType} ${ord.volume}x ${bot.symbol} @ ${ord.price}`, detail: `Robô ${bot.name} (#${bot.magicNumber}) • SL: ${ord.sl || '—'} | TP: ${ord.tp || '—'}` });
+        }
+        for (const [oid, ord] of prevOrds) {
+          if (!currOrds.has(oid)) pushPairingEvent(channel, { outcome: 'info', httpStatus: 200, source: 'mt5', category: 'orders', symbol: bot.symbol, magicNumber: bot.magicNumber, summary: `Ordem cancelada/removida: ${ord.orderType} ${bot.symbol} @ ${ord.price}`, detail: `Robô ${bot.name} (#${bot.magicNumber})` });
+        }
+        if (!prev?.position && bot.position) pushPairingEvent(channel, { outcome: 'success', httpStatus: 200, source: 'mt5', category: 'positions', symbol: bot.symbol, magicNumber: bot.magicNumber, summary: `Posição aberta: ${bot.position.side} ${bot.position.volume}x ${bot.symbol} @ ${bot.position.entryPrice}`, detail: `Robô ${bot.name} (#${bot.magicNumber}) • SL: ${bot.position.sl || '—'} | TP: ${bot.position.tp || '—'}` });
+        else if (prev?.position && !bot.position) pushPairingEvent(channel, { outcome: 'info', httpStatus: 200, source: 'mt5', category: 'positions', symbol: bot.symbol, magicNumber: bot.magicNumber, summary: `Posição encerrada: ${prev.position.side} ${bot.symbol}`, detail: `Robô ${bot.name} (#${bot.magicNumber})` });
+      }
+      const activeIds = new Set(normalizedList.map((r) => r.robotId));
+      for (const [id, prev] of prevRobotsSnap.entries()) {
+        if (!activeIds.has(id)) {
+          for (const ord of prev.pendingOrders) pushPairingEvent(channel, { outcome: 'info', httpStatus: 200, source: 'mt5', category: 'orders', symbol: prev.symbol, magicNumber: prev.magicNumber, summary: `Ordem cancelada: ${ord.orderType} ${prev.symbol} @ ${ord.price}`, detail: `Robô ${prev.name} (#${prev.magicNumber})` });
+          if (prev.position) pushPairingEvent(channel, { outcome: 'info', httpStatus: 200, source: 'mt5', category: 'positions', symbol: prev.symbol, magicNumber: prev.magicNumber, summary: `Posição encerrada: ${prev.position.side} ${prev.symbol}`, detail: `Robô ${prev.name} (#${prev.magicNumber})` });
+        }
+      }
+    }
     if (Array.isArray(body.robots)) {
       const activeIds = new Set(normalizedList.map((r) => r.robotId));
       for (const [id, existingBot] of channel.robots.entries()) {
@@ -901,6 +924,7 @@ async function startServer() {
         outcome: "success",
         httpStatus: 200,
         source: "mt5",
+        category: "connection",
         summary: `Estado atualizado · ${normalizedList.length} robô(s)`,
         detail: `${normalizedList.map((r) => `${r.name} (${r.status})`).join(" · ")} · ${totalTrades} negócio(s) hoje`,
         symbol: normalizedList.length === 1 ? firstBot.symbol : `${normalizedList.length} ativos`,
