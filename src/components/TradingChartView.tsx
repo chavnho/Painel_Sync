@@ -80,6 +80,13 @@ const TF_MINUTES: Record<string, number> = {
   'M': 43200,
 };
 
+function toMt5Timeframe(tf: ChartTf): string {
+  if (tf === 'D') return 'D1';
+  if (tf === 'W') return 'W1';
+  if (tf === 'M') return 'MN1';
+  return tf;
+}
+
 function isSameUnderlyingSymbol(symA: string, symB: string): boolean {
   const a = symA.trim().toUpperCase();
   const b = symB.trim().toUpperCase();
@@ -233,6 +240,7 @@ export function TradingChartView({
   const [isScrolledAway, setIsScrolledAway] = useState(false);
   const [subPaneMode, setSubPaneMode] = useState<'volume' | 'rsi' | 'pnl'>('volume');
   const previousSymbolRef = useRef<string>('');
+  const lastFollowedBotKeyRef = useRef<string>('');
 
   const resolveCurrentSymbol = (rawSym?: string): string => {
     const up = (rawSym || '').toUpperCase().trim();
@@ -267,10 +275,17 @@ export function TradingChartView({
     setIsFollowingRobot(true);
   }, [selectedRobotId]);
 
+  // Acompanha ativo (e timeframe inicial ao trocar de robo) enquanto isFollowingRobot estiver ativo
   useEffect(() => {
-    if (!isFollowingRobot) return;
+    if (!isFollowingRobot) {
+      lastFollowedBotKeyRef.current = '';
+      return;
+    }
     if (targetRobot && targetRobot.symbol) {
       const nextSym = resolveCurrentSymbol(targetRobot.symbol);
+      const botKey = `${targetRobot.robotId}:${nextSym}`;
+      const isNewBotOrSymbol = lastFollowedBotKeyRef.current !== botKey;
+
       if (nextSym && nextSym !== previousSymbolRef.current) {
         setSelectedSymbol(nextSym);
         previousSymbolRef.current = nextSym;
@@ -278,10 +293,17 @@ export function TradingChartView({
         setManualError(null);
         initialFitDoneRef.current = false;
       }
-      const upperTf = (targetRobot.timeframe || 'M5').toUpperCase() as ChartTf;
-      if (TIMEFRAMES.includes(upperTf)) setSelectedTf(upperTf);
+
+      if (isNewBotOrSymbol) {
+        lastFollowedBotKeyRef.current = botKey;
+        const upperTf = (targetRobot.timeframe || 'M5').toUpperCase() as ChartTf;
+        if (TIMEFRAMES.includes(upperTf)) {
+          setSelectedTf(upperTf);
+          setManualCandles(null);
+        }
+      }
     } else if (!previousSymbolRef.current && marketSymbols.length > 0) {
-      const first = marketSymbols[0].toUpperCase();
+      const first = marketSymbols.toUpperCase();
       setSelectedSymbol(first);
       previousSymbolRef.current = first;
     }
@@ -302,6 +324,7 @@ export function TradingChartView({
   };
 
   const handleResumeFollowing = () => {
+    lastFollowedBotKeyRef.current = '';
     setIsFollowingRobot(true);
     if (targetRobot && targetRobot.symbol) {
       const nextSym = resolveCurrentSymbol(targetRobot.symbol);
@@ -360,18 +383,7 @@ export function TradingChartView({
    }, [robots, activeSymbol, selectedRobotId]);
 
 
-  // Sincroniza timeframe inicial quando troca de ativo no modo Seguir Robo
-  useEffect(() => {
-    if (!isFollowingRobot || !activeSymbol || symbolRobots.length === 0) return;
-    const upper = (symbolRobots[0]?.timeframe || 'M5').toUpperCase() as ChartTf;
-    if (TIMEFRAMES.includes(upper)) {
-      setSelectedTf(upper);
-    } else {
-      setSelectedTf('M5');
-    }
-    setHoveredTime(null);
-    initialFitDoneRef.current = false;
-  }, [activeSymbol, isFollowingRobot]);
+  
  
   // 1ª carga: Snapshot (150 velas se ainda não estiver em cache)
   // Ciclos seguintes (a cada 2s): lê direto da RAM do servidor com focus=1 (sem criar pedidos na fila)
@@ -386,14 +398,15 @@ export function TradingChartView({
       }
       try {
         const { channelId, token } = loadOrCreateMt5SyncCredentials();
+        const mt5Tf = toMt5Timeframe(selectedTf);
         const result = isFirstLoad
           ? await syncCandlesWithMt5(
               channelId,
               token,
               activeSymbol,
-              selectedTf,
+              mt5Tf,
               {
-                force: forceRefreshRef.current,
+                force: forceRefreshRef.current || !symbolRobots.some((r) => (r.timeframe || '').toUpperCase() === selectedTf.toUpperCase() || (r.candlesByTimeframe?.[selectedTf.toUpperCase()]?.length ?? 0) > 0),
                 timeoutMs: 8000,
                 intervalMs: 800,
                 signal: controller.signal,
@@ -403,7 +416,7 @@ export function TradingChartView({
               channelId,
               token,
               activeSymbol,
-              `${selectedTf}`
+              mt5Tf
             );
 
         if (!controller.signal.aborted) {
@@ -464,7 +477,7 @@ export function TradingChartView({
     if (symbolRobots.length === 0) {
       return { allCandles: [], masterRobot: null, isNativeTf: true };
     }
-    const tfKey = selectedTf.toUpperCase();
+    const tfKey = toMt5Timeframe(selectedTf).toUpperCase();
     let bestNative: { candles: LiveCandle[]; robot: RobotStream } | null = null;
     let bestFallback: { candles: LiveCandle[]; robot: RobotStream } | null = null;
 
@@ -1095,6 +1108,8 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
       console.error('[TradingChartView] Erro ao atualizar gráfico:', err);
     }
   }, [
+    activeSymbol,
+    selectedTf,
     timedCandles,
     showMarkers,
     symbolRobots,
@@ -1216,7 +1231,11 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
                   key={tf}
                   type="button"
                   onClick={() => {
+                    if (selectedTf === tf) return;
                     setSelectedTf(tf);
+                    setManualCandles(null);
+                    setManualError(null);
+                    setHoveredTime(null);
                     initialFitDoneRef.current = false;
                   }}
                   className={`px-2.5 py-1 rounded text-xs font-mono font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
