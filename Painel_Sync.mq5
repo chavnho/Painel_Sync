@@ -11,14 +11,29 @@
 #property version   "2.00"
 #property strict
 
-input string   InpEndpointUrl      = "http://127.0.0.1:3000";
-input string   InpToken            = "tk_test_1234567890";
-input int      InpMaxChartBars     = 1000;   // Quantidade maxima de barras enviadas ao grafico
-input string   InpChannelId        = "ps_c9a2rn8qcr";
-input int      InpSyncIntervalSec  = 2;
-input int      InpHistoryBackfillDays = 90;  // Dias de historico retroativo enviados ao iniciar (0 = desativa)
-input bool     InpIncludeManual    = true;
-input bool     InpDebug            = false;
+input group "=== 1. Conexão e Autenticação ==="
+input string   InpEndpointUrl         = "http://127.0.0.1:3000"; // URL do Servidor Painel Sync
+input string   InpChannelId           = "ps_c9a2rn8qcr";          // ID do Canal da Sessão
+input string   InpToken               = "tk_test_1234567890";    // Token de Autenticação
+
+input group "=== 2. Sincronização e Histórico ==="
+input int      InpSyncIntervalSec     = 2;                       // Intervalo de Envio (segundos)
+input int      InpMaxChartBars        = 1000;                    // Máximo de Candles por Gráfico
+input int      InpHistoryBackfillDays = 90;                      // Dias de Histórico Retroativo (0 = desativa)
+input bool     InpIncludeManual       = true;                    // Incluir Operações Manuais (Magic = 0)
+
+input group "=== 3. Logs na Aba Experts ==="
+input bool     InpLogOrders           = true;                    // Logar Abertura/Cancelamento de Ordens
+input bool     InpLogPositions        = true;                    // Logar Abertura/Fechamento de Posições
+input bool     InpLogConnection       = true;                    // Logar Catálogo e Contratos Vigentes
+input bool     InpLogServer           = false;                   // Logar Pedidos de Candles e HTTP
+input bool     InpDebug               = false;                   // Modo Depuração Detalhado
+
+ulong g_prevPosTickets[];
+string g_prevPosDesc[];
+ulong g_prevOrdTickets[];
+string g_prevOrdDesc[];
+bool g_stateInitialized = false;
 
 struct RobotSummary
 {
@@ -73,6 +88,73 @@ void OnTimer()
       g_lastSymbolsReport = TimeCurrent();
       SendSymbolsReport();
    }
+}
+
+void LogAccountStateChanges()
+{
+   ulong currPosT[]; string currPosD[];
+   int pTot = PositionsTotal();
+   for(int i = 0; i < pTot; i++)
+   {
+      ulong tk = PositionGetTicket(i);
+      if(tk == 0) continue;
+      long mg = PositionGetInteger(POSITION_MAGIC);
+      if(mg == 0 && !InpIncludeManual) continue;
+      string sym = PositionGetString(POSITION_SYMBOL);
+      int dg = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
+      string side = (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY) ? "COMPRA" : "VENDA";
+      string desc = side + " " + DoubleToString(PositionGetDouble(POSITION_VOLUME), 2) + "x " + sym + " @ " + DoubleToString(PositionGetDouble(POSITION_PRICE_OPEN), dg) + " (Magic #" + IntegerToString(mg) + ")";
+      int n = ArraySize(currPosT); ArrayResize(currPosT, n + 1); ArrayResize(currPosD, n + 1);
+      currPosT[n] = tk; currPosD[n] = desc;
+      if(g_stateInitialized && InpLogPositions)
+      {
+         bool found = false;
+         for(int k = 0; k < ArraySize(g_prevPosTickets); k++) if(g_prevPosTickets[k] == tk) { found = true; break; }
+         if(!found) Print("PainelSync [POSICOES] Aberta: ", desc);
+      }
+   }
+   if(g_stateInitialized && InpLogPositions)
+   {
+      for(int k = 0; k < ArraySize(g_prevPosTickets); k++)
+      {
+         bool stillOpen = false;
+         for(int j = 0; j < ArraySize(currPosT); j++) if(currPosT[j] == g_prevPosTickets[k]) { stillOpen = true; break; }
+         if(!stillOpen) Print("PainelSync [POSICOES] Encerrada: ", g_prevPosDesc[k]);
+      }
+   }
+   ArrayCopy(g_prevPosTickets, currPosT); ArrayCopy(g_prevPosDesc, currPosD);
+
+   ulong currOrdT[]; string currOrdD[];
+   int oTot = OrdersTotal();
+   for(int i = 0; i < oTot; i++)
+   {
+      ulong tk = OrderGetTicket(i);
+      if(tk == 0) continue;
+      long mg = OrderGetInteger(ORDER_MAGIC);
+      if(mg == 0 && !InpIncludeManual) continue;
+      string sym = OrderGetString(ORDER_SYMBOL);
+      int dg = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
+      string desc = EnumToString((ENUM_ORDER_TYPE)OrderGetInteger(ORDER_TYPE)) + " " + DoubleToString(OrderGetDouble(ORDER_VOLUME_CURRENT), 2) + "x " + sym + " @ " + DoubleToString(OrderGetDouble(ORDER_PRICE_OPEN), dg) + " (Magic #" + IntegerToString(mg) + ")";
+      int n = ArraySize(currOrdT); ArrayResize(currOrdT, n + 1); ArrayResize(currOrdD, n + 1);
+      currOrdT[n] = tk; currOrdD[n] = desc;
+      if(g_stateInitialized && InpLogOrders)
+      {
+         bool found = false;
+         for(int k = 0; k < ArraySize(g_prevOrdTickets); k++) if(g_prevOrdTickets[k] == tk) { found = true; break; }
+         if(!found) Print("PainelSync [ORDENS] Criada: ", desc);
+      }
+   }
+   if(g_stateInitialized && InpLogOrders)
+   {
+      for(int k = 0; k < ArraySize(g_prevOrdTickets); k++)
+      {
+         bool stillExists = false;
+         for(int j = 0; j < ArraySize(currOrdT); j++) if(currOrdT[j] == g_prevOrdTickets[k]) { stillExists = true; break; }
+         if(!stillExists) Print("PainelSync [ORDENS] Removida/Cancelada: ", g_prevOrdDesc[k]);
+      }
+   }
+   ArrayCopy(g_prevOrdTickets, currOrdT); ArrayCopy(g_prevOrdDesc, currOrdD);
+   g_stateInitialized = true;
 }
 
 void SendAccountAndRobotsTelemetry()
@@ -313,44 +395,7 @@ void SendAccountAndRobotsTelemetry()
       json += ",\"dailyPnlBrl\":" + DoubleToString(botDaily, 2);
       json += "}";
    }
-   json += "],\"activeContracts\":{";
-   string roots[] = {"WDO", "WIN", "IND", "DOL", "BIT"};
-   int acCount = 0;
-   datetime nowTime = TimeCurrent();
-   for(int r = 0; r < ArraySize(roots); r++)
-   {
-      string root = roots[r];
-      string bestSym = "";
-      datetime bestExp = 0;
-      for(int j = 0; j < count; j++)
-      {
-         string s = added[j];
-         if(StringLen(s) != 6 || StringSubstr(s, 0, 3) != root) continue;
-         ushort mCh = StringGetCharacter(s, 3);
-         ushort y1  = StringGetCharacter(s, 4);
-         ushort y2  = StringGetCharacter(s, 5);
-         if(mCh < 'F' || mCh > 'Z' || y1 < '0' || y1 > '9' || y2 < '0' || y2 > '9') continue;
-         datetime exp = (datetime)SymbolInfoInteger(s, SYMBOL_EXPIRATION_TIME);
-         if(exp <= 0) continue;
-         MqlDateTime expDt;
-         TimeToStruct(exp, expDt);
-         int rollDays = (expDt.day_of_week == 1) ? 3 : 1; // 1 dia util antes do vencimento
-         datetime rolloverLimit = exp - (datetime)(rollDays * 86400);
-         if(rolloverLimit < nowTime) continue;
-         if(bestSym == "" || exp < bestExp)
-         {
-            bestSym = s;
-            bestExp = exp;
-         }
-      }
-      if(bestSym != "")
-      {
-         if(acCount > 0) json += ",";
-         json += "\"" + root + "\":\"" + EscapeJson(bestSym) + "\"";
-         acCount++;
-      }
-   }
-   json += "}}";
+   json += "]}";
 
    if(InpDebug)
       Print("PainelSync [DEBUG] Telemetria: ", json);
@@ -625,7 +670,44 @@ void SendSymbolsReport()
       count++;
    }
 
-   json += "]}";
+   json += "],\"activeContracts\":{";
+   string roots[] = {"WDO", "WIN", "IND", "DOL", "BIT"};
+   int acCount = 0;
+   datetime nowTime = TimeCurrent();
+   string acSummary = "";
+   for(int r = 0; r < ArraySize(roots); r++)
+   {
+      string root = roots[r];
+      string bestSym = "";
+      datetime bestExp = 0;
+      for(int j = 0; j < count; j++)
+      {
+         string s = added[j];
+         if(StringLen(s) != 6 || StringSubstr(s, 0, 3) != root) continue;
+         ushort mCh = StringGetCharacter(s, 3);
+         ushort y1  = StringGetCharacter(s, 4);
+         ushort y2  = StringGetCharacter(s, 5);
+         if(mCh < 'F' || mCh > 'Z' || y1 < '0' || y1 > '9' || y2 < '0' || y2 > '9') continue;
+         datetime exp = (datetime)SymbolInfoInteger(s, SYMBOL_EXPIRATION_TIME);
+         if(exp <= 0) continue;
+         MqlDateTime expDt;
+         TimeToStruct(exp, expDt);
+         int rollDays = (expDt.day_of_week == 1) ? 3 : 1;
+         datetime rolloverLimit = exp - (datetime)(rollDays * 86400);
+         if(rolloverLimit < nowTime) continue;
+         if(bestSym == "" || exp < bestExp) { bestSym = s; bestExp = exp; }
+      }
+      if(bestSym != "")
+      {
+         if(acCount > 0) { json += ","; acSummary += " | "; }
+         json += "\"" + root + "\":\"" + EscapeJson(bestSym) + "\"";
+         acSummary += root + "->" + bestSym;
+         acCount++;
+      }
+   }
+   json += "}}";
+   if(InpLogConnection)
+      Print("PainelSync [CONEXAO] Catalogo: ", count, " ativos | Vigentes: ", (acSummary != "" ? acSummary : "nenhum"));
 
    if(InpDebug)
       Print("PainelSync [DEBUG] CatÃ¡logo enviado: ", count, " ativos relevantes.");
