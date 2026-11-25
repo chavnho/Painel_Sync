@@ -25,6 +25,24 @@ import {
 
 export default function App() {
   const [activeView, setActiveView] = useState<DashboardView>('overview');
+
+  useEffect(() => {
+    const viewOrder: DashboardView[] = ['overview', 'charts', 'buy-sell', 'operations', 'market-chart', 'reports'];
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      const el = e.target as HTMLElement | null;
+      if (el && (['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) || el.isContentEditable)) return;
+      if (e.key >= '1' && e.key <= '6') {
+        const targetView = viewOrder[Number(e.key) - 1];
+        if (targetView) { e.preventDefault(); setActiveView(targetView); }
+      } else if (e.key === 'Escape') {
+        setActiveView('overview');
+        setSelectedRobotId('ALL');
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
   const [creds, setCreds] = useState<Mt5SyncCredentials>(() =>
     loadOrCreateMt5SyncCredentials()
   );
