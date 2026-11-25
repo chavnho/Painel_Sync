@@ -73,6 +73,28 @@ db.exec(`
     updated_at TEXT NOT NULL,
     PRIMARY KEY (account_login, magic_number)
   );
+  CREATE TABLE IF NOT EXISTS command_queue (
+    id TEXT PRIMARY KEY,
+    channel_id TEXT NOT NULL,
+    magic_number INTEGER NOT NULL DEFAULT 0,
+    action TEXT NOT NULL,
+    symbol TEXT NOT NULL DEFAULT '',
+    side TEXT NOT NULL DEFAULT '',
+    volume REAL NOT NULL DEFAULT 0,
+    price REAL NOT NULL DEFAULT 0,
+    sl REAL NOT NULL DEFAULT 0,
+    tp REAL NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'pending',
+    expires_at TEXT NOT NULL,
+    mt5_order_ticket TEXT NOT NULL DEFAULT '',
+    mt5_position_ticket TEXT NOT NULL DEFAULT '',
+    retcode INTEGER NOT NULL DEFAULT 0,
+    ack_message TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_cmd_channel_status
+    ON command_queue (channel_id, status, created_at DESC);
 `);
 
 const upsertStmt = db.prepare(`
@@ -229,4 +251,170 @@ export function loadHiddenMagicsForAccount(accountLogin: string): Set<number> {
     if (Number.isFinite(n)) out.add(n);
   }
   return out;
+}
+
+export interface PersistedCommandRecord {
+  id: string;
+  channelId: string;
+  magicNumber: number;
+  action: "CLOSE_MAGIC" | "CANCEL_ORDERS" | "CLOSE_ALL" | "OPEN_ORDER" | "MODIFY_SL_TP";
+  symbol?: string;
+  side?: "COMPRA" | "VENDA";
+  volume?: number;
+  price?: number;
+  sl?: number;
+  tp?: number;
+  status: "pending" | "dispatched" | "executed" | "failed" | "expired";
+  expiresAt: string;
+  mt5OrderTicket?: string;
+  mt5PositionTicket?: string;
+  retcode?: number;
+  ackMessage?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+const insertCmdStmt = db.prepare(`
+  INSERT INTO command_queue (
+    id, channel_id, magic_number, action, symbol, side, volume, price, sl, tp,
+    status, expires_at, mt5_order_ticket, mt5_position_ticket, retcode, ack_message, created_at, updated_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', '', 0, '', ?, ?)
+`);
+
+const expireOldCmdsStmt = db.prepare(`
+  UPDATE command_queue
+  SET status = 'expired', ack_message = 'Tempo limite de 15s excedido (MT5 offline)', updated_at = ?
+  WHERE channel_id = ? AND status IN ('pending', 'dispatched') AND expires_at < ?
+`);
+
+const selectPendingCmdsStmt = db.prepare(`
+  SELECT * FROM command_queue
+  WHERE channel_id = ? AND status = 'pending' AND expires_at >= ?
+  ORDER BY created_at ASC
+  LIMIT 20
+`);
+
+const markCmdDispatchedStmt = db.prepare(`
+  UPDATE command_queue SET status = 'dispatched', updated_at = ? WHERE id = ? AND status = 'pending'
+`);
+
+const ackCmdStmt = db.prepare(`
+  UPDATE command_queue
+  SET status = ?, mt5_order_ticket = ?, mt5_position_ticket = ?, retcode = ?, ack_message = ?, updated_at = ?
+  WHERE id = ?
+`);
+
+const selectRecentCmdsStmt = db.prepare(`
+  SELECT * FROM command_queue
+  WHERE channel_id = ?
+  ORDER BY created_at DESC
+  LIMIT 40
+`);
+
+const selectCmdByIdStmt = db.prepare(`SELECT * FROM command_queue WHERE id = ?`);
+
+function mapCommandRow(r: Record<string, unknown>): PersistedCommandRecord {
+  const sideRaw = String(r.side || "");
+  return {
+    id: String(r.id),
+    channelId: String(r.channel_id),
+    magicNumber: Number(r.magic_number) || 0,
+    action: String(r.action) as PersistedCommandRecord["action"],
+    symbol: r.symbol ? String(r.symbol) : undefined,
+    side: sideRaw === "COMPRA" || sideRaw === "VENDA" ? sideRaw : undefined,
+    volume: Number(r.volume) || undefined,
+    price: Number(r.price) || undefined,
+    sl: Number(r.sl) || undefined,
+    tp: Number(r.tp) || undefined,
+    status: String(r.status) as PersistedCommandRecord["status"],
+    expiresAt: String(r.expires_at),
+    mt5OrderTicket: r.mt5_order_ticket ? String(r.mt5_order_ticket) : undefined,
+    mt5PositionTicket: r.mt5_position_ticket ? String(r.mt5_position_ticket) : undefined,
+    retcode: Number(r.retcode) || undefined,
+    ackMessage: r.ack_message ? String(r.ack_message) : undefined,
+    createdAt: String(r.created_at),
+    updatedAt: String(r.updated_at),
+  };
+}
+
+export function enqueueCommand(input: {
+  id: string;
+  channelId: string;
+  magicNumber?: number;
+  action: PersistedCommandRecord["action"];
+  symbol?: string;
+  side?: "COMPRA" | "VENDA";
+  volume?: number;
+  price?: number;
+  sl?: number;
+  tp?: number;
+  ttlSeconds?: number;
+}): PersistedCommandRecord {
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const ttl = Math.max(5, Math.min(60, input.ttlSeconds ?? 15));
+  const expiresIso = new Date(now.getTime() + ttl * 1000).toISOString();
+
+  insertCmdStmt.run(
+    input.id,
+    input.channelId,
+    Math.trunc(Number(input.magicNumber) || 0),
+    input.action,
+    String(input.symbol || "").toUpperCase(),
+    input.side || "",
+    Number(input.volume) || 0,
+    Number(input.price) || 0,
+    Number(input.sl) || 0,
+    Number(input.tp) || 0,
+    "pending",
+    expiresIso,
+    nowIso,
+    nowIso
+  );
+
+  const row = selectCmdByIdStmt.all(input.id);
+  return mapCommandRow(row[0]);
+}
+
+export function pollAndDispatchPendingCommands(channelId: string): PersistedCommandRecord[] {
+  const nowIso = new Date().toISOString();
+  expireOldCmdsStmt.run(nowIso, channelId, nowIso);
+  const rows = selectPendingCmdsStmt.all(channelId, nowIso);
+  const commands = rows.map(mapCommandRow);
+  for (const cmd of commands) {
+    markCmdDispatchedStmt.run(nowIso, cmd.id);
+    cmd.status = "dispatched";
+    cmd.updatedAt = nowIso;
+  }
+  return commands;
+}
+
+export function acknowledgeCommand(
+  commandId: string,
+  payload: {
+    status: "executed" | "failed";
+    mt5OrderTicket?: string;
+    mt5PositionTicket?: string;
+    retcode?: number;
+    ackMessage?: string;
+  }
+): PersistedCommandRecord | null {
+  const nowIso = new Date().toISOString();
+  ackCmdStmt.run(
+    payload.status,
+    String(payload.mt5OrderTicket || ""),
+    String(payload.mt5PositionTicket || ""),
+    Math.trunc(Number(payload.retcode) || 0),
+    String(payload.ackMessage || ""),
+    nowIso,
+    commandId
+  );
+  const rows = selectCmdByIdStmt.all(commandId);
+  return rows.length > 0 ? mapCommandRow(rows[0]) : null;
+}
+
+export function listRecentCommands(channelId: string): PersistedCommandRecord[] {
+  const nowIso = new Date().toISOString();
+  expireOldCmdsStmt.run(nowIso, channelId, nowIso);
+  return selectRecentCmdsStmt.all(channelId).map(mapCommandRow);
 }

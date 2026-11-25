@@ -16,6 +16,7 @@ import type {
   DashboardView,
   Mt5SyncCredentials,
   PairingAttemptEvent,
+  RemoteCommand,
 } from './types/trading';
 import {
   API_BASE_URL,
@@ -51,6 +52,7 @@ export default function App() {
   );
   const [telemetry, setTelemetry] = useState<DashboardTelemetry | null>(null);
   const [pairingEvents, setPairingEvents] = useState<PairingAttemptEvent[]>([]);
+  const [lastCommandUpdate, setLastCommandUpdate] = useState<RemoteCommand | null>(null);
   const [selectedRobotId, setSelectedRobotId] = useState<string | 'ALL'>('ALL');
   const [magicColors, setMagicColors] = useState<Record<number, number>>(() => loadMagicColorMap());
   const handleCycleMagicColor = (magic: number, fallbackIdx: number) => {
@@ -149,6 +151,13 @@ export default function App() {
       } catch {
         // ignora payload malformado
       }
+    });
+
+    es.addEventListener('command_update', (evt) => {
+      try {
+        const cmd = JSON.parse((evt as MessageEvent).data) as RemoteCommand;
+        setLastCommandUpdate(cmd);
+      } catch {}
     });
 
     es.addEventListener('cleared', () => {
@@ -271,6 +280,7 @@ export default function App() {
           lastSyncAt={telemetry?.serverReceivedAt ?? null}
           activeView={activeView}
           onViewChange={setActiveView}
+          lastCommandUpdate={lastCommandUpdate}
         />
 
         <main className="flex-1 flex flex-col min-w-0 h-full bg-[#090D12] overflow-hidden">

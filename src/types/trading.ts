@@ -188,4 +188,37 @@ export interface PortfolioMetrics {
   sells: SideStats;
 }
 
+export type CommandAction =
+  | 'CLOSE_MAGIC'
+  | 'CANCEL_ORDERS'
+  | 'CLOSE_ALL'
+  | 'OPEN_ORDER'
+  | 'MODIFY_SL_TP';
 
+export type CommandStatus =
+  | 'pending'
+  | 'dispatched'
+  | 'executed'
+  | 'failed'
+  | 'expired';
+
+export interface RemoteCommand {
+  id: string;
+  channelId: string;
+  magicNumber: number;
+  action: CommandAction;
+  symbol?: string;
+  side?: TradeSide;
+  volume?: number;
+  price?: number;
+  sl?: number;
+  tp?: number;
+  status: CommandStatus;
+  expiresAt: string;
+  mt5OrderTicket?: string;
+  mt5PositionTicket?: string;
+  retcode?: number;
+  ackMessage?: string;
+  createdAt: string;
+  updatedAt: string;
+}

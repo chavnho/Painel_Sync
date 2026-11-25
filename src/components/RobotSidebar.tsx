@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Check, Eye, EyeOff, Pencil, Radio, X } from 'lucide-react';
-import type { AccountSnapshot, DashboardView, RobotStream } from '../types/trading';
+import { AlertOctagon, Check, Eye, EyeOff, Loader2, Pencil, Radio, X, XCircle } from 'lucide-react';
+import type { AccountSnapshot, DashboardView, RemoteCommand, RobotStream } from '../types/trading';
 import { formatBrl } from '../utils/tradingMath';
+import { loadOrCreateMt5SyncCredentials, sendRemoteCommand } from '../utils/mt5Bridge';
 import { ROBOT_COLORS, getPnlTextClass, getRobotColorTheme,  } from '../utils/themeTokens';
 
 interface RobotSidebarProps {
@@ -17,6 +18,7 @@ interface RobotSidebarProps {
   lastSyncAt: string | null;
   activeView: DashboardView;
   onViewChange: (view: DashboardView) => void;
+  lastCommandUpdate?: RemoteCommand | null;
 }
 
 export function RobotSidebar({
@@ -32,10 +34,40 @@ export function RobotSidebar({
   lastSyncAt,
   activeView,
   onViewChange,
+  lastCommandUpdate,
 }: RobotSidebarProps) {
   const [editingMagic, setEditingMagic] = useState<number | null>(null);
   const [draftName, setDraftName] = useState('');
   const [showHidden, setShowHidden] = useState(false);
+  const [confirmKey, setConfirmKey] = useState<string | null>(null);
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [cmdFeedback, setCmdFeedback] = useState<{ key: string; ok: boolean; text: string } | null>(null);
+
+  const triggerArmConfirm = (key: string) => {
+    setConfirmKey(key);
+    setTimeout(() => { setConfirmKey((prev) => (prev === key ? null : prev)); }, 4000);
+  };
+
+  const executeAction = async (
+    key: string,
+    action: 'CLOSE_MAGIC' | 'CANCEL_ORDERS' | 'CLOSE_ALL',
+    magicNumber?: number,
+    symbol?: string
+  ) => {
+    setConfirmKey(null);
+    setBusyKey(key);
+    setCmdFeedback(null);
+    try {
+      const { channelId, token } = loadOrCreateMt5SyncCredentials();
+      await sendRemoteCommand(channelId, token, { action, magicNumber, symbol, ttlSeconds: 15 });
+      setCmdFeedback({ key, ok: true, text: 'Enviado ao MT5...' });
+    } catch (err) {
+      setCmdFeedback({ key, ok: false, text: err instanceof Error ? err.message : 'Falha ao enviar' });
+    } finally {
+      setBusyKey(null);
+      setTimeout(() => { setCmdFeedback((prev) => (prev?.key === key ? null : prev)); }, 4500);
+    }
+  };
   const unhidden = robots.filter((r) => !r.hidden);
   const hiddenCount = robots.length - unhidden.length;
   const activePool = unhidden.length > 0 ? unhidden : robots;
@@ -43,6 +75,7 @@ export function RobotSidebar({
   const totalDailyPnl = activePool.reduce((acc, r) => acc + r.dailyPnlBrl, 0);
   const totalTrades = activePool.reduce((acc, r) => acc + (r.trades?.length ?? 0), 0);
   const totalOpen = activePool.filter((r) => r.position !== null).length;
+  const totalPendingOrders = activePool.reduce((acc, r) => acc + (r.pendingOrders?.length ?? 0), 0);
 
   return (
     <aside className="w-64 lg:w-72 shrink-0 bg-[#0F141C] border-r border-[#1E293B] flex flex-col h-full select-none">
@@ -99,10 +132,44 @@ export function RobotSidebar({
               {formatBrl(totalDailyPnl)}
             </span>
           </div>
-          <div className="mt-1 text-[11px] text-gray-400 font-mono tabular-nums">
+                    <div className="mt-1 text-[11px] text-gray-400 font-mono tabular-nums">
             {totalOpen} posicionados · {totalTrades} negócios hoje
           </div>
         </button>
+
+        {(totalOpen > 0 || totalPendingOrders > 0) && (
+          <div className="mt-2">
+            {confirmKey === 'PANIC_ALL' ? (
+              <button
+                type="button"
+                onClick={() => executeAction('PANIC_ALL', 'CLOSE_ALL')}
+                className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-600 hover:bg-rose-500 text-white transition-colors cursor-pointer animate-pulse"
+              >
+                <AlertOctagon className="w-3.5 h-3.5" />
+                Confirmar Zerar Tudo ({totalOpen} pos / {totalPendingOrders} ord)?
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={busyKey === 'PANIC_ALL'}
+                onClick={() => triggerArmConfirm('PANIC_ALL')}
+                className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-rose-950/40 hover:bg-rose-950/70 border border-rose-800/60 text-rose-300 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {busyKey === 'PANIC_ALL' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <AlertOctagon className="w-3.5 h-3.5" />}
+                Zerar Tudo (Emergência)
+              </button>
+            )}
+            {cmdFeedback?.key === 'PANIC_ALL' && (
+              <div className={`mt-1 text-center text-[11px] font-mono ${cmdFeedback.ok ? 'text-emerald-400' : 'text-rose-400'}`}>{cmdFeedback.text}</div>
+            )}
+          </div>
+        )}
+
+        {lastCommandUpdate && (lastCommandUpdate.status === 'executed' || lastCommandUpdate.status === 'failed') && (
+          <div className={`mt-2 px-2.5 py-1.5 rounded-lg border text-[11px] font-mono leading-snug ${lastCommandUpdate.status === 'executed' ? 'bg-emerald-950/40 border-emerald-800/50 text-emerald-300' : 'bg-rose-950/40 border-rose-800/50 text-rose-300'}`}>
+            <span className="font-semibold">{lastCommandUpdate.status === 'executed' ? 'MT5 OK:' : 'MT5 Erro:'}</span> {lastCommandUpdate.ackMessage || lastCommandUpdate.action}
+          </div>
+        )}
       </div>
 
       {/* Lista de Robôs MT5 */}
@@ -265,6 +332,44 @@ export function RobotSidebar({
                     <span className="text-slate-500">{(bot.trades ?? []).length}op</span>
                   </div>
                 </div>
+
+                {(bot.position !== null || (bot.pendingOrders?.length ?? 0) > 0) && (
+                  <div className="mt-2 pt-2 border-t border-[#1E2633]/80 flex flex-wrap items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                    {bot.position !== null && (() => {
+                      const k = `CLOSE_${bot.magicNumber}`;
+                      const armed = confirmKey === k;
+                      const busy = busyKey === k;
+                      return (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => armed ? executeAction(k, 'CLOSE_MAGIC', bot.magicNumber, bot.symbol) : triggerArmConfirm(k)}
+                          className={`flex-1 inline-flex items-center justify-center gap-1 px-2 py-1 rounded text-[11px] font-semibold transition-colors cursor-pointer ${armed ? 'bg-rose-600 text-white animate-pulse' : 'bg-rose-950/45 hover:bg-rose-950/75 border border-rose-800/50 text-rose-300'}`}
+                        >
+                          {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <XCircle className="w-3 h-3" />}
+                          <span>{armed ? 'Confirmar Zerar?' : 'Zerar'}</span>
+                        </button>
+                      );
+                    })()}
+                    {(bot.pendingOrders?.length ?? 0) > 0 && (() => {
+                      const k = `CANCEL_${bot.magicNumber}`;
+                      const armed = confirmKey === k;
+                      const busy = busyKey === k;
+                      const count = bot.pendingOrders?.length ?? 0;
+                      return (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => armed ? executeAction(k, 'CANCEL_ORDERS', bot.magicNumber, bot.symbol) : triggerArmConfirm(k)}
+                          className={`flex-1 inline-flex items-center justify-center gap-1 px-2 py-1 rounded text-[11px] font-semibold transition-colors cursor-pointer ${armed ? 'bg-amber-600 text-white animate-pulse' : 'bg-amber-950/45 hover:bg-amber-950/75 border border-amber-800/50 text-amber-300'}`}
+                        >
+                          {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />}
+                          <span>{armed ? 'Confirmar?' : `Cancelar (${count})`}</span>
+                        </button>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
             );
           })
