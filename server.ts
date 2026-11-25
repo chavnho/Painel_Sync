@@ -4,7 +4,7 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import { PendingRequest, PairingAttemptEvent, LiveSyncChannel, NormalizedCandle} from "./types";
-import { persistExecutedTrades, loadPersistedTradesForAccount, setRobotHiddenPreference, loadHiddenMagicsForAccount } from "./src/db/tradesDb";
+import { persistExecutedTrades, loadPersistedTradesForAccount, setRobotHiddenPreference, loadHiddenMagicsForAccount, enqueueCommand, pollAndDispatchPendingCommands, acknowledgeCommand, listRecentCommands } from "./src/db/tradesDb";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1023,8 +1023,23 @@ async function startServer() {
         ? { symbol: focus.symbol, timeframe: focus.timeframe }
         : null;
 
+    const pendingCommands = pollAndDispatchPendingCommands(channelId);
+    for (const cmd of pendingCommands) {
+      pushPairingEvent(channel, {
+        outcome: "request",
+        httpStatus: 202,
+        source: "backend",
+        summary: `Despachando comando: ${cmd.action}${cmd.magicNumber ? ` (#${cmd.magicNumber})` : ""}`,
+        detail: `Comando ${cmd.id} enviado ao MT5 (expira em 15s).`,
+        requestId: cmd.id,
+        symbol: cmd.symbol,
+        magicNumber: cmd.magicNumber,
+      });
+    }
+
     res.json({
       ok: true,
+      commands: pendingCommands,
       requests: responseRequests,
       activeChart: validFocus,
     });
@@ -1079,6 +1094,122 @@ async function startServer() {
       requestId,
       message: "Solicitação adicionada à fila e enviada ao robô."
     });
+  });
+
+  app.get("/api/mt5-sync/:channelId/commands", (req, res) => {
+    const channelId = String(req.params.channelId || "").trim();
+    const token = extractSyncToken(req);
+    if (!channelId || channelId.length < 4 || !token || token.length < 6) {
+      res.status(401).json({ error: "Canal ou token inv\u00e1lido." });
+      return;
+    }
+    const channel = mt5Channels.get(channelId);
+    if (!channel || channel.token !== token) {
+      res.status(403).json({ error: "Token inv\u00e1lido para este canal." });
+      return;
+    }
+    res.json({ ok: true, commands: listRecentCommands(channelId) });
+  });
+
+  app.post("/api/mt5-sync/:channelId/commands", (req, res) => {
+    const channelId = String(req.params.channelId || "").trim();
+    const token = extractSyncToken(req);
+    if (!channelId || channelId.length < 4 || !token || token.length < 6) {
+      res.status(401).json({ error: "Canal ou token inv\u00e1lido." });
+      return;
+    }
+    const channel = mt5Channels.get(channelId);
+    if (!channel || channel.token !== token) {
+      res.status(403).json({ error: "Token inv\u00e1lido para este canal." });
+      return;
+    }
+
+    const validActions = ["CLOSE_MAGIC", "CANCEL_ORDERS", "CLOSE_ALL", "OPEN_ORDER", "MODIFY_SL_TP"];
+    const action = String(req.body?.action || "").toUpperCase().trim();
+    if (!validActions.includes(action)) {
+      res.status(400).json({ error: "A\u00e7\u00e3o de comando inv\u00e1lida." });
+      return;
+    }
+
+    const commandId = `cmd_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const created = enqueueCommand({
+      id: commandId,
+      channelId,
+      magicNumber: Number(req.body?.magicNumber) || 0,
+      action: action as "CLOSE_MAGIC" | "CANCEL_ORDERS" | "CLOSE_ALL" | "OPEN_ORDER" | "MODIFY_SL_TP",
+      symbol: req.body?.symbol ? String(req.body.symbol) : undefined,
+      side: req.body?.side === "COMPRA" || req.body?.side === "VENDA" ? req.body.side : undefined,
+      volume: Number(req.body?.volume) || undefined,
+      price: Number(req.body?.price) || undefined,
+      sl: Number(req.body?.sl) || undefined,
+      tp: Number(req.body?.tp) || undefined,
+      ttlSeconds: Number(req.body?.ttlSeconds) || 15,
+    });
+
+    pushPairingEvent(channel, {
+      outcome: "request",
+      httpStatus: 201,
+      source: "frontend",
+      summary: `Comando criado: ${created.action}${created.magicNumber ? ` (#${created.magicNumber})` : ""}`,
+      detail: `Aguardando execu\u00e7\u00e3o imediata no MT5 (ID ${created.id}).`,
+      requestId: created.id,
+      symbol: created.symbol,
+      magicNumber: created.magicNumber,
+    });
+
+    const ssePayload = `event: command_update\ndata: ${JSON.stringify(created)}\n\n`;
+    for (const sub of channel.subscribers) {
+      try { sub.write(ssePayload); } catch {}
+    }
+
+    res.status(201).json({ ok: true, command: created });
+  });
+
+  app.post("/api/mt5-sync/:channelId/commands/:commandId/ack", (req, res) => {
+    const channelId = String(req.params.channelId || "").trim();
+    const commandId = String(req.params.commandId || "").trim();
+    const token = extractSyncToken(req);
+    if (!channelId || channelId.length < 4 || !token || token.length < 6) {
+      res.status(401).json({ error: "Canal ou token inv\u00e1lido." });
+      return;
+    }
+    const channel = mt5Channels.get(channelId);
+    if (!channel || channel.token !== token) {
+      res.status(403).json({ error: "Token inv\u00e1lido para este canal." });
+      return;
+    }
+
+    const ok = Boolean(req.body?.ok);
+    const updated = acknowledgeCommand(commandId, {
+      status: ok ? "executed" : "failed",
+      mt5OrderTicket: req.body?.orderTicket ? String(req.body.orderTicket) : undefined,
+      mt5PositionTicket: req.body?.positionTicket ? String(req.body.positionTicket) : undefined,
+      retcode: Number(req.body?.retcode) || 0,
+      ackMessage: req.body?.message ? String(req.body.message) : (ok ? "Executado no MT5" : "Falha na execu\u00e7\u00e3o"),
+    });
+
+    if (!updated) {
+      res.status(404).json({ error: "Comando n\u00e3o encontrado." });
+      return;
+    }
+
+    pushPairingEvent(channel, {
+      outcome: ok ? "success" : "error",
+      httpStatus: ok ? 200 : 422,
+      source: "mt5",
+      summary: `${ok ? "Executado" : "Falha"}: ${updated.action}${updated.magicNumber ? ` (#${updated.magicNumber})` : ""}`,
+      detail: updated.ackMessage || "",
+      requestId: updated.id,
+      symbol: updated.symbol,
+      magicNumber: updated.magicNumber,
+    });
+
+    const ssePayload = `event: command_update\ndata: ${JSON.stringify(updated)}\n\n`;
+    for (const sub of channel.subscribers) {
+      try { sub.write(ssePayload); } catch {}
+    }
+
+    res.json({ ok: true, command: updated });
   });
 
   app.delete("/api/mt5-sync/:channelId", (req, res) => {

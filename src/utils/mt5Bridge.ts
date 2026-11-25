@@ -238,3 +238,42 @@ export function buildPainelSyncMql5({ endpointUrl, token, channelId = '', mode =
   }
   return out;
 }
+
+export async function sendRemoteCommand(
+  channelId: string,
+  token: string,
+  payload: {
+    action: "CLOSE_MAGIC" | "CANCEL_ORDERS" | "CLOSE_ALL" | "OPEN_ORDER" | "MODIFY_SL_TP";
+    magicNumber?: number;
+    symbol?: string;
+    side?: "COMPRA" | "VENDA";
+    volume?: number;
+    price?: number;
+    sl?: number;
+    tp?: number;
+    ttlSeconds?: number;
+  }
+) {
+  const res = await fetch(`${API_BASE_URL}/api/mt5-sync/${encodeURIComponent(channelId)}/commands`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-sync-token": token,
+    },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data?.error || "Falha ao enviar comando ao MT5");
+  }
+  return data.command;
+}
+
+export async function fetchRecentCommands(channelId: string, token: string) {
+  const res = await fetch(`${API_BASE_URL}/api/mt5-sync/${encodeURIComponent(channelId)}/commands`, {
+    headers: { "x-sync-token": token },
+  });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return Array.isArray(data?.commands) ? data.commands : [];
+}
