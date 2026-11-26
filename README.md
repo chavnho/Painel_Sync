@@ -1,4 +1,4 @@
-# Painel Sync MT5 (v0.7.0)
+# Painel Sync MT5 (v0.7.2)
 
 Dashboard web em tempo real para monitoramento e análise institucional de múltiplos robôs no MetaTrader 5, desenvolvido com arquitetura bidirecional entre um coletor único MQL5 (`Painel_Sync.mq5` — executável como **Serviço em 2º plano** ou **Expert Advisor**), servidor Node.js/Express com SSE e SQLite nativo (`server.ts` + `src/db/tradesDb.ts`) e interface React + TypeScript + Lightweight Charts v5.
 
