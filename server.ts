@@ -85,6 +85,7 @@ const mt5Channels = new Map<string, LiveSyncChannel>();
 
 const requestQueue: PendingRequest[] = [];
 const MAX_CHART_CANDLES = 1500;
+const SERVER_STARTED_AT = new Date().toISOString();
 const chartCandlesCache = new Map<string, NormalizedCandle[]>();
 const requestDateMap = new Map<string, string>();
 const activeChartFocus = new Map<string, { symbol: string; timeframe: string; expiresAt: number }>();
@@ -1096,6 +1097,7 @@ async function startServer() {
       `event: ready\ndata: ${JSON.stringify({
         channelId,
         connected: true,
+        serverStartedAt: SERVER_STARTED_AT,
         pairingEvents: channel.pairingEvents,
       })}\n\n`
     );
