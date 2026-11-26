@@ -1,5 +1,20 @@
 # Changelog — Painel Sync MT5
 
+## [v0.7.2] - 2026-11-25
+
+### Corrigido & Melhorado
+- **Conector MQL5 / Modo Service (`src/utils/mt5Bridge.ts` + `Painel_Sync.mq5`)**:
+  - Adicionado par?metro `InpDefaultTimeframe` e tratamento de `PERIOD_CURRENT` (`_Period == 0`) para evitar que rob?s em modo Service reportem falsamente `M5`.
+  - Substitu?do o parser de delimita??o JSON em `FetchPendingRequest` por `FindJsonClosingDelim` com rastreamento de strings e escapes (`\"`), evitando quebra quando campos textuais cont?m `{`, `}`, `[` ou `]`.
+  - Alinhado timeout de limpeza de ativo tempor?rio (`g_chartTempIdle >= 10`, 20s), removida diretiva obsoleta `#property strict` e substitu?da a regex de convers?o EA?Service por marcadores expl?citos (`EA_LIFECYCLE_START/END`).
+- **Frontend & Visual (`EquityBaselineChart.tsx`, `LivePairingMonitor.tsx`, `TradingChartView.tsx`, `RobotSidebar.tsx`, `Mt5BridgeView.tsx`)**:
+  - Corrigido deslocamento de 3h no gr?fico de equity ao alinhar o timestamp da sess?o ao fuso local da corretora.
+  - Adicionados r?tulos e tipos para `source` (`backend`, `frontend`) e `outcome: 'request'` no monitor de pareamento.
+  - Eliminado *stale closure* no polling de candles via `symbolRobotsRef`, limpos imports/divs duplicados na barra lateral e atualizados avisos de comandos remotos na tela de conex?o.
+- **Backend, Seguran?a & Limpeza (`server.ts`, `package.json`, `.env.example`, `metadata.json`)**:
+  - Adicionado TTL de 30s na `requestQueue`, valida??o obrigat?ria de token em `GET /pending`, suporte a `Authorization: Bearer` e *rate limiting* leve em `/commands` e `/request`.
+  - Removidos arquivos e fun??es mortas (`queue.ts`, `bridge_commit.ts`, `processQueue`), corrigido `npm start` e `npm run clean` multiplataforma e limpos resqu?cios do AI Studio.
+
 ## [v0.7.0] - 2026-11-25
 
 ### Adicionado
