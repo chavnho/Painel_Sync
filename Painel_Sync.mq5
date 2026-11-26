@@ -1,4 +1,4 @@
-﻿////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 //+------------------------------------------------------------------+
@@ -20,6 +20,7 @@ input int      InpSyncIntervalSec     = 2;                       // Intervalo de
 input int      InpMaxChartBars        = 1000;                    // Máximo de Candles por Gráfico
 input int      InpHistoryBackfillDays = 90;                      // Dias de Histórico Retroativo (0 = desativa)
 input bool     InpIncludeManual       = true;                    // Incluir Operações Manuais (Magic = 0)
+input ENUM_TIMEFRAMES InpDefaultTimeframe = PERIOD_CURRENT;       // Timeframe Padr?o (Service / sem gr?fico)
 
 input group "=== 3. Logs na Aba Experts ==="
 input bool     InpLogOrders           = true;                    // Logar Abertura/Cancelamento de Ordens
@@ -376,7 +377,8 @@ void SendAccountAndRobotsTelemetry()
       json += ",\"name\":\"" + EscapeJson(robots[i].name) + "\"";
       json += ",\"magicNumber\":" + IntegerToString(robots[i].magic);
       json += ",\"symbol\":\"" + robots[i].symbol + "\"";
-      json += ",\"timeframe\":\"" + TimeframeToShortString(_Period) + "\"";
+      ENUM_TIMEFRAMES robotTf = (_Period != PERIOD_CURRENT) ? _Period : InpDefaultTimeframe;
+      json += ",\"timeframe\":\"" + TimeframeToShortString(robotTf) + "\"";
       json += ",\"status\":\"" + statusStr + "\"";
       json += ",\"lastUpdate\":\"" + nowStr + "\"";
       json += ",\"position\":" + (robots[i].hasPosition ? robots[i].posJson : "null");
@@ -1001,6 +1003,7 @@ string TimeframeToShortString(ENUM_TIMEFRAMES period)
 {
    switch(period)
    {
+      case PERIOD_CURRENT: return "";
       case PERIOD_M1:  return "M1";
       case PERIOD_M2:  return "M2";
       case PERIOD_M3:  return "M3";
