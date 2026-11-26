@@ -143,6 +143,7 @@ export interface PairingAttemptEvent {
 }
 
 export interface DashboardTelemetry {
+  serverStartedAt?: string;
   channelId: string;
   account: AccountSnapshot | null;
   robots: RobotStream[];
