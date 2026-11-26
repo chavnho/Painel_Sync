@@ -77,9 +77,10 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
   const [risk, setRisk] = useState<ManagedRobotRisk>(DEFAULT_RISK);
 
   const [candles, setCandles] = useState<LiveCandle[]>(new Array());
+  const [replayDate, setReplayDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [selectedDay, setSelectedDay] = useState<string>('ALL');
   const [loadingCandles, setLoadingCandles] = useState(false);
-  const [candleStatus, setCandleStatus] = useState('Clique em Puxar Velas do MT5 para carregar o hist\u00f3rico real.');
+  const [candleStatus, setCandleStatus] = useState('Clique em Carregar Replay para carregar o hist\u00f3rico real.');
   const [replayBars, setReplayBars] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [speedMs, setSpeedMs] = useState(600);
@@ -126,22 +127,26 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
   const handleLoadMt5Candles = async () => {
     setIsPlaying(false);
     setLoadingCandles(true);
-    setCandleStatus(`Buscando velas de ${resolvedSymbol} (${timeframe}) no MT5...`);
+    setCandleStatus(`Carregando pregão ${replayDate.split('-').reverse().join('/')} de ${resolvedSymbol} (${timeframe}) no MT5...`);
     try {
-      let list = await syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, timeframe, { force: true, isManualRequest: true });
-      if (!list || list.length === 0) list = await fetchCandles(creds.channelId, creds.token, resolvedSymbol, timeframe);
+      let list = await syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, timeframe, { force: true, isManualRequest: true, date: replayDate });
+      if (!list || list.length === 0) list = await fetchCandles(creds.channelId, creds.token, resolvedSymbol, timeframe, undefined, replayDate);
       if (list && list.length > 0) {
         setCandles(list);
-        const lastD = new Date(Number(list.at(-1)?.time || 0) * 1000).toISOString().slice(0, 10);
-        setSelectedDay(lastD);
-        const dayCount = list.filter((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) === lastD).length;
-        setReplayBars(dayCount || list.length);
-        setCandleStatus(`${list.length} velas reais carregadas de ${resolvedSymbol} (${timeframe}).`);
+        const dayMatches = list.filter((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) === replayDate);
+        if (dayMatches.length > 0) {
+          setSelectedDay(replayDate);
+        } else {
+          const fallbackDay = new Date(Number(list.at(-1)?.time || 0) * 1000).toISOString().slice(0, 10);
+          setSelectedDay(fallbackDay);
+        }
+        setReplayBars(1);
+        setCandleStatus(`Cache pronto (${dayMatches.length || list.length} velas). Clique em Play Replay ou 100%.`);
       } else {
-        setCandleStatus(`Nenhuma vela retornada pelo MT5 para ${resolvedSymbol}. Verifique se o Service está ativo ou use Amostra Sintética.`);
+        setCandleStatus(`Nenhuma vela retornada pelo MT5 para ${resolvedSymbol} em ${replayDate.split('-').reverse().join('/')}. Atualize/compile o conector MQL5 ou verifique o histórico.`);
       }
     } catch {
-      setCandleStatus('Falha ao consultar MT5. Você pode testar offline usando Amostra Sintética.');
+      setCandleStatus('Falha ao consultar MT5. Verifique se o Serviço do MT5 está conectado.');
     } finally {
       setLoadingCandles(false);
     }
@@ -287,6 +292,15 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
             <p className="text-xs text-gray-400 mt-0.5">Teste qualquer robô criado no painel sobre velas históricas reais do MT5 e avance vela por vela no modo Replay.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2 bg-[#0F141C] border border-[#1E2633] rounded-lg px-2.5 py-1">
+              <span className="text-[11px] text-gray-400">Data do Pregão:</span>
+              <input
+                type="date"
+                value={replayDate}
+                onChange={(e) => setReplayDate(e.target.value)}
+                className="bg-transparent text-xs font-mono text-gray-100 focus:outline-none"
+              />
+            </div>
             <button type="button" onClick={handleLoadMt5Candles} disabled={loadingCandles} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold cursor-pointer disabled:opacity-60">
               <Download className="w-3.5 h-3.5" /><span>{loadingCandles ? 'Carregando...' : 'Puxar Velas do MT5'}</span>
             </button>

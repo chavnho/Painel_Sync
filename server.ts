@@ -86,6 +86,7 @@ const mt5Channels = new Map<string, LiveSyncChannel>();
 const requestQueue: PendingRequest[] = [];
 const MAX_CHART_CANDLES = 1000;
 const chartCandlesCache = new Map<string, NormalizedCandle[]>();
+const requestDateMap = new Map<string, string>();
 const activeChartFocus = new Map<string, { symbol: string; timeframe: string; expiresAt: number }>();
 const lastChannelSignature = new Map<string, string>();
 
@@ -1189,7 +1190,8 @@ async function startServer() {
       return;
     }
 
-    const { symbol, timeframe } = req.body;
+    const { symbol, timeframe, date } = req.body;
+    const cleanDate = typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date.trim()) ? date.trim() : undefined;
     if (!symbol || !timeframe) {
       res.status(400).json({ error: "Parâmetros 'symbol' e 'timeframe' são obrigatórios." });
       return;
@@ -1201,10 +1203,12 @@ async function startServer() {
       channelId,
       symbol: String(symbol).trim(),
       timeframe: String(timeframe).trim(),
+      ...(cleanDate ? { date: cleanDate } : {}),
       timestamp: Date.now(),
       status: "pending"
     };
 
+    if (cleanDate) requestDateMap.set(requestId, cleanDate);
     addToQueue(newRequest);
 
     pushPairingEvent(channel, {

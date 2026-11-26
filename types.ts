@@ -26,6 +26,7 @@ export interface PendingRequest {
   channelId: string;
   symbol: string;
   timeframe: string;
+  date?: string;
   timestamp: number;
   status: "pending" | "processing" | "completed" | "failed";
   result?: NormalizedCandle[];
