@@ -284,8 +284,8 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
   const formatBrl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   return (
-    <div className="flex-1 overflow-y-auto px-6 py-8 bg-[#090D12]">
-      <div className="max-w-[1320px] w-full mx-auto space-y-6">
+    <div className="flex-1 flex flex-col overflow-y-auto bg-[#090D12]">
+      <div className="flex-1 max-w-[1320px] w-full mx-auto px-6 pt-8 pb-6 space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="font-display text-xl font-bold text-gray-100">Simulador de Backtest & Replay</h1>
@@ -297,12 +297,14 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
               <input
                 type="date"
                 value={replayDate}
+                max={new Date().toISOString().slice(0, 10)}
                 onChange={(e) => setReplayDate(e.target.value)}
-                className="bg-transparent text-xs font-mono text-gray-100 focus:outline-none"
+                style={{ colorScheme: 'dark' }}
+                className="bg-[#090D12] border border-[#1E2633] rounded px-2 py-1 text-xs font-mono text-gray-100 focus:outline-none focus:border-emerald-500 cursor-pointer"
               />
             </div>
             <button type="button" onClick={handleLoadMt5Candles} disabled={loadingCandles} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold cursor-pointer disabled:opacity-60">
-              <Download className="w-3.5 h-3.5" /><span>{loadingCandles ? 'Carregando...' : 'Puxar Velas do MT5'}</span>
+              <Download className="w-3.5 h-3.5" /><span>{loadingCandles ? 'Carregando...' : 'Carregar Replay'}</span>
             </button>
           </div>
         </div>
@@ -346,6 +348,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
         </div>
 
 
+        {!selectedBotId && (
         <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] px-4 py-2.5 flex flex-wrap items-center gap-4 text-xs">
           <span className="text-[11px] font-semibold text-gray-300">Regra de Disparo:</span>
           <div className="flex items-center gap-2">
@@ -361,51 +364,8 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
             </select>
           </div>
         </div>
+        )}
 
-        <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <button type="button" disabled={candles.length === 0} onClick={() => { if (!isPlaying && replayBars >= candles.length) setReplayBars(1); setIsPlaying((p) => !p); }} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold cursor-pointer disabled:opacity-40">
-              {isPlaying ? <><Pause className="w-3.5 h-3.5" /><span>Pausar</span></> : <><Play className="w-3.5 h-3.5" /><span>Play Replay</span></>}
-            </button>
-            <button type="button" disabled={activeCandles.length === 0 || replayBars >= activeCandles.length} onClick={() => { setIsPlaying(false); setReplayBars((p) => Math.min(activeCandles.length, p + 1)); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-gray-200 text-xs cursor-pointer disabled:opacity-40">
-              <SkipForward className="w-3.5 h-3.5" /><span>+1 Vela</span>
-            </button>
-            <button type="button" disabled={candles.length === 0} onClick={() => { setIsPlaying(false); setReplayBars(1); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-gray-200 text-xs cursor-pointer disabled:opacity-40">
-              <RotateCcw className="w-3.5 h-3.5" /><span>Zerar</span>
-            </button>
-            <button type="button" disabled={activeCandles.length === 0} onClick={() => { setIsPlaying(false); setReplayBars(activeCandles.length); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-emerald-300 text-xs cursor-pointer disabled:opacity-40">
-              <FastForward className="w-3.5 h-3.5" /><span>100%</span>
-            </button>
-          </div>
-          <div className="flex items-center gap-3 text-xs font-mono text-gray-400">
-            <span>{candleStatus}</span>
-            {availableDays.length > 0 && (
-              <select
-                value={selectedDay}
-                onChange={(e) => {
-                  const nextDay = e.target.value;
-                  setIsPlaying(false);
-                  setSelectedDay(nextDay);
-                  const count = nextDay === 'ALL' ? candles.length : candles.filter((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) === nextDay).length;
-                  setReplayBars(count || 1);
-                }}
-                className="px-2 py-1 rounded bg-[#090D12] border border-[#1E2633] text-xs text-sky-300"
-              >
-                {availableDays.map((d) => (
-                  <option key={d} value={d}>Pregão {d.split('-').reverse().join('/')}</option>
-                ))}
-                <option value="ALL">Todos os dias ({candles.length}v)</option>
-              </select>
-            )}
-            {activeCandles.length > 0 && <span className="px-2 py-0.5 rounded bg-[#090D12] border border-[#1E2633] text-gray-200">Vela {replayBars} / {activeCandles.length}</span>}
-            <select value={speedMs} onChange={(e) => setSpeedMs(Number(e.target.value))} className="px-2 py-1 rounded bg-[#090D12] border border-[#1E2633] text-xs text-gray-200">
-              <option value={1200}>0.5x</option>
-              <option value={600}>1x</option>
-              <option value={200}>3x</option>
-              <option value={60}>10x</option>
-            </select>
-          </div>
-        </div>
 
         {simResult && (
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -474,6 +434,51 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
             </div>
           </div>
         )}
+
+      <div className={isChartMaximized ? "fixed bottom-0 inset-x-0 z-50 bg-[#0F141C]/95 backdrop-blur border-t border-[#1E2633] px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 shadow-2xl" : "sticky bottom-0 z-30 rounded-xl bg-[#0F141C]/95 backdrop-blur border border-[#1E2633] px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 shadow-xl"}>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" disabled={candles.length === 0} onClick={() => { if (!isPlaying && replayBars >= candles.length) setReplayBars(1); setIsPlaying((p) => !p); }} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold cursor-pointer disabled:opacity-40">
+              {isPlaying ? <><Pause className="w-3.5 h-3.5" /><span>Pausar</span></> : <><Play className="w-3.5 h-3.5" /><span>Play Replay</span></>}
+            </button>
+            <button type="button" disabled={activeCandles.length === 0 || replayBars >= activeCandles.length} onClick={() => { setIsPlaying(false); setReplayBars((p) => Math.min(activeCandles.length, p + 1)); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-gray-200 text-xs cursor-pointer disabled:opacity-40">
+              <SkipForward className="w-3.5 h-3.5" /><span>+1 Vela</span>
+            </button>
+            <button type="button" disabled={candles.length === 0} onClick={() => { setIsPlaying(false); setReplayBars(1); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-gray-200 text-xs cursor-pointer disabled:opacity-40">
+              <RotateCcw className="w-3.5 h-3.5" /><span>Zerar</span>
+            </button>
+            <button type="button" disabled={activeCandles.length === 0} onClick={() => { setIsPlaying(false); setReplayBars(activeCandles.length); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-emerald-300 text-xs cursor-pointer disabled:opacity-40">
+              <FastForward className="w-3.5 h-3.5" /><span>100%</span>
+            </button>
+          </div>
+          <div className="flex items-center gap-3 text-xs font-mono text-gray-400">
+            <span>{candleStatus}</span>
+            {availableDays.length > 0 && (
+              <select
+                value={selectedDay}
+                onChange={(e) => {
+                  const nextDay = e.target.value;
+                  setIsPlaying(false);
+                  setSelectedDay(nextDay);
+                  const count = nextDay === 'ALL' ? candles.length : candles.filter((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) === nextDay).length;
+                  setReplayBars(count || 1);
+                }}
+                className="px-2 py-1 rounded bg-[#090D12] border border-[#1E2633] text-xs text-sky-300"
+              >
+                {availableDays.map((d) => (
+                  <option key={d} value={d}>Pregão {d.split('-').reverse().join('/')}</option>
+                ))}
+                <option value="ALL">Todos os dias ({candles.length}v)</option>
+              </select>
+            )}
+            {activeCandles.length > 0 && <span className="px-2 py-0.5 rounded bg-[#090D12] border border-[#1E2633] text-gray-200">Vela {replayBars} / {activeCandles.length}</span>}
+            <select value={speedMs} onChange={(e) => setSpeedMs(Number(e.target.value))} className="px-2 py-1 rounded bg-[#090D12] border border-[#1E2633] text-xs text-gray-200">
+              <option value={1200}>0.5x</option>
+              <option value={600}>1x</option>
+              <option value={200}>3x</option>
+              <option value={60}>10x</option>
+            </select>
+          </div>
+        </div>
       </div>
     </div>
   );
