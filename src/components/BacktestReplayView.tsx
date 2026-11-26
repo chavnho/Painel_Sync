@@ -165,7 +165,11 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
         setReplayBars(1);
         setCandleStatus(`Cache pronto (${dayMatches.length || list.length} velas). Clique em Play Replay ou 100%.`);
       } else {
-        setCandleStatus(`Nenhuma vela retornada pelo MT5 para ${resolvedSymbol} em ${replayDate.split('-').reverse().join('/')}. Atualize/compile o conector MQL5 ou verifique o histórico.`);
+        const brDate = replayDate.split('-').reverse().join('/');
+        const reason = describeNoTradingDay(replayDate);
+        setCandles([]);
+        setReplayBars(0);
+        setCandleStatus(`Sem histórico de pregão para ${brDate} (${reason}). Escolha outra data no calendário.`);
       }
     } catch (err) {
       setCandleStatus('Falha ao consultar MT5. Verifique se o Serviço do MT5 está conectado.');
