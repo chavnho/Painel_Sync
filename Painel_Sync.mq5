@@ -7,7 +7,6 @@
 //+------------------------------------------------------------------+
 #property copyright "Painel Sync"
 #property version   "2.00"
-#property strict
 #property service
 
 input group "=== 1. Conexão e Autenticação ==="
@@ -546,6 +545,35 @@ void ExecuteRemoteCommand(const string obj) {
 
 string g_chartTempSym = "";
 int g_chartTempIdle = 0;
+int FindJsonClosingDelim(const string src, const int startIdx, const ushort openCh, const ushort closeCh)
+{
+   int len = StringLen(src);
+   if(startIdx < 0 || startIdx >= len || StringGetCharacter(src, startIdx) != openCh)
+      return -1;
+   int depth = 0;
+   bool inString = false;
+   bool escaped = false;
+   for(int i = startIdx; i < len; i++)
+   {
+      ushort ch = StringGetCharacter(src, i);
+      if(inString)
+      {
+         if(escaped) { escaped = false; continue; }
+         if(ch == '\\') { escaped = true; continue; }
+         if(ch == '"') { inString = false; }
+         continue;
+      }
+      if(ch == '"') { inString = true; continue; }
+      if(ch == openCh) depth++;
+      else if(ch == closeCh)
+      {
+         depth--;
+         if(depth == 0) return i;
+      }
+   }
+   return -1;
+}
+
 void FetchPendingRequest()
 {
    string url = InpEndpointUrl + "/api/mt5-sync/" + InpChannelId + "/pending";
@@ -560,51 +588,60 @@ void FetchPendingRequest()
 
    string response = CharArrayToString(result, 0, WHOLE_ARRAY, CP_UTF8);
 
-   // 1. Processa pedidos explÃ­citos da fila (Snapshot inicial de 1000 candles)
-      int cP = StringFind(response, "\"commands\":[");
-   if(cP >= 0) {
-      cP += StringLen("\"commands\":[");
-      int cL = StringLen(response);
-      while(cP < cL) {
-         int s1 = StringFind(response, "{", cP), eA = StringFind(response, "]", cP);
-         if(s1 < 0 || (eA >= 0 && s1 > eA)) break;
-         int e1 = StringFind(response, "}", s1);
-         if(e1 < 0) break;
-         ExecuteRemoteCommand(StringSubstr(response, s1, e1 - s1 + 1));
-         cP = e1 + 1;
-      }
-   }
-int pos = StringFind(response, "\"requests\":[");
-   if(pos >= 0)
+   // 1. Processa fila de comandos remotos
+   int cKey = StringFind(response, "\"commands\"");
+   if(cKey >= 0)
    {
-      pos += StringLen("\"requests\":[");
-      int len = StringLen(response);
-
-      while(pos < len)
+      int cArrStart = StringFind(response, "[", cKey);
+      int cArrEnd   = (cArrStart >= 0) ? FindJsonClosingDelim(response, cArrStart, '[', ']') : -1;
+      if(cArrStart >= 0 && cArrEnd > cArrStart)
       {
-         int objStart = StringFind(response, "{", pos);
-         int arrEnd   = StringFind(response, "]", pos);
-         if(objStart < 0 || (arrEnd >= 0 && objStart > arrEnd)) break;
-
-         int objEnd = StringFind(response, "}", objStart);
-         if(objEnd < 0) break;
-
-         string obj = StringSubstr(response, objStart, objEnd - objStart + 1);
-         string reqSymbol    = ExtractJsonString(obj, "symbol");
-         string reqTimeframe = ExtractJsonString(obj, "timeframe");
-         string requestId    = ExtractJsonString(obj, "requestId");
-         if(requestId == "") requestId = ExtractJsonString(obj, "id");
-
-         if(reqSymbol != "")
+         int cP = cArrStart + 1;
+         while(cP < cArrEnd)
          {
-            ENUM_TIMEFRAMES tf = StringToTimeframe(reqTimeframe);
-            SendCandlesData(reqSymbol, tf, requestId, InpMaxChartBars, false);
+            int s1 = StringFind(response, "{", cP);
+            if(s1 < 0 || s1 >= cArrEnd) break;
+            int e1 = FindJsonClosingDelim(response, s1, '{', '}');
+            if(e1 < 0 || e1 > cArrEnd) break;
+            ExecuteRemoteCommand(StringSubstr(response, s1, e1 - s1 + 1));
+            cP = e1 + 1;
          }
-         pos = objEnd + 1;
       }
    }
 
-   // 2. Se houver um grÃ¡fico ativo em foco no painel, envia Delta incremental (apenas 2 velas)
+   // 2. Processa pedidos explicitos de candles
+   int rKey = StringFind(response, "\"requests\"");
+   if(rKey >= 0)
+   {
+      int rArrStart = StringFind(response, "[", rKey);
+      int rArrEnd   = (rArrStart >= 0) ? FindJsonClosingDelim(response, rArrStart, '[', ']') : -1;
+      if(rArrStart >= 0 && rArrEnd > rArrStart)
+      {
+         int pos = rArrStart + 1;
+         while(pos < rArrEnd)
+         {
+            int objStart = StringFind(response, "{", pos);
+            if(objStart < 0 || objStart >= rArrEnd) break;
+            int objEnd = FindJsonClosingDelim(response, objStart, '{', '}');
+            if(objEnd < 0 || objEnd > rArrEnd) break;
+
+            string obj = StringSubstr(response, objStart, objEnd - objStart + 1);
+            string reqSymbol    = ExtractJsonString(obj, "symbol");
+            string reqTimeframe = ExtractJsonString(obj, "timeframe");
+            string requestId    = ExtractJsonString(obj, "requestId");
+            if(requestId == "") requestId = ExtractJsonString(obj, "id");
+
+            if(reqSymbol != "")
+            {
+               ENUM_TIMEFRAMES tf = StringToTimeframe(reqTimeframe);
+               SendCandlesData(reqSymbol, tf, requestId, InpMaxChartBars, false);
+            }
+            pos = objEnd + 1;
+         }
+      }
+   }
+
+   // 3. Se houver um grafico ativo em foco no painel, envia Delta incremental
    int focusPos = StringFind(response, "\"activeChart\"");
    bool hasFocus = false;
    if(focusPos >= 0)
@@ -614,7 +651,7 @@ int pos = StringFind(response, "\"requests\":[");
       int nPos = (cPos >= 0) ? StringFind(response, "null", cPos) : -1;
       if(fStart >= 0 && (nPos < 0 || fStart < nPos))
       {
-         int fEnd = StringFind(response, "}", fStart);
+         int fEnd = FindJsonClosingDelim(response, fStart, '{', '}');
          if(fEnd > fStart)
          {
             string fObj = StringSubstr(response, fStart, fEnd - fStart + 1);
@@ -637,7 +674,7 @@ int pos = StringFind(response, "\"requests\":[");
    if(!hasFocus && g_chartTempSym != "")
    {
       g_chartTempIdle++;
-      if(g_chartTempIdle >= 20)
+      if(g_chartTempIdle >= 10)
       {
          SymbolSelect(g_chartTempSym, false);
          g_chartTempSym = "";
