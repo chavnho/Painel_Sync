@@ -489,7 +489,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
             <h1 className="font-display text-xl font-bold text-gray-100">Simulador de Backtest & Replay</h1>
             <p className="text-xs text-gray-400 mt-0.5">Teste qualquer robô criado no painel sobre velas históricas reais do MT5 e avance vela por vela no modo Replay.</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="shrink-0 flex flex-nowrap items-center gap-1.5 whitespace-nowrap">
             <div className="flex items-center gap-2 bg-[#0F141C] border border-[#1E2633] rounded-lg px-2.5 py-1">
               <span className="text-[11px] text-gray-400">Data do Pregão:</span>
               <input
@@ -650,8 +650,8 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
 
         </div>
       </div>
-      <div className={isChartMaximized ? "fixed bottom-0 inset-x-0 z-50 h-[50px] bg-[#090D12]/95 backdrop-blur border-t border-[#1E2633] px-6 flex items-center justify-between gap-3 shadow-2xl" : "shrink-0 z-30 w-full h-[50px] bg-[#090D12]/60 border-t border-[#1E2633] px-6 flex items-center justify-between gap-3"}>
-          <div className="flex flex-wrap items-center gap-2">
+      <div className={isChartMaximized ? "fixed bottom-0 inset-x-0 z-50 h-[50px] bg-[#090D12]/95 backdrop-blur border-t border-[#1E2633] px-4 flex items-center justify-between gap-3 shadow-2xl overflow-hidden" : "shrink-0 z-30 w-full h-[50px] bg-[#090D12]/90 border-t border-[#1E2633] px-4 flex items-center justify-between gap-3 overflow-hidden"}>
+          <div className="shrink-0 flex flex-nowrap items-center gap-1.5 whitespace-nowrap">
             <button type="button" disabled={candles.length === 0} onClick={() => { if (!isPlaying && replayBars >= candles.length) setReplayBars(1); setIsPlaying((p) => !p); }} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold cursor-pointer disabled:opacity-40">
               {isPlaying ? <><Pause className="w-3.5 h-3.5" /><span>Pausar</span></> : <><Play className="w-3.5 h-3.5" /><span>Play Replay</span></>}
             </button>
@@ -665,8 +665,8 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
               <FastForward className="w-3.5 h-3.5" /><span>100%</span>
             </button>
           </div>
-          <div className="flex items-center gap-3 text-xs font-mono text-gray-400">
-            <span>{candleStatus}</span>
+          <div className="min-w-0 flex-1 flex items-center justify-end gap-2 text-xs font-mono text-gray-400">
+            <span className="truncate min-w-0" title={candleStatus}>{candleStatus}</span>
             {availableDays.length > 0 && (
               <select
                 value={selectedDay}
