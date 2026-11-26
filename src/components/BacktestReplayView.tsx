@@ -284,8 +284,9 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
   const formatBrl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   return (
-    <div className="flex-1 flex flex-col overflow-y-auto bg-[#090D12]">
-      <div className="flex-1 max-w-[1320px] w-full mx-auto px-6 pt-8 pb-6 space-y-6">
+    <div className="flex-1 h-full min-h-0 flex flex-col overflow-hidden bg-[#090D12]">
+      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className="max-w-[1320px] w-full mx-auto px-6 pt-8 pb-6 space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="font-display text-xl font-bold text-gray-100">Simulador de Backtest & Replay</h1>
@@ -435,7 +436,9 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
           </div>
         )}
 
-      <div className={isChartMaximized ? "fixed bottom-0 inset-x-0 z-50 bg-[#0F141C]/95 backdrop-blur border-t border-[#1E2633] px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 shadow-2xl" : "sticky bottom-0 z-30 rounded-xl bg-[#0F141C]/95 backdrop-blur border border-[#1E2633] px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 shadow-xl"}>
+        </div>
+      </div>
+      <div className={isChartMaximized ? "fixed bottom-0 inset-x-0 z-50 bg-[#0F141C]/95 backdrop-blur border-t border-[#1E2633] px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 shadow-2xl" : "shrink-0 z-30 w-full bg-[#0F141C] border-t border-[#1E2633] px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 shadow-xl"}>
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" disabled={candles.length === 0} onClick={() => { if (!isPlaying && replayBars >= candles.length) setReplayBars(1); setIsPlaying((p) => !p); }} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold cursor-pointer disabled:opacity-40">
               {isPlaying ? <><Pause className="w-3.5 h-3.5" /><span>Pausar</span></> : <><Play className="w-3.5 h-3.5" /><span>Play Replay</span></>}
@@ -479,7 +482,6 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
             </select>
           </div>
         </div>
-      </div>
     </div>
   );
 }
