@@ -166,7 +166,7 @@ function resolveManagedSymbol(channel: LiveSyncChannel, rawSymbol: string): stri
 function getWatchSymbolsForChannel(channelId: string, channel: LiveSyncChannel): Array<{ symbol: string; timeframe: string }> {
   const seen = new Set<string>();
   const list: Array<{ symbol: string; timeframe: string }> = [];
-  for (const bot of listManagedRobots(channelId).filter((b) => b.enabled)) {
+  for (const bot of listManagedRobots(channelId).filter((b) => b.enabled && b.environment === "PRODUCTION")) {
     const sym = resolveManagedSymbol(channel, bot.symbol);
     const tf = bot.timeframe.toUpperCase();
     const key = `${sym}:${tf}`;
@@ -176,7 +176,7 @@ function getWatchSymbolsForChannel(channelId: string, channel: LiveSyncChannel):
 }
 
 function runManagedRobotsCycle(channelId: string, channel: LiveSyncChannel) {
-  const activeBots = listManagedRobots(channelId).filter((b) => b.enabled);
+  const activeBots = listManagedRobots(channelId).filter((b) => b.enabled && b.environment === "PRODUCTION");
   if (activeBots.length === 0) return;
   for (const bot of activeBots) {
     const resolvedSymbol = resolveManagedSymbol(channel, bot.symbol);
@@ -1272,7 +1272,7 @@ async function startServer() {
       magicNumber: Number(b.magicNumber) || undefined,
       symbol: String(b.symbol || "WIN$").trim().toUpperCase(),
       timeframe,
-      enabled: Boolean(b.enabled),
+      enabled: b.environment === "PRODUCTION" ? Boolean(b.enabled) : false, environment: b.environment === "PRODUCTION" ? "PRODUCTION" : "SIMULATOR",
       strategyType,
       params: typeof b.params === "object" && b.params ? b.params : {},
       risk: {
