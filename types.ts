@@ -61,4 +61,3 @@ export interface LiveSyncChannel {
   subscribers: Set<any>;
 }
 
-export const mt5Channels = new Map<string, LiveSyncChannel>();

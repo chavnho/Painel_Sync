@@ -80,7 +80,7 @@ interface NormalizedRobot {
   dailyPnlBrl: number;
 }
 
-export const mt5Channels = new Map<string, LiveSyncChannel>();
+const mt5Channels = new Map<string, LiveSyncChannel>();
 
 const requestQueue: PendingRequest[] = [];
 const MAX_CHART_CANDLES = 1000;
@@ -90,7 +90,18 @@ const lastChannelSignature = new Map<string, string>();
 
 
 
+const REQUEST_TTL_MS = 30000;
+
+function pruneExpiredRequests(now = Date.now()) {
+  for (let i = requestQueue.length - 1; i >= 0; i--) {
+    if (now - requestQueue.at(i)!.timestamp > REQUEST_TTL_MS) {
+      requestQueue.splice(i, 1);
+    }
+  }
+}
+
 function addToQueue(request: PendingRequest) {
+  pruneExpiredRequests();
   requestQueue.push(request);
   requestQueue.sort((a, b) => a.timestamp - b.timestamp);
   console.log(`[Queue] Pedido adicionado: ${request.id} para ${request.symbol}`);
@@ -138,24 +149,6 @@ function pushPairingEvent(
   }
 }
 
-function processQueue() {
-  const request = getNextRequest();
-  if (request) {
-    const channel = mt5Channels.get(request.channelId);
-    if (channel) {
-      pushPairingEvent(channel, {
-        outcome: "request",
-        httpStatus: 202,
-        source: "backend",
-        summary: `Processando solicitação: ${request.symbol}`,
-        detail: `Enviando solicitação ID ${request.id} para o robô.`,
-        requestId: request.id,
-        symbol: request.symbol,
-        timeframe: request.timeframe
-      });
-    }
-  }
-}
 
 function normalizeCandles(raw: unknown): NormalizedCandle[] {
   if (!Array.isArray(raw)) return [];
@@ -536,9 +529,32 @@ async function startServer() {
     return created;
   }
 
+  const rateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
+  function checkRateLimit(key: string, maxRequests: number, windowMs: number): boolean {
+    const now = Date.now();
+    if (rateLimitBuckets.size > 500) {
+      for (const [k, v] of rateLimitBuckets.entries()) {
+        if (v.resetAt <= now) rateLimitBuckets.delete(k);
+      }
+    }
+    const cur = rateLimitBuckets.get(key);
+    if (!cur || cur.resetAt <= now) {
+      rateLimitBuckets.set(key, { count: 1, resetAt: now + windowMs });
+      return true;
+    }
+    if (cur.count >= maxRequests) return false;
+    cur.count++;
+    return true;
+  }
+
   function extractSyncToken(req: express.Request): string {
     const headerToken = req.header("x-sync-token");
     if (typeof headerToken === "string" && headerToken.trim()) return headerToken.trim();
+    const authHeader = req.header("authorization");
+    if (typeof authHeader === "string" && authHeader.toLowerCase().startsWith("bearer ")) {
+      const bearer = authHeader.slice(7).trim();
+      if (bearer) return bearer;
+    }
     const queryToken = req.query.token;
     if (typeof queryToken === "string" && queryToken.trim()) return queryToken.trim();
     const bodyToken = req.body?.token;
@@ -1046,11 +1062,12 @@ async function startServer() {
     }
 
     const channel = mt5Channels.get(channelId);
-    if (!channel) {
-      res.status(403).json({ error: "Token inválido para este canal." });
+    if (!channel || channel.token !== token) {
+      res.status(403).json({ error: "Token inv\u00e1lido para este canal." });
       return;
     }
 
+    pruneExpiredRequests();
     const pending = requestQueue.filter(r => r.channelId === channelId && r.status === "pending");
     const responseRequests = pending.map(r => ({ ...r }));
 
@@ -1098,6 +1115,10 @@ async function startServer() {
 
   app.post("/api/mt5-sync/:channelId/request", (req, res) => {
     const channelId = String(req.params.channelId || "").trim();
+    if (!checkRateLimit(`req:${channelId}`, 30, 10000)) {
+      res.status(429).json({ error: "Muitas solicita\u00e7\u00f5es de candles. Tente novamente em instantes." });
+      return;
+    }
     const token = extractSyncToken(req);
 
     if (!channelId || channelId.length < 4 || !token || token.length < 6) {
@@ -1164,6 +1185,10 @@ async function startServer() {
 
   app.post("/api/mt5-sync/:channelId/commands", (req, res) => {
     const channelId = String(req.params.channelId || "").trim();
+    if (!checkRateLimit(`cmd:${channelId}`, 20, 10000)) {
+      res.status(429).json({ error: "Limite de comandos por segundo excedido. Aguarde alguns segundos." });
+      return;
+    }
     const token = extractSyncToken(req);
     if (!channelId || channelId.length < 4 || !token || token.length < 6) {
       res.status(401).json({ error: "Canal ou token inv\u00e1lido." });
