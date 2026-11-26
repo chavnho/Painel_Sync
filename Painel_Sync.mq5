@@ -837,6 +837,77 @@ void FillGapsFromRealTicks(const string symbol, const ENUM_TIMEFRAMES period, Mq
       total = ArraySize(rates);
    }
 }
+int CopyAndRepairRates(const string symbol, const ENUM_TIMEFRAMES period, const int barsCount, const string targetDate, MqlRates &outRates[])
+{
+   int stepSec = PeriodSeconds(period);
+   bool canBuildFromM1 = (period > PERIOD_M1 && stepSec > 60 && stepSec <= 14400 && (stepSec % 60) == 0);
+   int mult = canBuildFromM1 ? (stepSec / 60) : 1;
+   ENUM_TIMEFRAMES fetchTf = canBuildFromM1 ? PERIOD_M1 : period;
+   int fetchCount = canBuildFromM1 ? MathMin(15000, barsCount * mult + mult) : barsCount;
+   MqlRates raw[]; ArraySetAsSeries(raw, false);
+   int total = 0;
+   if(targetDate != "")
+   {
+      datetime dStart = StringToTime(targetDate + " 00:00:00");
+      datetime dEnd   = StringToTime(targetDate + " 23:59:59");
+      if(dStart > 0 && dEnd >= dStart) total = CopyRates(symbol, fetchTf, dStart, dEnd, raw);
+   }
+   else total = CopyRates(symbol, fetchTf, 0, fetchCount, raw);
+   if(total <= 0) return 0;
+   FillGapsFromRealTicks(symbol, fetchTf, raw, total);
+   if(!canBuildFromM1)
+   {
+      ArrayFree(outRates); ArrayCopy(outRates, raw);
+      return total;
+   }
+   ArrayResize(outRates, 0, (total / mult) + 16);
+   datetime curBucket = 0;
+   MqlRates agg; ZeroMemory(agg); bool hasAgg = false;
+   for(int i = 0; i < total; i++)
+   {
+      datetime bucket = (datetime)(raw[i].time - (raw[i].time % stepSec));
+      if(!hasAgg || bucket != curBucket)
+      {
+         if(hasAgg)
+         {
+            int n = ArraySize(outRates); ArrayResize(outRates, n + 1, 64);
+            outRates[n] = agg;
+         }
+         curBucket = bucket;
+         ZeroMemory(agg);
+         agg.time = bucket;
+         agg.open = raw[i].open;
+         agg.high = raw[i].high;
+         agg.low  = raw[i].low;
+         agg.close = raw[i].close;
+         agg.tick_volume = raw[i].tick_volume;
+         agg.real_volume = raw[i].real_volume;
+         hasAgg = true;
+      }
+      else
+      {
+         if(raw[i].high > agg.high) agg.high = raw[i].high;
+         if(raw[i].low < agg.low) agg.low = raw[i].low;
+         agg.close = raw[i].close;
+         agg.tick_volume += raw[i].tick_volume;
+         agg.real_volume += raw[i].real_volume;
+      }
+   }
+   if(hasAgg)
+   {
+      int n = ArraySize(outRates); ArrayResize(outRates, n + 1, 64);
+      outRates[n] = agg;
+   }
+   int aggTotal = ArraySize(outRates);
+   if(targetDate == "" && aggTotal > barsCount)
+   {
+      MqlRates sliced[];
+      ArrayCopy(sliced, outRates, 0, aggTotal - barsCount, barsCount);
+      ArrayFree(outRates); ArrayCopy(outRates, sliced);
+      aggTotal = barsCount;
+   }
+   return aggTotal;
+}
 void SendCandlesData(const string symbol, const ENUM_TIMEFRAMES period, const string requestId, const int barsCount, const bool isDelta = false, const string targetDate = "")
 {
    // Verifica se o ativo jÃ¡ estava visÃ­vel na ObservaÃ§Ã£o do Mercado antes
@@ -852,34 +923,8 @@ void SendCandlesData(const string symbol, const ENUM_TIMEFRAMES period, const st
    int total = 0;
    datetime dStart = 0;
    datetime dEnd = 0;
-   if(targetDate != "")
-   {
-      string mqlDate = targetDate;
-      StringReplace(mqlDate, "-", ".");
-      dStart = StringToTime(mqlDate + " 00:00:00");
-      dEnd = StringToTime(mqlDate + " 23:59:59");
-      total = CopyRates(symbol, period, dStart, dEnd, rates);
-   }
-   else
-   {
-      total = CopyRates(symbol, period, 0, MathMax(2, barsCount), rates);
-   }
-
-   // Se acabou de ser adicionado agora, dÃ¡ 250ms para a corretora entregar o histÃ³rico
-   if(total <= 0 && !wasSelected)
-   {
-      Sleep(500);
-      total = (targetDate != "") ? CopyRates(symbol, period, dStart, dEnd, rates) : CopyRates(symbol, period, 0, MathMax(2, barsCount), rates);
-   }
-
-   // Se nÃ£o estava na ObservaÃ§Ã£o do Mercado antes, remove para nÃ£o poluir sua lista
-   if(!wasSelected)
-   {
-      TrackTempSymbol(symbol);
-   }
-
+   total = CopyAndRepairRates(symbol, period, barsCount, targetDate, rates);
    if(total <= 0) return;
-   FillGapsFromRealTicks(symbol, period, rates, total);
    {
       int stepSec = PeriodSeconds(period);
       string gapsLog = "";
