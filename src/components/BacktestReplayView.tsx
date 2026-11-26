@@ -103,7 +103,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
   const [candleStatus, setCandleStatus] = useState('Carregue velas do MT5 ou gere uma amostra para simular.');
   const [replayBars, setReplayBars] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [speedMs, setSpeedMs] = useState(300);
+  const [speedMs, setSpeedMs] = useState(600);
   const [isChartMaximized, setIsChartMaximized] = useState(false);
 
   const chartWrapRef = useRef<HTMLDivElement | null>(null);
@@ -364,7 +364,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
 
         <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] px-4 py-3 flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button" disabled={candles.length === 0} onClick={() => setIsPlaying((p) => !p)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold cursor-pointer disabled:opacity-40">
+            <button type="button" disabled={candles.length === 0} onClick={() => { if (!isPlaying && replayBars >= candles.length) setReplayBars(Math.min(10, candles.length)); setIsPlaying((p) => !p); }} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold cursor-pointer disabled:opacity-40">
               {isPlaying ? <><Pause className="w-3.5 h-3.5" /><span>Pausar</span></> : <><Play className="w-3.5 h-3.5" /><span>Play Replay</span></>}
             </button>
             <button type="button" disabled={candles.length === 0 || replayBars >= candles.length} onClick={() => { setIsPlaying(false); setReplayBars((p) => Math.min(candles.length, p + 1)); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-gray-200 text-xs cursor-pointer disabled:opacity-40">
@@ -381,7 +381,10 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
             <span>{candleStatus}</span>
             {candles.length > 0 && <span className="px-2 py-0.5 rounded bg-[#090D12] border border-[#1E2633] text-gray-200">Vela {replayBars} / {candles.length}</span>}
             <select value={speedMs} onChange={(e) => setSpeedMs(Number(e.target.value))} className="px-2 py-1 rounded bg-[#090D12] border border-[#1E2633] text-xs text-gray-200">
-              <option value={600}>1x</option><option value={200}>3x</option><option value={60}>10x</option>
+              <option value={1200}>0.5x</option>
+              <option value={600}>1x</option>
+              <option value={200}>3x</option>
+              <option value={60}>10x</option>
             </select>
           </div>
         </div>
