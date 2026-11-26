@@ -36,8 +36,9 @@ export function EquityBaselineChart({ todayTrades, historyTrades, floatingPnlBrl
   const seriesRef = useRef<ISeriesApi<'Baseline'> | null>(null);
   const labelMapRef = useRef<Map<number, string>>(new Map());
   const modeRef = useRef<'today' | 'history'>(mode);
-  const sessionStartSecRef = useRef<number>(Math.floor(Date.now() / 60000) * 60);
-  const fallbackDayIsoRef = useRef<string>(new Date().toISOString().slice(0, 10));
+  const tzOffsetSec = new Date().getTimezoneOffset() * 60;
+  const sessionStartSecRef = useRef<number>(Math.floor((Date.now() / 1000 - tzOffsetSec) / 60) * 60);
+  const fallbackDayIsoRef = useRef<string>(new Date(Date.now() - tzOffsetSec * 1000).toISOString().slice(0, 10));
 
   modeRef.current = mode;
 

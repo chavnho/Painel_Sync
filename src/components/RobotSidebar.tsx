@@ -3,7 +3,7 @@ import { AlertOctagon, Check, Eye, EyeOff, Loader2, Pencil, Radio, X, XCircle } 
 import type { AccountSnapshot, DashboardView, RemoteCommand, RobotStream } from '../types/trading';
 import { formatBrl } from '../utils/tradingMath';
 import { loadOrCreateMt5SyncCredentials, sendRemoteCommand } from '../utils/mt5Bridge';
-import { ROBOT_COLORS, getPnlTextClass, getRobotColorTheme,  } from '../utils/themeTokens';
+import { getRobotColorTheme } from '../utils/themeTokens';
 
 interface RobotSidebarProps {
   robots: RobotStream[];

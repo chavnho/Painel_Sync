@@ -71,7 +71,7 @@ export function Mt5BridgeView({
               Conectar Terminal MetaTrader 5
             </h1>
             <p className="text-xs text-gray-400">
-              Espelhamento em tempo real via POST + SSE · 100% somente leitura
+              Espelhamento em tempo real via POST + SSE e comandos remotos autenticados
             </p>
           </div>
 
@@ -97,11 +97,11 @@ export function Mt5BridgeView({
           onClearPairingLog={onClearPairingLog}
         />
 
-        {/* Garantia Somente Leitura */}
+        {/* Aviso de Autentica??o e Comandos Remotos */}
         <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] px-5 py-3.5 flex items-center gap-3 text-xs text-emerald-400">
           <ShieldCheck className="w-4 h-4 shrink-0" />
           <span>
-            Segurança: o Painel Sync nunca envia ou modifica ordens na sua conta. Todos os conectores apenas leem posições, candles e histórico do dia.
+            Seguran?a: al?m do espelhamento em tempo real, o conector aceita comandos remotos (encerrar posi??es, cancelar ordens e zerar conta) autenticados exclusivamente pelo Token do Canal. Mantenha seu token em sigilo.
           </span>
         </div>
 
@@ -187,7 +187,7 @@ export function Mt5BridgeView({
                 Expert Advisor MQL5 (PainelSync.mq5)
               </h2>
               <p className="text-xs text-gray-400">
-                Conector nativo do MetaTrader 5 · Multi-Robô e Multi-Ativo (100% somente leitura)
+                Conector nativo do MetaTrader 5 ? Multi-Rob?, Multi-Ativo e Execu??o Remota
               </p>
             </div>
 

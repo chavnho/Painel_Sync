@@ -385,6 +385,9 @@ export function TradingChartView({
 
   
  
+  const symbolRobotsRef = useRef(symbolRobots);
+  symbolRobotsRef.current = symbolRobots;
+
   // 1ª carga: Snapshot (150 velas se ainda não estiver em cache)
   // Ciclos seguintes (a cada 2s): lê direto da RAM do servidor com focus=1 (sem criar pedidos na fila)
   useEffect(() => {
@@ -406,7 +409,7 @@ export function TradingChartView({
               activeSymbol,
               mt5Tf,
               {
-                force: forceRefreshRef.current || !symbolRobots.some((r) => (r.timeframe || '').toUpperCase() === selectedTf.toUpperCase() || (r.candlesByTimeframe?.[selectedTf.toUpperCase()]?.length ?? 0) > 0),
+                force: forceRefreshRef.current || !symbolRobotsRef.current.some((r) => (r.timeframe || '').toUpperCase() === selectedTf.toUpperCase() || (r.candlesByTimeframe?.[selectedTf.toUpperCase()]?.length ?? 0) > 0),
                 timeoutMs: 8000,
                 intervalMs: 800,
                 signal: controller.signal,

@@ -128,9 +128,9 @@ export interface AccountSnapshot {
 export interface PairingAttemptEvent {
   id: string;
   timestamp: string;
-  outcome: 'success' | 'error' | 'info';
+  outcome: 'success' | 'error' | 'info' | 'request';
   httpStatus: number;
-  source: 'mt5' | 'ping' | 'unknown';
+  source: 'mt5' | 'ping' | 'backend' | 'frontend' | 'unknown';
   category?: 'orders' | 'positions' | 'connection' | 'server';
   summary: string;
   detail: string;

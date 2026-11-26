@@ -31,8 +31,10 @@ type ProbeState =
   | { status: 'blocked'; reason: string; checkedAt: string };
 
 const SOURCE_LABELS: Record<PairingAttemptEvent['source'], string> = {
-  mt5: 'MT5 EA',
+  mt5: 'MT5',
   ping: 'Teste Canal',
+  backend: 'Servidor',
+  frontend: 'Painel',
   unknown: 'Externo',
 };
 
@@ -290,6 +292,7 @@ export function LivePairingMonitor({
           {visibleEvents.map((evt, index) => {
             const isSuccess = evt.outcome === 'success';
             const isError = evt.outcome === 'error';
+            const isRequest = evt.outcome === 'request';
             const timeFormatted = new Date(evt.timestamp).toLocaleTimeString('pt-BR');
 
             return (
@@ -319,7 +322,7 @@ export function LivePairingMonitor({
                               : 'text-sky-300'
                         }`}
                       >
-                        {isSuccess ? 'Sucesso' : isError ? 'Erro' : 'Info'}
+                        {isSuccess ? 'Sucesso' : isError ? 'Erro' : isRequest ? 'Pedido' : 'Info'}
                       </span>
                       <span className="text-gray-200 font-medium">{evt.summary}</span>
                     </div>
@@ -331,7 +334,7 @@ export function LivePairingMonitor({
 
                 <div className="shrink-0 text-right font-mono tabular-nums text-[11px] text-gray-400 space-y-0.5">
                   <div>
-                    <span>{SOURCE_LABELS[evt.source]}</span>
+                    <span>{SOURCE_LABELS[evt.source] ?? 'Servidor'}</span>
                     <span aria-hidden="true"> · </span>
                     <span
                       className={
