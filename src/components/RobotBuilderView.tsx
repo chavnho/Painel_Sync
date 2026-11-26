@@ -163,7 +163,7 @@ export function RobotBuilderView({ creds }: RobotBuilderViewProps) {
   };
 
   const strategyLabel = (st: ManagedStrategyType) =>
-    st === 'ema_cross' ? 'Cruzamento de M?dias' : st === 'rsi_reversal' ? 'Revers?o IFR (RSI)' : 'Rompimento de Canal';
+    st === 'ema_cross' ? 'Cruzamento de Médias' : st === 'rsi_reversal' ? 'Reversão IFR (RSI)' : 'Rompimento de Canal';
 
   return (
     <div className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -172,25 +172,25 @@ export function RobotBuilderView({ creds }: RobotBuilderViewProps) {
           <div>
             <h1 className="font-display text-xl font-bold text-gray-100 flex items-center gap-2">
               <Bot className="w-5 h-5 text-emerald-400" />
-              <span>Rob?s Gerenciados pelo App</span>
+              <span>Robôs Gerenciados pelo App</span>
             </h1>
             <p className="text-xs text-gray-400 mt-0.5">
-              Crie estrat?gias no painel e envie ordens automaticamente pelo Servi?o do MetaTrader 5 sem compilar EAs externos.
+              Crie estratégias no painel e envie ordens automaticamente pelo Serviço do MetaTrader 5 sem compilar EAs externos.
             </p>
           </div>
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-950/30 border border-amber-500/30 text-[11px] text-amber-300">
             <ShieldAlert className="w-3.5 h-3.5 shrink-0" />
-            <span>Novos rob?s iniciam pausados por seguran?a</span>
+            <span>Novos robôs iniciam pausados por segurança</span>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           <form onSubmit={handleSubmit} className="lg:col-span-5 rounded-xl bg-[#0F141C] border border-[#1E2633] p-5 space-y-4">
             <div className="flex items-center justify-between border-b border-[#1E2633] pb-3">
-              <h2 className="text-sm font-semibold text-gray-100">{editingId ? 'Editar Rob?' : 'Novo Rob?'}</h2>
+              <h2 className="text-sm font-semibold text-gray-100">{editingId ? 'Editar Robô' : 'Novo Robô'}</h2>
               {editingId && (
                 <button type="button" onClick={resetForm} className="text-xs text-gray-400 hover:text-gray-200 inline-flex items-center gap-1 cursor-pointer">
-                  <X className="w-3.5 h-3.5" /> Cancelar edi??o
+                  <X className="w-3.5 h-3.5" /> Cancelar edição
                 </button>
               )}
             </div>
@@ -199,7 +199,7 @@ export function RobotBuilderView({ creds }: RobotBuilderViewProps) {
 
             <div className="space-y-3">
               <div>
-                <label className="block text-[11px] text-gray-400 mb-1">Nome do Rob?</label>
+                <label className="block text-[11px] text-gray-400 mb-1">Nome do Robô</label>
                 <input type="text" required value={name} onChange={(e) => setName(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#090D12] border border-[#1E2633] text-xs text-gray-100 focus:outline-none focus:border-emerald-500" />
               </div>
 
@@ -221,11 +221,11 @@ export function RobotBuilderView({ creds }: RobotBuilderViewProps) {
               </div>
 
               <div>
-                <label className="block text-[11px] text-gray-400 mb-1">Estrat?gia</label>
+                <label className="block text-[11px] text-gray-400 mb-1">Estratégia</label>
                 <select value={strategyType} onChange={(e) => setStrategyType(e.target.value as ManagedStrategyType)} className="w-full px-3 py-2 rounded-lg bg-[#090D12] border border-[#1E2633] text-xs text-gray-100 focus:outline-none focus:border-emerald-500">
-                  <option value="ema_cross">Cruzamento de M?dias (EMA / SMA)</option>
-                  <option value="rsi_reversal">Revers?o por IFR / RSI</option>
-                  <option value="breakout">Rompimento de M?xima / M?nima</option>
+                  <option value="ema_cross">Cruzamento de Médias (EMA / SMA)</option>
+                  <option value="rsi_reversal">Reversão por IFR / RSI</option>
+                  <option value="breakout">Rompimento de Máxima / Mínima</option>
                 </select>
               </div>
 
@@ -239,11 +239,11 @@ export function RobotBuilderView({ creds }: RobotBuilderViewProps) {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[10px] text-gray-400 mb-1">M?dia R?pida</label>
+                    <label className="block text-[10px] text-gray-400 mb-1">Média Rápida</label>
                     <input type="number" min={2} max={200} value={fastPeriod} onChange={(e) => setFastPeriod(Number(e.target.value))} className="w-full px-2 py-1.5 rounded bg-[#0F141C] border border-[#1E2633] text-xs font-mono text-gray-100" />
                   </div>
                   <div>
-                    <label className="block text-[10px] text-gray-400 mb-1">M?dia Lenta</label>
+                    <label className="block text-[10px] text-gray-400 mb-1">Média Lenta</label>
                     <input type="number" min={3} max={400} value={slowPeriod} onChange={(e) => setSlowPeriod(Number(e.target.value))} className="w-full px-2 py-1.5 rounded bg-[#0F141C] border border-[#1E2633] text-xs font-mono text-gray-100" />
                   </div>
                 </div>
@@ -252,7 +252,7 @@ export function RobotBuilderView({ creds }: RobotBuilderViewProps) {
               {strategyType === 'rsi_reversal' && (
                 <div className="grid grid-cols-3 gap-2.5 p-3 rounded-lg bg-[#090D12] border border-[#1E2633]">
                   <div>
-                    <label className="block text-[10px] text-gray-400 mb-1">Per?odo IFR</label>
+                    <label className="block text-[10px] text-gray-400 mb-1">Período IFR</label>
                     <input type="number" min={2} max={100} value={rsiPeriod} onChange={(e) => setRsiPeriod(Number(e.target.value))} className="w-full px-2 py-1.5 rounded bg-[#0F141C] border border-[#1E2633] text-xs font-mono text-gray-100" />
                   </div>
                   <div>
@@ -274,7 +274,7 @@ export function RobotBuilderView({ creds }: RobotBuilderViewProps) {
               )}
 
               <div className="pt-2 border-t border-[#1E2633] space-y-2.5">
-                <div className="text-[11px] font-semibold text-gray-300">Gest?o de Risco & Hor?rios</div>
+                <div className="text-[11px] font-semibold text-gray-300">Gestão de Risco & Horários</div>
                 <div className="grid grid-cols-3 gap-2.5">
                   <div>
                     <label className="block text-[10px] text-gray-400 mb-1">Volume</label>
@@ -291,7 +291,7 @@ export function RobotBuilderView({ creds }: RobotBuilderViewProps) {
                 </div>
                 <div className="grid grid-cols-3 gap-2.5">
                   <div>
-                    <label className="block text-[10px] text-gray-400 mb-1">In?cio</label>
+                    <label className="block text-[10px] text-gray-400 mb-1">Início</label>
                     <input type="time" value={risk.startTime} onChange={(e) => setRisk({ ...risk, startTime: e.target.value })} className="w-full px-2 py-1.5 rounded bg-[#090D12] border border-[#1E2633] text-xs font-mono text-gray-100" />
                   </div>
                   <div>
@@ -308,20 +308,20 @@ export function RobotBuilderView({ creds }: RobotBuilderViewProps) {
 
             <button type="submit" disabled={saving} className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors cursor-pointer disabled:opacity-60">
               <Plus className="w-4 h-4" />
-              <span>{saving ? 'Salvando...' : editingId ? 'Salvar Altera??es' : 'Criar Rob? (Pausado)'}</span>
+              <span>{saving ? 'Salvando...' : editingId ? 'Salvar Alterações' : 'Criar Robô (Pausado)'}</span>
             </button>
           </form>
 
           <div className="lg:col-span-7 space-y-3">
             {loading ? (
               <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] p-8 text-center text-xs text-gray-400">
-                Carregando rob?s gerenciados...
+                Carregando robôs gerenciados...
               </div>
             ) : robots.length === 0 ? (
               <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] p-8 text-center space-y-2">
-                <div className="text-sm font-medium text-gray-200">Nenhum rob? criado no painel ainda</div>
+                <div className="text-sm font-medium text-gray-200">Nenhum robô criado no painel ainda</div>
                 <p className="text-xs text-gray-400 max-w-md mx-auto">
-                  Configure uma estrat?gia ao lado. Assim que voc? clicar em Ligar, o servidor avaliar? os candles e enviar? as ordens pelo Servi?o do MT5.
+                  Configure uma estratégia ao lado. Assim que você clicar em Ligar, o servidor avaliará os candles e enviará as ordens pelo Serviço do MT5.
                 </p>
               </div>
             ) : (
@@ -372,9 +372,9 @@ export function RobotBuilderView({ creds }: RobotBuilderViewProps) {
                   <div className="px-3 py-2 rounded-lg bg-[#090D12] border border-[#1E2633] flex items-center justify-between gap-2 text-[11px] font-mono text-gray-300">
                     <span className="inline-flex items-center gap-1.5 truncate">
                       <CheckCircle2 className={`w-3.5 h-3.5 shrink-0 ${bot.enabled ? 'text-emerald-400' : 'text-gray-500'}`} />
-                      <span className="truncate">{bot.lastDecision || 'Aguardando pr?ximo ciclo de candles...'}</span>
+                      <span className="truncate">{bot.lastDecision || 'Aguardando próximo ciclo de candles...'}</span>
                     </span>
-                    <span className="text-gray-500 shrink-0">{bot.risk.startTime}?{bot.risk.endTime}</span>
+                    <span className="text-gray-500 shrink-0">{bot.risk.startTime}–{bot.risk.endTime}</span>
                   </div>
                 </div>
               ))
