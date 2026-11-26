@@ -209,6 +209,19 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     const todayStr = new Date().toISOString().slice(0, 10);
     setReplayDate(todayStr);
 
+    const mergeBars = (prev: LiveCandle[], next: LiveCandle[]): LiveCandle[] => {
+      const map = new Map<number, LiveCandle>();
+      for (const c of prev) {
+        const t = Number(c.time);
+        if (Number.isFinite(t) && t > 0) map.set(t, c);
+      }
+      for (const c of next) {
+        const t = Number(c.time);
+        if (Number.isFinite(t) && t > 0) map.set(t, c);
+      }
+      return Array.from(map.entries()).sort((a, b) => a[0] - b[0]).map(([, c]) => c);
+    };
+
     const pollLive = async (isInitial: boolean) => {
       if (isInitial) {
         setLoadingCandles(true);
@@ -216,16 +229,18 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
       }
       try {
         const list = isInitial
-          ? await syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, timeframe, { force: true, isManualRequest: true })
+          ? await syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, timeframe, { force: true })
           : await fetchCandles(creds.channelId, creds.token, resolvedSymbol, timeframe);
         if (cancelled) return;
         if (list && list.length > 0) {
           const todayBars = list.filter((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) === todayStr);
-          const target = todayBars.length > 0 ? todayBars : list;
+          const incoming = todayBars.length > 0 ? todayBars : list;
           setCandles((prev) => {
+            const target = isInitial ? incoming : mergeBars(prev, incoming);
             const lastPrev = prev.at(-1);
             const lastNext = target.at(-1);
             if (
+              !isInitial &&
               prev.length === target.length &&
               lastPrev?.time === lastNext?.time &&
               lastPrev?.close === lastNext?.close &&
