@@ -63,7 +63,7 @@ function generateSampleCandles(symbol: string, count = 350): LiveCandle[] {
   const isWdo = /^(WDO|DOL)/i.test(symbol);
   const step = isWdo ? 0.5 : /^(WIN|IND)/i.test(symbol) ? 5 : 0.01;
   let price = isWdo ? 5800 : /^(WIN|IND)/i.test(symbol) ? 128500 : 38.5;
-  const nowSec = Math.floor(Date.now() / 1000) - count * 300;
+  const nowSec = Math.floor(Date.now() / 1000) - 3 * 3600 - count * 300;
   const out: LiveCandle[] = [];
   for (let i = 0; i < count; i++) {
     const wave = Math.sin(i / 14) * step * 6 + (Math.random() - 0.5) * step * 8;
@@ -72,7 +72,7 @@ function generateSampleCandles(symbol: string, count = 350): LiveCandle[] {
     const high = Number((Math.max(open, close) + Math.abs(Math.random() * step * 5)).toFixed(2));
     const low = Number((Math.min(open, close) - Math.abs(Math.random() * step * 5)).toFixed(2));
     const ts = nowSec + i * 300;
-    const d = new Date(ts * 1000);
+    const d = new Date((ts + 3 * 3600) * 1000);
     const timeLabel = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
     out.push({ index: i, time: ts, timeLabel, open, high, low, close, volume: Math.floor(100 + Math.random() * 900) });
     price = close;

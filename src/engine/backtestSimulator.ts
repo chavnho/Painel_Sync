@@ -65,7 +65,7 @@ function normalizeEpochSec(raw: unknown, fallbackSec: number): number {
 function formatUnixBrt(tsSec: number): { dateKey: string; label: string } {
   const d = new Date(tsSec * 1000);
   const parts = new Intl.DateTimeFormat("pt-BR", {
-    timeZone: "America/Sao_Paulo",
+    timeZone: "UTC",
     day: "2-digit",
     month: "2-digit",
     hour: "2-digit",
@@ -201,7 +201,7 @@ export function runBacktestSimulation(input: {
       openPosition: openPosView,
       dailyPnlBrl: dailyRealizedBrl + floatingPnlBrl,
       hasPendingCommand: false,
-      now: new Date(barTs * 1000),
+      now: new Date((barTs + 3 * 3600) * 1000),
     });
 
     lastDecision = evalRes.decision;
