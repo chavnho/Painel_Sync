@@ -21,6 +21,7 @@ import {
   Minimize2,
   Pause,
   Play,
+  Radio,
   RotateCcw,
   Settings2,
   SkipForward,
@@ -107,6 +108,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
   const [candleStatus, setCandleStatus] = useState('Clique em Carregar Replay para carregar o hist\u00f3rico real.');
   const [replayBars, setReplayBars] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isLiveMode, setIsLiveMode] = useState(false);
   const [speedMs, setSpeedMs] = useState(600);
   const [isChartMaximized, setIsChartMaximized] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -155,6 +157,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
   }, [upperSym, mappedContract]);
 
   const handleLoadMt5Candles = async () => {
+    setIsLiveMode(false);
     setIsPlaying(false);
     setLoadingCandles(true);
     setCandleStatus(`Carregando pregão ${replayDate.split('-').reverse().join('/')} de ${resolvedSymbol} (${timeframe}) no MT5...`);
@@ -199,6 +202,48 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     const filtered = candles.filter((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) === selectedDay);
     return filtered.length > 0 ? filtered : candles;
   }, [candles, selectedDay, availableDays]);
+
+  useEffect(() => {
+    if (!isLiveMode) return;
+    let cancelled = false;
+    const todayStr = new Date().toISOString().slice(0, 10);
+    setReplayDate(todayStr);
+
+    const pollLive = async (isInitial: boolean) => {
+      if (isInitial) {
+        setLoadingCandles(true);
+        setCandleStatus(`Conectando pregão ao vivo de ${resolvedSymbol} (${timeframe})...`);
+      }
+      try {
+        const list = await syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, timeframe, {
+          force: isInitial,
+          isManualRequest: isInitial,
+        });
+        if (cancelled) return;
+        if (list && list.length > 0) {
+          const todayBars = list.filter((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) === todayStr);
+          const target = todayBars.length > 0 ? todayBars : list;
+          setCandles(target);
+          setSelectedDay(todayBars.length > 0 ? todayStr : 'ALL');
+          setReplayBars(target.length);
+          setCandleStatus(`AO VIVO · ${resolvedSymbol} (${timeframe}) · ${target.length} velas (Paper Trading sem ordem real)`);
+        }
+      } catch {
+        if (!cancelled && isInitial) {
+          setCandleStatus('Falha ao conectar ao vivo no MT5. Verifique se o Serviço está ativo.');
+        }
+      } finally {
+        if (!cancelled && isInitial) setLoadingCandles(false);
+      }
+    };
+
+    pollLive(true);
+    const id = window.setInterval(() => { pollLive(false); }, 2500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [isLiveMode, creds.channelId, creds.token, resolvedSymbol, timeframe]);
 
   useEffect(() => {
     if (!isPlaying || activeCandles.length === 0) return;
@@ -425,8 +470,18 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
                 className="bg-[#090D12] border border-[#1E2633] rounded px-2 py-1 text-xs font-mono text-gray-100 focus:outline-none focus:border-emerald-500 cursor-pointer"
               />
             </div>
-            <button type="button" onClick={handleLoadMt5Candles} disabled={loadingCandles} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold cursor-pointer disabled:opacity-60">
-              <Download className="w-3.5 h-3.5" /><span>{loadingCandles ? 'Carregando...' : 'Carregar Replay'}</span>
+            <button type="button" onClick={handleLoadMt5Candles} disabled={loadingCandles && !isLiveMode} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold cursor-pointer disabled:opacity-60">
+              <Download className="w-3.5 h-3.5" /><span>{loadingCandles && !isLiveMode ? 'Carregando...' : 'Carregar Replay'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setIsPlaying(false); setIsLiveMode((prev) => !prev); }}
+              className={isLiveMode
+                ? 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold cursor-pointer ring-2 ring-sky-400/50'
+                : 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-sky-300 text-xs font-semibold cursor-pointer'}
+            >
+              <Radio className={isLiveMode ? 'w-3.5 h-3.5 animate-pulse' : 'w-3.5 h-3.5'} />
+              <span>{isLiveMode ? 'Ao Vivo ON' : 'Ao Vivo (Paper)'}</span>
             </button>
           </div>
         </div>
