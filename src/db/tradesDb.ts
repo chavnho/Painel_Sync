@@ -138,7 +138,7 @@ const selectByAccountStmt = db.prepare(`
     reason
   FROM executed_trades
   WHERE account_login = ?
-  ORDER BY exit_date ASC, exit_time ASC, id ASC
+  ORDER BY exit_date DESC, exit_time DESC, id DESC
   LIMIT 3000
 `);
 
@@ -177,7 +177,7 @@ export function loadPersistedTradesForAccount(
   accountLogin: string
 ): PersistedTradeRecord[] {
   if (!accountLogin) return [];
-  const rows = selectByAccountStmt.all(accountLogin);
+  const rows = selectByAccountStmt.all(accountLogin).reverse();
   return rows.map((r) => ({
     id: String(r.id),
     robotId: String(r.robotId),
@@ -301,7 +301,7 @@ const markCmdDispatchedStmt = db.prepare(`
 const ackCmdStmt = db.prepare(`
   UPDATE command_queue
   SET status = ?, mt5_order_ticket = ?, mt5_position_ticket = ?, retcode = ?, ack_message = ?, updated_at = ?
-  WHERE id = ?
+  WHERE id = ? AND channel_id = ?
 `);
 
 const selectRecentCmdsStmt = db.prepare(`
@@ -311,6 +311,7 @@ const selectRecentCmdsStmt = db.prepare(`
   LIMIT 40
 `);
 
+const pruneOldCmdsStmt = db.prepare(`DELETE FROM command_queue WHERE status IN ('executed', 'failed', 'expired') AND updated_at < ?`);
 const selectCmdByIdStmt = db.prepare(`SELECT * FROM command_queue WHERE id = ?`);
 
 function mapCommandRow(r: Record<string, unknown>): PersistedCommandRecord {
@@ -390,6 +391,7 @@ export function pollAndDispatchPendingCommands(channelId: string): PersistedComm
 }
 
 export function acknowledgeCommand(
+  channelId: string,
   commandId: string,
   payload: {
     status: "executed" | "failed";
@@ -407,7 +409,8 @@ export function acknowledgeCommand(
     Math.trunc(Number(payload.retcode) || 0),
     String(payload.ackMessage || ""),
     nowIso,
-    commandId
+    commandId,
+    channelId
   );
   const rows = selectCmdByIdStmt.all(commandId);
   return rows.length > 0 ? mapCommandRow(rows[0]) : null;
@@ -415,6 +418,8 @@ export function acknowledgeCommand(
 
 export function listRecentCommands(channelId: string): PersistedCommandRecord[] {
   const nowIso = new Date().toISOString();
+  const cutoffIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  pruneOldCmdsStmt.run(cutoffIso);
   expireOldCmdsStmt.run(nowIso, channelId, nowIso);
   return selectRecentCmdsStmt.all(channelId).map(mapCommandRow);
 }
