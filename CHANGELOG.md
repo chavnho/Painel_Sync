@@ -1,19 +1,33 @@
 # Changelog — Painel Sync MT5
 
+## [v0.8.0] - 2026-11-26
+
+### Adicionado
+- **Construtor de Robôs Gerenciados pelo App (`src/db/tradesDb.ts`, `src/engine/robotEngine.ts`, `src/components/RobotBuilderView.tsx`)**:
+  - Persistência em SQLite (`managed_robots`) com alocação automática de `MagicNumber` (9001+), trava de idempotência por candle (`last_signal_bar`) e bloqueio contra comandos duplicados (`hasActiveCommandForMagic`).
+  - Motor matemático puro executado em candles fechados com 3 estratégias (**Cruzamento de Médias EMA/SMA**, **Reversão IFR/RSI** e **Rompimento de Canal**), **Regra de Disparo Personalizável** por gatilho (`onBullishSignal` e `onBearishSignal`: *Comprar*, *Vender* ou *Ignorar*), travas de janela operacional, stop diário e zeragem automática no fim do dia.
+  - Normalização exata de preços e volumes pelo `tickSize`, `digits` e `volumeMin/Step/Max` da corretora/B3 (`resolveSymbolTickSpec`, `snapPriceToTick`, `snapVolumeToLot`).
+- **Sincronização Multi-Ativo & Especificação de Tick no MT5 (`server.ts`, `src/utils/mt5Bridge.ts`, `Painel_Sync.mq5`)**:
+  - Rotas REST CRUD `/api/mt5-sync/:channelId/managed-robots` e `/api/mt5-sync/:channelId/symbol-spec`.
+  - Coleta paralela de candles de todos os ativos configurados nos robôs ativos via `watchSymbols` no Service MQL5 e envio de metadados de tick/lote em `SendSymbolsReport` e `SendCandlesData`.
+- **Simulador de Backtest & Replay Vela a Vela (`src/engine/backtestSimulator.ts`, `src/components/BacktestReplayView.tsx`)**:
+  - Aba **Simulador** no menu superior compartilhando o mesmo motor `evaluateManagedRobot`, com suporte a velas reais do MT5 ou amostra sintética offline.
+  - Gráfico `lightweight-charts` v5 com médias móveis, marcadores de entrada/saída (`C`, `V`, `TP`, `SL`), linhas de posição aberta, modo **Maximizar (ESC)**, controles de Replay (**Play/Pause**, **+1 Vela**, **Zerar**, **100%**) com velocidades `0.5x`, `1x`, `3x` e `10x`, KPIs institucionais e tabela de operações simuladas.
+
 ## [v0.7.2] - 2026-11-25
 
 ### Corrigido & Melhorado
 - **Conector MQL5 / Modo Service (`src/utils/mt5Bridge.ts` + `Painel_Sync.mq5`)**:
   - Adicionado par?metro `InpDefaultTimeframe` e tratamento de `PERIOD_CURRENT` (`_Period == 0`) para evitar que rob?s em modo Service reportem falsamente `M5`.
-  - Substitu?do o parser de delimita??o JSON em `FetchPendingRequest` por `FindJsonClosingDelim` com rastreamento de strings e escapes (`\"`), evitando quebra quando campos textuais cont?m `{`, `}`, `[` ou `]`.
+  - Substitu?do o parser de delimitaéo JSON em `FetchPendingRequest` por `FindJsonClosingDelim` com rastreamento de strings e escapes (`\"`), evitando quebra quando campos textuais cont?m `{`, `}`, `[` ou `]`.
   - Alinhado timeout de limpeza de ativo tempor?rio (`g_chartTempIdle >= 10`, 20s), removida diretiva obsoleta `#property strict` e substitu?da a regex de convers?o EA?Service por marcadores expl?citos (`EA_LIFECYCLE_START/END`).
 - **Frontend & Visual (`EquityBaselineChart.tsx`, `LivePairingMonitor.tsx`, `TradingChartView.tsx`, `RobotSidebar.tsx`, `Mt5BridgeView.tsx`)**:
   - Corrigido deslocamento de 3h no gr?fico de equity ao alinhar o timestamp da sess?o ao fuso local da corretora.
   - Adicionados r?tulos e tipos para `source` (`backend`, `frontend`) e `outcome: 'request'` no monitor de pareamento.
   - Eliminado *stale closure* no polling de candles via `symbolRobotsRef`, limpos imports/divs duplicados na barra lateral e atualizados avisos de comandos remotos na tela de conex?o.
 - **Backend, Seguran?a & Limpeza (`server.ts`, `package.json`, `.env.example`, `metadata.json`)**:
-  - Adicionado TTL de 30s na `requestQueue`, valida??o obrigat?ria de token em `GET /pending`, suporte a `Authorization: Bearer` e *rate limiting* leve em `/commands` e `/request`.
-  - Removidos arquivos e fun??es mortas (`queue.ts`, `bridge_commit.ts`, `processQueue`), corrigido `npm start` e `npm run clean` multiplataforma e limpos resqu?cios do AI Studio.
+  - Adicionado TTL de 30s na `requestQueue`, validaéo obrigat?ria de token em `GET /pending`, suporte a `Authorization: Bearer` e *rate limiting* leve em `/commands` e `/request`.
+  - Removidos arquivos e funées mortas (`queue.ts`, `bridge_commit.ts`, `processQueue`), corrigido `npm start` e `npm run clean` multiplataforma e limpos resqu?cios do AI Studio.
 
 ## [v0.7.0] - 2026-11-25
 
