@@ -167,7 +167,7 @@ export function RobotBuilderView({ creds }: RobotBuilderViewProps) {
 
   return (
     <div className="flex-1 overflow-y-auto px-6 py-8 bg-[#090D12]">
-      <div className="space-y-6">
+      <div className="max-w-[1320px] w-full mx-auto space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="font-display text-xl font-bold text-gray-100 flex items-center gap-2">
