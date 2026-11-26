@@ -92,6 +92,8 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
   const markersPluginRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const priceLinesRef = useRef<IPriceLine[]>([]);
   const overlaySeriesRef = useRef<Array<ISeriesApi<'Line'>>>([]);
+  const lastRenderedCountRef = useRef<number>(0);
+  const lastRenderedSeriesRef = useRef<LiveCandle[] | null>(null);
 
   useEffect(() => {
     fetchManagedRobots(creds.channelId, creds.token).then(setSavedRobots).catch(() => {});
@@ -129,8 +131,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     setLoadingCandles(true);
     setCandleStatus(`Carregando pregão ${replayDate.split('-').reverse().join('/')} de ${resolvedSymbol} (${timeframe}) no MT5...`);
     try {
-      let list = await syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, timeframe, { force: true, isManualRequest: true, date: replayDate });
-      if (!list || list.length === 0) list = await fetchCandles(creds.channelId, creds.token, resolvedSymbol, timeframe, undefined, replayDate);
+      const list = await syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, timeframe, { force: true, isManualRequest: true, date: replayDate });
       if (list && list.length > 0) {
         setCandles(list);
         const dayMatches = list.filter((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) === replayDate);
@@ -145,7 +146,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
       } else {
         setCandleStatus(`Nenhuma vela retornada pelo MT5 para ${resolvedSymbol} em ${replayDate.split('-').reverse().join('/')}. Atualize/compile o conector MQL5 ou verifique o histórico.`);
       }
-    } catch {
+    } catch (err) {
       setCandleStatus('Falha ao consultar MT5. Verifique se o Serviço do MT5 está conectado.');
     } finally {
       setLoadingCandles(false);
@@ -169,14 +170,15 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
 
   useEffect(() => {
     if (!isPlaying || activeCandles.length === 0) return;
-    const id = window.setInterval(() => {
-      setReplayBars((prev) => {
-        if (prev >= activeCandles.length) { setIsPlaying(false); return activeCandles.length; }
-        return prev + 1;
-      });
+    if (replayBars >= activeCandles.length) {
+      setIsPlaying(false);
+      return;
+    }
+    const id = window.setTimeout(() => {
+      setReplayBars((prev) => (prev >= activeCandles.length ? activeCandles.length : prev + 1));
     }, speedMs);
-    return () => window.clearInterval(id);
-  }, [isPlaying, speedMs, activeCandles.length]);
+    return () => window.clearTimeout(id);
+  }, [isPlaying, speedMs, replayBars, activeCandles.length]);
 
   const simResult = useMemo(() => {
     if (activeCandles.length < 6) return null;
@@ -227,12 +229,25 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     const chart = chartRef.current;
     const series = candleSeriesRef.current;
     if (!chart || !series) return;
-    const visibleCandles = activeCandles.slice(0, replayBars > 0 ? replayBars : activeCandles.length);
-    const baseSec = Math.floor(Date.now() / 1000) - visibleCandles.length * 60;
+    const targetCount = replayBars > 0 ? Math.min(replayBars, activeCandles.length) : activeCandles.length;
+    const visibleCandles = activeCandles.slice(0, targetCount);
+    const baseSec = Math.floor(Date.now() / 1000) - activeCandles.length * 60;
+    const isStepPlusOne =
+      lastRenderedSeriesRef.current === activeCandles &&
+      targetCount === lastRenderedCountRef.current + 1 &&
+      targetCount > 1;
     const barTimes = visibleCandles.map((c, idx) => toChartTime(c.time, baseSec + idx * 60));
-    series.setData(visibleCandles.map((c, idx) => ({
-      time: barTimes[idx], open: Number(c.open), high: Number(c.high), low: Number(c.low), close: Number(c.close),
-    })));
+    if (isStepPlusOne) {
+      const idx = targetCount - 1;
+      const c = visibleCandles.at(idx)!;
+      series.update({ time: barTimes.at(idx)!, open: Number(c.open), high: Number(c.high), low: Number(c.low), close: Number(c.close) });
+    } else {
+      series.setData(visibleCandles.map((c, idx) => ({
+        time: barTimes.at(idx)!, open: Number(c.open), high: Number(c.high), low: Number(c.low), close: Number(c.close),
+      })));
+    }
+    lastRenderedSeriesRef.current = activeCandles;
+    lastRenderedCountRef.current = targetCount;
     for (const pl of priceLinesRef.current) { try { series.removePriceLine(pl); } catch {} }
     priceLinesRef.current = [];
     const overlays = simResult?.overlays ?? [];
@@ -438,7 +453,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
 
         </div>
       </div>
-      <div className={isChartMaximized ? "fixed bottom-0 inset-x-0 z-50 bg-[#0F141C]/95 backdrop-blur border-t border-[#1E2633] px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 shadow-2xl" : "shrink-0 z-30 w-full bg-[#0F141C] border-t border-[#1E2633] px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 shadow-xl"}>
+      <div className={isChartMaximized ? "fixed bottom-0 inset-x-0 z-50 h-[50px] bg-[#090D12]/95 backdrop-blur border-t border-[#1E2633] px-6 flex items-center justify-between gap-3 shadow-2xl" : "shrink-0 z-30 w-full h-[50px] bg-[#090D12]/60 border-t border-[#1E2633] px-6 flex items-center justify-between gap-3"}>
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" disabled={candles.length === 0} onClick={() => { if (!isPlaying && replayBars >= candles.length) setReplayBars(1); setIsPlaying((p) => !p); }} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold cursor-pointer disabled:opacity-40">
               {isPlaying ? <><Pause className="w-3.5 h-3.5" /><span>Pausar</span></> : <><Play className="w-3.5 h-3.5" /><span>Play Replay</span></>}
