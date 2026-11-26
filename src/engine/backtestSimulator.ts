@@ -56,6 +56,12 @@ function getPointValueBrl(symbol: string): number {
   return 1.0;
 }
 
+function normalizeEpochSec(raw: unknown, fallbackSec: number): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return fallbackSec;
+  return n > 1e11 ? Math.floor(n / 1000) : Math.floor(n);
+}
+
 function formatUnixBrt(tsSec: number): { dateKey: string; label: string } {
   const d = new Date(tsSec * 1000);
   const parts = new Intl.DateTimeFormat("pt-BR", {
@@ -74,16 +80,11 @@ function formatUnixBrt(tsSec: number): { dateKey: string; label: string } {
 }
 
 export function toNormalizedCandles(candles: LiveCandle[]): NormalizedCandle[] {
-  return candles.map((c, idx) => ({
-    index: idx,
-    time: Number(c.time) || 0,
-    timeLabel: formatUnixBrt(Number(c.time) || 0).label,
-    open: Number(c.open),
-    high: Number(c.high),
-    low: Number(c.low),
-    close: Number(c.close),
-    volume: Number(c.volume || 0),
-  }));
+  const baseSec = Math.floor(Date.now() / 1000) - candles.length * 60;
+  return candles.map((c, idx) => {
+    const ts = normalizeEpochSec(c.time, baseSec + idx * 60);
+    return { index: idx, time: ts, timeLabel: formatUnixBrt(ts).label, open: Number(c.open), high: Number(c.high), low: Number(c.low), close: Number(c.close), volume: Number(c.volume || 0) };
+  });
 }
 
 export function runBacktestSimulation(input: {

@@ -421,7 +421,7 @@ export function exportTradesCsv(trades: ExecutedTrade[], filename = 'painel-sync
     ].join(';')
   );
 
-  const csvContent = '\uFEFF' + [header, ...rows].join('\n');
+  const csvContent = '﻿' + [header, ...rows].join('\n');
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -658,7 +658,7 @@ export function exportReportCsv(rows: RobotHistoricalRow[], periodLabel: string)
     ].join(';')
   );
 
-  const csvContent = '\uFEFF' + [header, ...lines].join('\n');
+  const csvContent = '﻿' + [header, ...lines].join('\n');
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');

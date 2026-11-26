@@ -1119,7 +1119,7 @@ async function startServer() {
 
     const channel = mt5Channels.get(channelId);
     if (!channel || channel.token !== token) {
-      res.status(403).json({ error: "Token inv\u00e1lido para este canal." });
+      res.status(403).json({ error: "Token inválido para este canal." });
       return;
     }
 
@@ -1173,7 +1173,7 @@ async function startServer() {
   app.post("/api/mt5-sync/:channelId/request", (req, res) => {
     const channelId = String(req.params.channelId || "").trim();
     if (!checkRateLimit(`req:${channelId}`, 30, 10000)) {
-      res.status(429).json({ error: "Muitas solicita\u00e7\u00f5es de candles. Tente novamente em instantes." });
+      res.status(429).json({ error: "Muitas solicitações de candles. Tente novamente em instantes." });
       return;
     }
     const token = extractSyncToken(req);
@@ -1303,12 +1303,12 @@ async function startServer() {
     const channelId = String(req.params.channelId || "").trim();
     const token = extractSyncToken(req);
     if (!channelId || channelId.length < 4 || !token || token.length < 6) {
-      res.status(401).json({ error: "Canal ou token inv\u00e1lido." });
+      res.status(401).json({ error: "Canal ou token inválido." });
       return;
     }
     const channel = mt5Channels.get(channelId);
     if (!channel || channel.token !== token) {
-      res.status(403).json({ error: "Token inv\u00e1lido para este canal." });
+      res.status(403).json({ error: "Token inválido para este canal." });
       return;
     }
     res.json({ ok: true, commands: listRecentCommands(channelId) });
@@ -1322,19 +1322,19 @@ async function startServer() {
     }
     const token = extractSyncToken(req);
     if (!channelId || channelId.length < 4 || !token || token.length < 6) {
-      res.status(401).json({ error: "Canal ou token inv\u00e1lido." });
+      res.status(401).json({ error: "Canal ou token inválido." });
       return;
     }
     const channel = mt5Channels.get(channelId);
     if (!channel || channel.token !== token) {
-      res.status(403).json({ error: "Token inv\u00e1lido para este canal." });
+      res.status(403).json({ error: "Token inválido para este canal." });
       return;
     }
 
     const validActions = ["CLOSE_MAGIC", "CANCEL_ORDERS", "CLOSE_ALL", "OPEN_ORDER", "MODIFY_SL_TP"];
     const action = String(req.body?.action || "").toUpperCase().trim();
     if (!validActions.includes(action)) {
-      res.status(400).json({ error: "A\u00e7\u00e3o de comando inv\u00e1lida." });
+      res.status(400).json({ error: "Ação de comando inválida." });
       return;
     }
 
@@ -1358,7 +1358,7 @@ async function startServer() {
       httpStatus: 201,
       source: "frontend",
       summary: `Comando criado: ${created.action}${created.magicNumber ? ` (#${created.magicNumber})` : ""}`,
-      detail: `Aguardando execu\u00e7\u00e3o imediata no MT5 (ID ${created.id}).`,
+      detail: `Aguardando execução imediata no MT5 (ID ${created.id}).`,
       requestId: created.id,
       symbol: created.symbol,
       magicNumber: created.magicNumber,
@@ -1377,12 +1377,12 @@ async function startServer() {
     const commandId = String(req.params.commandId || "").trim();
     const token = extractSyncToken(req);
     if (!channelId || channelId.length < 4 || !token || token.length < 6) {
-      res.status(401).json({ error: "Canal ou token inv\u00e1lido." });
+      res.status(401).json({ error: "Canal ou token inválido." });
       return;
     }
     const channel = mt5Channels.get(channelId);
     if (!channel || channel.token !== token) {
-      res.status(403).json({ error: "Token inv\u00e1lido para este canal." });
+      res.status(403).json({ error: "Token inválido para este canal." });
       return;
     }
 
@@ -1392,11 +1392,11 @@ async function startServer() {
       mt5OrderTicket: req.body?.orderTicket ? String(req.body.orderTicket) : undefined,
       mt5PositionTicket: req.body?.positionTicket ? String(req.body.positionTicket) : undefined,
       retcode: Number(req.body?.retcode) || 0,
-      ackMessage: req.body?.message ? String(req.body.message) : (ok ? "Executado no MT5" : "Falha na execu\u00e7\u00e3o"),
+      ackMessage: req.body?.message ? String(req.body.message) : (ok ? "Executado no MT5" : "Falha na execução"),
     });
 
     if (!updated) {
-      res.status(404).json({ error: "Comando n\u00e3o encontrado." });
+      res.status(404).json({ error: "Comando não encontrado." });
       return;
     }
 

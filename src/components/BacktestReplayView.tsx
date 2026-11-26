@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CandlestickSeries,
   ColorType,
@@ -7,7 +7,9 @@ import {
   createChart,
   createSeriesMarkers,
   type IChartApi,
+  type IPriceLine,
   type ISeriesApi,
+  type ISeriesMarkersPluginApi,
   type SeriesMarker,
   type Time,
   type UTCTimestamp,
@@ -15,6 +17,8 @@ import {
 import {
   Download,
   FastForward,
+  Maximize2,
+  Minimize2,
   Pause,
   Play,
   RotateCcw,
@@ -48,12 +52,18 @@ const DEFAULT_RISK: ManagedRobotRisk = {
   reverseOnOpposite: true,
 };
 
-function generateSampleCandles(symbol: string, count = 300): LiveCandle[] {
+function toChartTime(raw: unknown, fallbackSec = 0): UTCTimestamp {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return Math.floor(fallbackSec) as UTCTimestamp;
+  return (n > 1e11 ? Math.floor(n / 1000) : Math.floor(n)) as UTCTimestamp;
+}
+
+function generateSampleCandles(symbol: string, count = 350): LiveCandle[] {
   const isWdo = /^(WDO|DOL)/i.test(symbol);
   const step = isWdo ? 0.5 : /^(WIN|IND)/i.test(symbol) ? 5 : 0.01;
   let price = isWdo ? 5800 : /^(WIN|IND)/i.test(symbol) ? 128500 : 38.5;
   const nowSec = Math.floor(Date.now() / 1000) - count * 300;
-  const out: LiveCandle[] = new Array();
+  const out: LiveCandle[] = [];
   for (let i = 0; i < count; i++) {
     const wave = Math.sin(i / 14) * step * 6 + (Math.random() - 0.5) * step * 8;
     const open = Number(price.toFixed(2));
@@ -70,9 +80,8 @@ function generateSampleCandles(symbol: string, count = 300): LiveCandle[] {
 }
 
 export function BacktestReplayView({ creds, activeContracts }: BacktestReplayViewProps) {
-  const [savedRobots, setSavedRobots] = useState<ManagedRobot[]>(new Array());
-  const [selectedBotId, setSelectedBotId] = useState<string>('');
-
+  const [savedRobots, setSavedRobots] = useState<ManagedRobot[]>([]);
+  const [selectedBotId, setSelectedBotId] = useState('');
   const [botName, setBotName] = useState('Simulação EMA 9x21');
   const [symbol, setSymbol] = useState('WIN$');
   const [timeframe, setTimeframe] = useState<'M1' | 'M5' | 'M15' | 'M30' | 'H1'>('M5');
@@ -86,21 +95,23 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
   const [lookbackBars, setLookbackBars] = useState(10);
   const [risk, setRisk] = useState<ManagedRobotRisk>(DEFAULT_RISK);
 
-  const [candles, setCandles] = useState<LiveCandle[]>(new Array());
+  const [candles, setCandles] = useState<LiveCandle[]>([]);
   const [loadingCandles, setLoadingCandles] = useState(false);
   const [candleStatus, setCandleStatus] = useState('Carregue velas do MT5 ou gere uma amostra para simular.');
-
-  const [replayBars, setReplayBars] = useState<number>(0);
+  const [replayBars, setReplayBars] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [speedMs, setSpeedMs] = useState<number>(300);
+  const [speedMs, setSpeedMs] = useState(300);
+  const [isChartMaximized, setIsChartMaximized] = useState(false);
 
   const chartWrapRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
-  const overlaySeriesRef = useRef<Array<ISeriesApi<'Line'>>>(new Array());
+  const markersPluginRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
+  const priceLinesRef = useRef<IPriceLine[]>([]);
+  const overlaySeriesRef = useRef<Array<ISeriesApi<'Line'>>>([]);
 
   useEffect(() => {
-    fetchManagedRobots(creds.channelId, creds.token).then((list) => setSavedRobots(list)).catch(() => {});
+    fetchManagedRobots(creds.channelId, creds.token).then(setSavedRobots).catch(() => {});
   }, [creds.channelId, creds.token]);
 
   const handleSelectSavedBot = (id: string) => {
@@ -121,31 +132,26 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     setRisk(found.risk);
   };
 
-  const resolveSymbol = useCallback((raw: string) => {
-    const u = raw.trim().toUpperCase();
-    if (u.endsWith('$') && activeContracts) {
-      const active = activeContracts[u.slice(0, -1)];
-      if (active) return active.toUpperCase();
-    }
-    return u || 'WIN$';
-  }, [activeContracts]);
+  const upperSym = symbol.trim().toUpperCase();
+  const mappedContract = upperSym.endsWith('$') && activeContracts ? activeContracts[upperSym.slice(0, -1)] : undefined;
+  const resolvedSymbol = useMemo(() => {
+    if (upperSym.endsWith('$') && mappedContract) return mappedContract.toUpperCase();
+    return upperSym || 'WIN$';
+  }, [upperSym, mappedContract]);
 
   const handleLoadMt5Candles = async () => {
     setIsPlaying(false);
     setLoadingCandles(true);
-    const resolved = resolveSymbol(symbol);
-    setCandleStatus(`Buscando velas de ${resolved} (${timeframe}) no MT5...`);
+    setCandleStatus(`Buscando velas de ${resolvedSymbol} (${timeframe}) no MT5...`);
     try {
-      let list = await syncCandlesWithMt5(creds.channelId, creds.token, resolved, timeframe, { force: true, isManualRequest: true });
-      if (!list || list.length === 0) {
-        list = await fetchCandles(creds.channelId, creds.token, resolved, timeframe);
-      }
+      let list = await syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, timeframe, { force: true, isManualRequest: true });
+      if (!list || list.length === 0) list = await fetchCandles(creds.channelId, creds.token, resolvedSymbol, timeframe);
       if (list && list.length > 0) {
         setCandles(list);
         setReplayBars(list.length);
-        setCandleStatus(`${list.length} velas reais carregadas de ${resolved} (${timeframe}).`);
+        setCandleStatus(`${list.length} velas reais carregadas de ${resolvedSymbol} (${timeframe}).`);
       } else {
-        setCandleStatus(`Nenhuma vela retornada pelo MT5 para ${resolved}. Verifique se o Service está ativo ou use Amostra Sintética.`);
+        setCandleStatus(`Nenhuma vela retornada pelo MT5 para ${resolvedSymbol}. Verifique se o Service está ativo ou use Amostra Sintética.`);
       }
     } catch {
       setCandleStatus('Falha ao consultar MT5. Você pode testar offline usando Amostra Sintética.');
@@ -166,10 +172,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     if (!isPlaying || candles.length === 0) return;
     const id = window.setInterval(() => {
       setReplayBars((prev) => {
-        if (prev >= candles.length) {
-          setIsPlaying(false);
-          return candles.length;
-        }
+        if (prev >= candles.length) { setIsPlaying(false); return candles.length; }
         return prev + 1;
       });
     }, speedMs);
@@ -178,25 +181,26 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
 
   const simResult = useMemo(() => {
     if (candles.length < 6) return null;
-    const params: ManagedRobotParams =
-      strategyType === 'ema_cross'
-        ? { maType, fastPeriod, slowPeriod }
-        : strategyType === 'rsi_reversal'
-          ? { rsiPeriod, oversold, overbought }
-          : { lookbackBars };
+    const params: ManagedRobotParams = strategyType === 'ema_cross'
+      ? { maType, fastPeriod, slowPeriod }
+      : strategyType === 'rsi_reversal'
+        ? { rsiPeriod, oversold, overbought }
+        : { lookbackBars };
     return runBacktestSimulation({
-      robot: { name: botName, magicNumber: 9999, symbol: resolveSymbol(symbol), timeframe, enabled: true, strategyType, params: params as Record<string, unknown>, risk },
+      robot: { name: botName, magicNumber: 9999, symbol: resolvedSymbol, timeframe, enabled: true, strategyType, params: params as Record<string, unknown>, risk },
       candles,
       maxBars: replayBars > 0 ? replayBars : candles.length,
     });
-  }, [candles, replayBars, strategyType, maType, fastPeriod, slowPeriod, rsiPeriod, oversold, overbought, lookbackBars, botName, resolveSymbol, symbol, timeframe, risk]);
+  }, [candles, replayBars, botName, resolvedSymbol, timeframe, strategyType, maType, fastPeriod, slowPeriod, rsiPeriod, oversold, overbought, lookbackBars, risk]);
 
   useEffect(() => {
     const el = chartWrapRef.current;
     if (!el) return;
     const chart = createChart(el, {
-      width: el.clientWidth,
-      height: 360,
+      autoSize: true,
+      kineticScroll: { touch: true, mouse: false },
+      handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+      handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
       layout: { background: { type: ColorType.Solid, color: '#090D12' }, textColor: '#94A3B8' },
       grid: { vertLines: { color: '#1E2633' }, horzLines: { color: '#1E2633' } },
       crosshair: { mode: CrosshairMode.Normal },
@@ -206,16 +210,16 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     const series = chart.addSeries(CandlestickSeries, {
       upColor: '#10B981', downColor: '#EF4444', borderUpColor: '#10B981', borderDownColor: '#EF4444', wickUpColor: '#10B981', wickDownColor: '#EF4444',
     });
+    markersPluginRef.current = createSeriesMarkers(series, []);
     chartRef.current = chart;
     candleSeriesRef.current = series;
-    const onResize = () => { if (chartWrapRef.current) chart.applyOptions({ width: chartWrapRef.current.clientWidth }); };
-    window.addEventListener('resize', onResize);
     return () => {
-      window.removeEventListener('resize', onResize);
       chart.remove();
       chartRef.current = null;
       candleSeriesRef.current = null;
-      overlaySeriesRef.current = new Array();
+      markersPluginRef.current = null;
+      priceLinesRef.current = [];
+      overlaySeriesRef.current = [];
     };
   }, []);
 
@@ -224,29 +228,58 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     const series = candleSeriesRef.current;
     if (!chart || !series) return;
     const visibleCandles = candles.slice(0, replayBars > 0 ? replayBars : candles.length);
-    series.setData(visibleCandles.map((c) => ({ time: Number(c.time) as UTCTimestamp, open: Number(c.open), high: Number(c.high), low: Number(c.low), close: Number(c.close) })));
-    for (const s of overlaySeriesRef.current) { try { chart.removeSeries(s); } catch {} }
-    overlaySeriesRef.current = new Array();
-    if (simResult) {
-      for (const ov of simResult.overlays) {
-        const line = chart.addSeries(LineSeries, { color: ov.color, lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
-        const pts: Array<{ time: UTCTimestamp; value: number }> = new Array();
-        visibleCandles.forEach((c, idx) => {
-          const val = ov.values.at(idx);
-          if (val !== null && val !== undefined) pts.push({ time: Number(c.time) as UTCTimestamp, value: val });
-        });
-        line.setData(pts);
-        overlaySeriesRef.current.push(line);
+    const baseSec = Math.floor(Date.now() / 1000) - visibleCandles.length * 60;
+    const barTimes = visibleCandles.map((c, idx) => toChartTime(c.time, baseSec + idx * 60));
+    series.setData(visibleCandles.map((c, idx) => ({
+      time: barTimes[idx], open: Number(c.open), high: Number(c.high), low: Number(c.low), close: Number(c.close),
+    })));
+    for (const pl of priceLinesRef.current) { try { series.removePriceLine(pl); } catch {} }
+    priceLinesRef.current = [];
+    const overlays = simResult?.overlays ?? [];
+    while (overlaySeriesRef.current.length > overlays.length) {
+      const removed = overlaySeriesRef.current.pop();
+      if (removed) { try { chart.removeSeries(removed); } catch {} }
+    }
+    overlays.forEach((ov, ovIdx) => {
+      let line = overlaySeriesRef.current[ovIdx];
+      if (!line) {
+        line = chart.addSeries(LineSeries, { color: ov.color, lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
+        overlaySeriesRef.current[ovIdx] = line;
+      } else {
+        line.applyOptions({ color: ov.color });
       }
-      const markers: Array<SeriesMarker<Time>> = new Array();
+      const pts: Array<{ time: UTCTimestamp; value: number }> = [];
+      visibleCandles.forEach((_, idx) => {
+        const val = ov.values.at(idx);
+        if (val !== null && val !== undefined) pts.push({ time: barTimes[idx], value: val });
+      });
+      line.setData(pts);
+    });
+    if (simResult) {
+      const markers: Array<SeriesMarker<Time>> = [];
       for (const tr of simResult.trades) {
-        markers.push({ time: tr.entryTime as UTCTimestamp, position: tr.side === 'COMPRA' ? 'belowBar' : 'aboveBar', color: tr.side === 'COMPRA' ? '#10B981' : '#EF4444', shape: tr.side === 'COMPRA' ? 'arrowUp' : 'arrowDown', text: tr.side === 'COMPRA' ? 'C' : 'V' });
-        markers.push({ time: tr.exitTime as UTCTimestamp, position: tr.side === 'COMPRA' ? 'aboveBar' : 'belowBar', color: tr.pnlBrl >= 0 ? '#38BDF8' : '#F59E0B', shape: 'circle', text: tr.exitReason === 'Take Profit' ? 'TP' : tr.exitReason === 'Stop Loss' ? 'SL' : 'X' });
+        markers.push({ time: toChartTime(tr.entryTime), position: tr.side === 'COMPRA' ? 'belowBar' : 'aboveBar', color: tr.side === 'COMPRA' ? '#10B981' : '#EF4444', shape: tr.side === 'COMPRA' ? 'arrowUp' : 'arrowDown', text: tr.side === 'COMPRA' ? 'C' : 'V' });
+        markers.push({ time: toChartTime(tr.exitTime), position: tr.side === 'COMPRA' ? 'aboveBar' : 'belowBar', color: tr.pnlBrl >= 0 ? '#38BDF8' : '#F59E0B', shape: 'circle', text: tr.exitReason === 'Take Profit' ? 'TP' : tr.exitReason === 'Stop Loss' ? 'SL' : 'X' });
       }
       markers.sort((a, b) => Number(a.time) - Number(b.time));
-      createSeriesMarkers(series, markers);
+      markersPluginRef.current?.setMarkers(markers);
+      if (simResult.openPosition) {
+        const op = simResult.openPosition;
+        priceLinesRef.current.push(series.createPriceLine({ price: op.entryPrice, color: op.side === 'COMPRA' ? '#10B981' : '#EF4444', lineWidth: 2, lineStyle: 0, axisLabelVisible: true, title: `${op.side} ${op.volume}x` }));
+        if (op.tp > 0) priceLinesRef.current.push(series.createPriceLine({ price: op.tp, color: '#38BDF8', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'TP' }));
+        if (op.sl > 0) priceLinesRef.current.push(series.createPriceLine({ price: op.sl, color: '#F59E0B', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'SL' }));
+      }
+    } else {
+      markersPluginRef.current?.setMarkers([]);
     }
   }, [candles, replayBars, simResult]);
+
+  useEffect(() => {
+    if (!isChartMaximized) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setIsChartMaximized(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isChartMaximized]);
 
   const formatBrl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -260,12 +293,10 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" onClick={handleLoadMt5Candles} disabled={loadingCandles} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold cursor-pointer disabled:opacity-60">
-              <Download className="w-3.5 h-3.5" />
-              <span>{loadingCandles ? 'Carregando...' : 'Puxar Velas do MT5'}</span>
+              <Download className="w-3.5 h-3.5" /><span>{loadingCandles ? 'Carregando...' : 'Puxar Velas do MT5'}</span>
             </button>
             <button type="button" onClick={handleGenerateSample} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-gray-200 text-xs font-medium cursor-pointer">
-              <Sparkles className="w-3.5 h-3.5 text-sky-400" />
-              <span>Amostra Sintética (Offline)</span>
+              <Sparkles className="w-3.5 h-3.5 text-sky-400" /><span>Amostra Sintética (Offline)</span>
             </button>
           </div>
         </div>
@@ -308,20 +339,19 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
           </div>
         </div>
 
-        <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] px-4 py-3 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <button type="button" disabled={candles.length === 0} onClick={() => { if (replayBars >= candles.length) setReplayBars(10); setIsPlaying((p) => !p); }} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold cursor-pointer disabled:opacity-40">
-              {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-              <span>{isPlaying ? 'Pausar Replay' : 'Iniciar Replay'}</span>
+        <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" disabled={candles.length === 0} onClick={() => setIsPlaying((p) => !p)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold cursor-pointer disabled:opacity-40">
+              {isPlaying ? <><Pause className="w-3.5 h-3.5" /><span>Pausar</span></> : <><Play className="w-3.5 h-3.5" /><span>Play Replay</span></>}
             </button>
-            <button type="button" disabled={candles.length === 0 || replayBars >= candles.length} onClick={() => { setIsPlaying(false); setReplayBars((b) => Math.min(candles.length, (b < 10 ? 10 : b) + 1)); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-gray-200 text-xs cursor-pointer disabled:opacity-40">
+            <button type="button" disabled={candles.length === 0 || replayBars >= candles.length} onClick={() => { setIsPlaying(false); setReplayBars((p) => Math.min(candles.length, p + 1)); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-gray-200 text-xs cursor-pointer disabled:opacity-40">
               <SkipForward className="w-3.5 h-3.5" /><span>+1 Vela</span>
             </button>
             <button type="button" disabled={candles.length === 0} onClick={() => { setIsPlaying(false); setReplayBars(10); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-gray-200 text-xs cursor-pointer disabled:opacity-40">
-              <RotateCcw className="w-3.5 h-3.5" /><span>Zerar Replay</span>
+              <RotateCcw className="w-3.5 h-3.5" /><span>Zerar</span>
             </button>
             <button type="button" disabled={candles.length === 0} onClick={() => { setIsPlaying(false); setReplayBars(candles.length); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-emerald-300 text-xs cursor-pointer disabled:opacity-40">
-              <FastForward className="w-3.5 h-3.5" /><span>Fim (100%)</span>
+              <FastForward className="w-3.5 h-3.5" /><span>100%</span>
             </button>
           </div>
           <div className="flex items-center gap-3 text-xs font-mono text-gray-400">
@@ -363,8 +393,16 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
           </div>
         )}
 
-        <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] p-3">
-          <div ref={chartWrapRef} className="w-full h-[360px]" />
+        <div className={isChartMaximized ? 'fixed inset-0 z-50 w-screen h-screen bg-[#090D12] p-4 flex flex-col gap-2' : 'rounded-xl bg-[#0F141C] border border-[#1E2633] p-3 flex flex-col gap-2'}>
+          <div className="relative z-20 shrink-0 flex items-center justify-between px-1">
+            <span className="text-[11px] font-mono text-gray-400">{resolvedSymbol} · {timeframe} · {botName}</span>
+            <button type="button" onClick={() => setIsChartMaximized((p) => !p)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-xs font-medium text-gray-100 cursor-pointer">
+              {isChartMaximized ? <><Minimize2 className="w-3.5 h-3.5 text-sky-400" /><span>Restaurar (ESC)</span></> : <><Maximize2 className="w-3.5 h-3.5 text-sky-400" /><span>Maximizar</span></>}
+            </button>
+          </div>
+          <div className={isChartMaximized ? 'relative flex-1 w-full min-h-0 overflow-hidden' : 'relative w-full h-[380px] overflow-hidden'}>
+            <div ref={chartWrapRef} className="absolute inset-0" />
+          </div>
         </div>
 
         {simResult && simResult.trades.length > 0 && (
