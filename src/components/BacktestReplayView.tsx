@@ -483,7 +483,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
   return (
     <div className="flex-1 h-full min-h-0 flex flex-col overflow-hidden bg-[#090D12]">
       <div className="flex-1 min-h-0 overflow-y-auto">
-      <div className="max-w-[1320px] w-full mx-auto px-6 pt-8 pb-6 space-y-6">
+      <div className="w-full px-6 py-4 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="font-display text-xl font-bold text-gray-100">Simulador de Backtest & Replay</h1>
@@ -617,7 +617,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
               {isChartMaximized ? <><Minimize2 className="w-3.5 h-3.5 text-sky-400" /><span>Restaurar (ESC)</span></> : <><Maximize2 className="w-3.5 h-3.5 text-sky-400" /><span>Maximizar</span></>}
             </button>
           </div>
-          <div className={isChartMaximized ? 'relative flex-1 w-full min-h-0 overflow-hidden' : 'relative w-full h-[380px] overflow-hidden'}>
+          <div className={isChartMaximized ? 'relative flex-1 w-full min-h-0 overflow-hidden' : 'relative w-full h-[calc(100vh-370px)] min-h-[420px] overflow-hidden'}>
             <div ref={chartWrapRef} className="absolute inset-0" />
           </div>
         </div>
