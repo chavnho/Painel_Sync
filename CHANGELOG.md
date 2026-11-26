@@ -3,6 +3,10 @@
 ## [v0.7.0] - 2026-11-25
 
 ### Adicionado
+- **Canal Bidirecional 1s & Fila Persistente de Comandos (`src/db/tradesDb.ts` + `server.ts` + `Painel_Sync.mq5`)**: Tabela `command_queue` em SQLite com TTL de 15s, endpoints `POST /commands` e `POST /commands/:id/ack`, evento SSE `command_update` e executor MQL5 a cada 1 segundo suportando `CLOSE_MAGIC`, `CANCEL_ORDERS`, `CLOSE_ALL` e `OPEN_ORDER` com log auditável de `retcode`.
+- **Controles Operacionais na Barra Lateral (`src/components/RobotSidebar.tsx` + `src/App.tsx`)**: Botões **Zerar**, **Cancelar (N)** por robô/magic e **Zerar Tudo (Emergência)** no topo da carteira com confirmação em 2 cliques e feedback instantâneo do MetaTrader 5.
+- **Subscrição Automática Temporária de Gráficos (`Painel_Sync.mq5` + `server.ts`)**: Ativação sob demanda de ativos fora da Observação do Mercado (`g_chartTempSym` com limpeza automática após 20s ocioso), sincronização de 500ms no Snapshot e Delta incremental de 50 velas sem lacunas.
+- **Correção de Logs de Ordens e Posições (`Painel_Sync.mq5`)**: Uso de `ArrayFree` antes de `ArrayCopy` em `LogAccountStateChanges()` para evitar repetição de eventos quando o total de ordens ou posições chega a zero.
 - **Modo Serviço MQL5 em 2º Plano (`src/utils/mt5Bridge.ts` + `src/components/ConnectView.tsx`)**: Seletor na aba *Conectar MT5* para gerar o coletor tanto como **Serviço (`MQL5\\Services\\`, `#property service`)** — rodando de forma independente sem precisar de gráfico aberto — quanto como **Expert Advisor (`MQL5\\Experts\\`)**.
 - **Detecção Automática de Rolagem B3 D-1 (`Painel_Sync.mq5` + `server.ts` + `src/components/TradingChartView.tsx`)**: Identificação automática dos contratos vigentes (`WDO`, `WIN`, `IND`, `DOL`, `BIT`) via `SYMBOL_EXPIRATION_TIME` com margem de 1 dia útil antes do vencimento e redirecionamento automático de contratos vencidos no gráfico.
 - **Logs Categorizados no Servidor e MQL5 (`server.ts` + `Painel_Sync.mq5`)**: Emissão automática de eventos de abertura/cancelamento de ordens e abertura/fechamento de posições com filtros por categoria (*Todos*, *Ordens*, *Posições*, *Conexão*, *Servidor*) e parâmetros organizados em grupos (`input group`) no MetaTrader 5.
@@ -29,6 +33,10 @@
 ## - 2026-11-24
 
 ### Adicionado
+- **Canal Bidirecional 1s & Fila Persistente de Comandos (`src/db/tradesDb.ts` + `server.ts` + `Painel_Sync.mq5`)**: Tabela `command_queue` em SQLite com TTL de 15s, endpoints `POST /commands` e `POST /commands/:id/ack`, evento SSE `command_update` e executor MQL5 a cada 1 segundo suportando `CLOSE_MAGIC`, `CANCEL_ORDERS`, `CLOSE_ALL` e `OPEN_ORDER` com log auditável de `retcode`.
+- **Controles Operacionais na Barra Lateral (`src/components/RobotSidebar.tsx` + `src/App.tsx`)**: Botões **Zerar**, **Cancelar (N)** por robô/magic e **Zerar Tudo (Emergência)** no topo da carteira com confirmação em 2 cliques e feedback instantâneo do MetaTrader 5.
+- **Subscrição Automática Temporária de Gráficos (`Painel_Sync.mq5` + `server.ts`)**: Ativação sob demanda de ativos fora da Observação do Mercado (`g_chartTempSym` com limpeza automática após 20s ocioso), sincronização de 500ms no Snapshot e Delta incremental de 50 velas sem lacunas.
+- **Correção de Logs de Ordens e Posições (`Painel_Sync.mq5`)**: Uso de `ArrayFree` antes de `ArrayCopy` em `LogAccountStateChanges()` para evitar repetição de eventos quando o total de ordens ou posições chega a zero.
 - **Persistência de Robôs Ocultos no SQLite**: tabela `robot_preferences` em `data/painel_sync.db`, injeção automática do estado `hidden` no snapshot e rota `PATCH /api/mt5-sync/:channelId/robots/:magicNumber` com atualização imediata via SSE.
 - **Controle Compacto na Sidebar**: botão de ocultar/exibir em cada card de robô e filtro em linha única `Robôs (N)` + `Ocultos (N) / Ocultar` na `RobotSidebar`.
 

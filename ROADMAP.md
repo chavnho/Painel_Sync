@@ -9,6 +9,8 @@
 - [x] Redesign institucional (*Histórico Consolidado* no topo, *Pregão de Hoje*, Drawdown Máximo histórico/diário, `EquityBaselineChart` estabilizado e tabelas com zebra striping).
 - [x] Sistema centralizado de temas (`src/index.css` + `UI_THEME`) com modal ao vivo (*Institucional*, *Obsidiana OLED*, *Azul Ardósia*, *Grafite Suave*).
 
+- [x] **Canal Bidirecional & Comandos Operacionais Remotos**: Fila persistente SQLite (`command_queue`) com TTL de 15s e recibos (`ACK`) em tempo real via SSE (`CLOSE_MAGIC`, `CANCEL_ORDERS`, `CLOSE_ALL`, `OPEN_ORDER`), controles **Zerar**, **Cancelar (N)** e **Zerar Tudo** na sidebar com confirmação dupla, subscrição automática temporária de ativos no gráfico (`g_chartTempSym`) e logs limpos sem repetição (`ArrayFree`).
+
 ## Próximos Passos (v0.8.0+)
 - [ ] **MEP / MEN em Pontos**: Capturar Máxima Excursão Positiva (MFE) e Máxima Excursão Negativa (MAE) por operação no MQL5 e exibir nas tabelas e relatórios.
-- [ ] **Comandos Operacionais Remotos**: Encerrar posição por MagicNumber (`CLOSE_MAGIC`) e cancelar ordens pendentes (`CANCEL_ORDERS`) diretamente pelo painel com confirmação dupla via fila `/pending`.
+
