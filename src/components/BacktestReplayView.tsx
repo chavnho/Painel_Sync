@@ -38,7 +38,7 @@ import type {
   ManagedStrategyType,
   Mt5SyncCredentials,
 } from '../types/trading';
-import { fetchCandles, fetchManagedRobots, syncCandlesWithMt5, updateManagedRobotApi } from '../utils/mt5Bridge';
+import { fetchCandles, fetchManagedRobots, requestCandlesFromMt5, syncCandlesWithMt5, updateManagedRobotApi } from '../utils/mt5Bridge';
 
 interface BacktestReplayViewProps {
   creds: Mt5SyncCredentials;
@@ -209,10 +209,25 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     const todayStr = new Date().toISOString().slice(0, 10);
     setReplayDate(todayStr);
 
+    const mergeByTime = (prev: LiveCandle[], next: LiveCandle[]): LiveCandle[] => {
+      const map = new Map<number, LiveCandle>();
+      for (const c of prev) {
+        const t = Number(c.time);
+        if (Number.isFinite(t) && t > 0) map.set(t, c);
+      }
+      for (const c of next) {
+        const t = Number(c.time);
+        if (Number.isFinite(t) && t > 0) map.set(t, c);
+      }
+      return Array.from(map.entries()).sort((a, b) => a[0] - b[0]).map(([, c]) => c);
+    };
+
     const pollLive = async (isInitial: boolean) => {
       if (isInitial) {
         setLoadingCandles(true);
         setCandleStatus(`Conectando pregão ao vivo de ${resolvedSymbol} (${timeframe})...`);
+      } else {
+        requestCandlesFromMt5(creds.channelId, creds.token, resolvedSymbol, timeframe, pollCount % 5 === 0).catch(() => {});
       }
       try {
         const list = await syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, timeframe, {
@@ -222,11 +237,14 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
         if (cancelled) return;
         if (list && list.length > 0) {
           const todayBars = list.filter((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) === todayStr);
-          const target = todayBars.length > 0 ? todayBars : list;
-          setCandles(target);
+          const incoming = todayBars.length > 0 ? todayBars : list;
+          setCandles((prev) => {
+            const merged = isInitial ? incoming : mergeByTime(prev, incoming);
+            setReplayBars(merged.length);
+            setCandleStatus(`AO VIVO · ${resolvedSymbol} (${timeframe}) · ${merged.length} velas (Paper Trading sem ordem real)`);
+            return merged;
+          });
           setSelectedDay(todayBars.length > 0 ? todayStr : 'ALL');
-          setReplayBars(target.length);
-          setCandleStatus(`AO VIVO · ${resolvedSymbol} (${timeframe}) · ${target.length} velas (Paper Trading sem ordem real)`);
         }
       } catch {
         if (!cancelled && isInitial) {
@@ -237,8 +255,9 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
       }
     };
 
+    let pollCount = 0;
     pollLive(true);
-    const id = window.setInterval(() => { pollLive(false); }, 2500);
+    const id = window.setInterval(() => { pollCount += 1; pollLive(false); }, 3000);
     return () => {
       cancelled = true;
       window.clearInterval(id);
