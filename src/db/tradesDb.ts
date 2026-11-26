@@ -423,3 +423,140 @@ export function listRecentCommands(channelId: string): PersistedCommandRecord[] 
   expireOldCmdsStmt.run(nowIso, channelId, nowIso);
   return selectRecentCmdsStmt.all(channelId).map(mapCommandRow);
 }
+
+export interface PersistedManagedRobot {
+  id: string;
+  channelId: string;
+  name: string;
+  magicNumber: number;
+  symbol: string;
+  timeframe: "M1" | "M5" | "M15" | "M30" | "H1";
+  enabled: boolean;
+  strategyType: "ema_cross" | "rsi_reversal" | "breakout";
+  params: Record<string, unknown>;
+  risk: {
+    volume: number;
+    stopPoints: number;
+    takePoints: number;
+    startTime: string;
+    endTime: string;
+    closeTime: string;
+    maxDailyLossBrl: number;
+    reverseOnOpposite: boolean;
+  };
+  lastSignalBar: number;
+  lastDecision: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS managed_robots (
+    id TEXT PRIMARY KEY,
+    channel_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    magic_number INTEGER NOT NULL,
+    symbol TEXT NOT NULL,
+    timeframe TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 0,
+    strategy_type TEXT NOT NULL,
+    params_json TEXT NOT NULL,
+    risk_json TEXT NOT NULL,
+    last_signal_bar INTEGER NOT NULL DEFAULT 0,
+    last_decision TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_managed_robots_channel ON managed_robots (channel_id, created_at DESC);
+`);
+
+const insertManagedBotStmt = db.prepare(`
+  INSERT INTO managed_robots (id, channel_id, name, magic_number, symbol, timeframe, enabled, strategy_type, params_json, risk_json, last_signal_bar, last_decision, created_at, updated_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'Aguardando ativacao', ?, ?)
+`);
+const selectManagedBotsByChannelStmt = db.prepare(`SELECT * FROM managed_robots WHERE channel_id = ? ORDER BY created_at DESC`);
+const selectManagedBotByIdStmt = db.prepare(`SELECT * FROM managed_robots WHERE id = ? AND channel_id = ? LIMIT 1`);
+const selectMaxMagicByChannelStmt = db.prepare(`SELECT COALESCE(MAX(magic_number), 9000) AS max_magic FROM managed_robots WHERE channel_id = ?`);
+const updateManagedBotStmt = db.prepare(`UPDATE managed_robots SET name = ?, symbol = ?, timeframe = ?, enabled = ?, strategy_type = ?, params_json = ?, risk_json = ?, updated_at = ? WHERE id = ? AND channel_id = ?`);
+const updateManagedBotSignalStmt = db.prepare(`UPDATE managed_robots SET last_signal_bar = ?, last_decision = ?, updated_at = ? WHERE id = ?`);
+const updateManagedBotDecisionStmt = db.prepare(`UPDATE managed_robots SET last_decision = ?, updated_at = ? WHERE id = ?`);
+const deleteManagedBotStmt = db.prepare(`DELETE FROM managed_robots WHERE id = ? AND channel_id = ?`);
+const countActiveCmdsForMagicStmt = db.prepare(`SELECT COUNT(*) AS cnt FROM command_queue WHERE channel_id = ? AND magic_number = ? AND status IN ('pending', 'dispatched') AND expires_at > ?`);
+
+function mapManagedRobotRow(row: Record<string, unknown>): PersistedManagedRobot {
+  let params: Record<string, unknown> = {};
+  let risk = { volume: 1, stopPoints: 150, takePoints: 300, startTime: "09:05", endTime: "17:15", closeTime: "17:45", maxDailyLossBrl: 500, reverseOnOpposite: true };
+  try { const p = JSON.parse(String(row.params_json || "{}")); if (p && typeof p === "object") params = p; } catch {}
+  try { const r = JSON.parse(String(row.risk_json || "{}")); if (r && typeof r === "object") risk = { ...risk, ...r }; } catch {}
+  const tfRaw = String(row.timeframe || "M5").toUpperCase();
+  const timeframe = (["M1", "M5", "M15", "M30", "H1"].includes(tfRaw) ? tfRaw : "M5") as PersistedManagedRobot["timeframe"];
+  const stRaw = String(row.strategy_type || "ema_cross");
+  const strategyType = (["ema_cross", "rsi_reversal", "breakout"].includes(stRaw) ? stRaw : "ema_cross") as PersistedManagedRobot["strategyType"];
+  return {
+    id: String(row.id || ""),
+    channelId: String(row.channel_id || ""),
+    name: String(row.name || "Robo App"),
+    magicNumber: Number(row.magic_number) || 9001,
+    symbol: String(row.symbol || "WIN$").toUpperCase(),
+    timeframe,
+    enabled: Number(row.enabled) === 1,
+    strategyType,
+    params,
+    risk,
+    lastSignalBar: Number(row.last_signal_bar) || 0,
+    lastDecision: String(row.last_decision || ""),
+    createdAt: String(row.created_at || ""),
+    updatedAt: String(row.updated_at || ""),
+  };
+}
+
+export function listManagedRobots(channelId: string): PersistedManagedRobot[] {
+  return selectManagedBotsByChannelStmt.all(channelId).map(mapManagedRobotRow);
+}
+
+export function createManagedRobot(input: { channelId: string; name: string; magicNumber?: number; symbol: string; timeframe: PersistedManagedRobot["timeframe"]; enabled?: boolean; strategyType: PersistedManagedRobot["strategyType"]; params: Record<string, unknown>; risk: PersistedManagedRobot["risk"]; }): PersistedManagedRobot {
+  const nowIso = new Date().toISOString();
+  const id = `appbot_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  const maxRow = selectMaxMagicByChannelStmt.all(input.channelId).at(0);
+  const nextAutoMagic = Math.max(9001, (Number(maxRow?.max_magic) || 9000) + 1);
+  const magicNumber = input.magicNumber && input.magicNumber > 0 ? Math.trunc(input.magicNumber) : nextAutoMagic;
+  insertManagedBotStmt.run(id, input.channelId, String(input.name || `Robo #${magicNumber}`).trim(), magicNumber, String(input.symbol || "WIN$").trim().toUpperCase(), input.timeframe, input.enabled ? 1 : 0, input.strategyType, JSON.stringify(input.params || {}), JSON.stringify(input.risk || {}), nowIso, nowIso);
+  return mapManagedRobotRow(selectManagedBotByIdStmt.all(id, input.channelId).at(0)!);
+}
+
+export function updateManagedRobot(channelId: string, robotId: string, patch: Partial<{ name: string; symbol: string; timeframe: PersistedManagedRobot["timeframe"]; enabled: boolean; strategyType: PersistedManagedRobot["strategyType"]; params: Record<string, unknown>; risk: PersistedManagedRobot["risk"]; }>): PersistedManagedRobot | null {
+  const existingRow = selectManagedBotByIdStmt.all(robotId, channelId).at(0);
+  if (!existingRow) return null;
+  const cur = mapManagedRobotRow(existingRow);
+  const nowIso = new Date().toISOString();
+  updateManagedBotStmt.run(
+    patch.name !== undefined ? String(patch.name).trim() || cur.name : cur.name,
+    patch.symbol !== undefined ? String(patch.symbol).trim().toUpperCase() || cur.symbol : cur.symbol,
+    patch.timeframe !== undefined ? patch.timeframe : cur.timeframe,
+    (patch.enabled !== undefined ? patch.enabled : cur.enabled) ? 1 : 0,
+    patch.strategyType !== undefined ? patch.strategyType : cur.strategyType,
+    JSON.stringify(patch.params !== undefined ? { ...cur.params, ...patch.params } : cur.params),
+    JSON.stringify(patch.risk !== undefined ? { ...cur.risk, ...patch.risk } : cur.risk),
+    nowIso, robotId, channelId
+  );
+  const updated = selectManagedBotByIdStmt.all(robotId, channelId).at(0);
+  return updated ? mapManagedRobotRow(updated) : null;
+}
+
+export function markManagedRobotSignal(robotId: string, barTime: number, decision: string): void {
+  updateManagedBotSignalStmt.run(Math.trunc(barTime), decision, new Date().toISOString(), robotId);
+}
+
+export function updateManagedRobotDecision(robotId: string, decision: string): void {
+  updateManagedBotDecisionStmt.run(decision, new Date().toISOString(), robotId);
+}
+
+export function deleteManagedRobot(channelId: string, robotId: string): boolean {
+  deleteManagedBotStmt.run(robotId, channelId);
+  return selectManagedBotByIdStmt.all(robotId, channelId).length === 0;
+}
+
+export function hasActiveCommandForMagic(channelId: string, magicNumber: number): boolean {
+  const row = countActiveCmdsForMagicStmt.all(channelId, magicNumber, new Date().toISOString()).at(0);
+  return Number(row?.cnt || 0) > 0;
+}

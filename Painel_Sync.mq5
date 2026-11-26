@@ -714,6 +714,34 @@ void FetchPendingRequest()
          }
       }
    }
+   // 4. Alimenta candles dos robos gerenciados ativos no painel (watchSymbols)
+   int wKey = StringFind(response, "\"watchSymbols\"");
+   if(wKey >= 0)
+   {
+      int wArrStart = StringFind(response, "[", wKey);
+      int wArrEnd   = (wArrStart >= 0) ? FindJsonClosingDelim(response, wArrStart, '[', ']') : -1;
+      if(wArrStart >= 0 && wArrEnd > wArrStart)
+      {
+         int wPos = wArrStart + 1;
+         while(wPos < wArrEnd)
+         {
+            int wObjStart = StringFind(response, "{", wPos);
+            if(wObjStart < 0 || wObjStart >= wArrEnd) break;
+            int wObjEnd = FindJsonClosingDelim(response, wObjStart, '{', '}');
+            if(wObjEnd < 0 || wObjEnd > wArrEnd) break;
+            string wObj = StringSubstr(response, wObjStart, wObjEnd - wObjStart + 1);
+            string wSym = ExtractJsonString(wObj, "symbol");
+            string wTf  = ExtractJsonString(wObj, "timeframe");
+            if(wSym != "" && wTf != "")
+            {
+               TrackTempSymbol(wSym);
+               SendCandlesData(wSym, StringToTimeframe(wTf), "", 80, true);
+            }
+            wPos = wObjEnd + 1;
+         }
+      }
+   }
+
    if(!hasFocus && ArraySize(g_tempSyms) > 0)
    {
       CleanupTempSymbols("", 6);

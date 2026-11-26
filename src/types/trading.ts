@@ -4,6 +4,7 @@ export type DashboardView =
   | 'buy-sell'
   | 'operations'
   | 'reports'
+  | 'robots'
   | 'connect';
 
 export type TradeSide = 'COMPRA' | 'VENDA';
@@ -219,6 +220,46 @@ export interface RemoteCommand {
   mt5PositionTicket?: string;
   retcode?: number;
   ackMessage?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ManagedStrategyType = 'ema_cross' | 'rsi_reversal' | 'breakout';
+
+export interface ManagedRobotParams {
+  maType?: 'EMA' | 'SMA';
+  fastPeriod?: number;
+  slowPeriod?: number;
+  rsiPeriod?: number;
+  oversold?: number;
+  overbought?: number;
+  lookbackBars?: number;
+}
+
+export interface ManagedRobotRisk {
+  volume: number;
+  stopPoints: number;
+  takePoints: number;
+  startTime: string;
+  endTime: string;
+  closeTime: string;
+  maxDailyLossBrl: number;
+  reverseOnOpposite: boolean;
+}
+
+export interface ManagedRobot {
+  id: string;
+  channelId: string;
+  name: string;
+  magicNumber: number;
+  symbol: string;
+  timeframe: 'M1' | 'M5' | 'M15' | 'M30' | 'H1';
+  enabled: boolean;
+  strategyType: ManagedStrategyType;
+  params: ManagedRobotParams;
+  risk: ManagedRobotRisk;
+  lastSignalBar: number;
+  lastDecision: string;
   createdAt: string;
   updatedAt: string;
 }

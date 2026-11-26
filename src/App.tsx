@@ -10,6 +10,7 @@ import { TradesLedgerView } from './components/TradesLedgerView';
 import { TradingChartView } from './components/TradingChartView';
 import { WeeklyMonthlyReportView } from './components/WeeklyMonthlyReportView';
 import { ConnectView } from './components/ConnectView';
+import { RobotBuilderView } from './components/RobotBuilderView';
 import { LiveLogView } from './components/LiveLogView';
 import type {
   DashboardTelemetry,
@@ -336,6 +337,8 @@ export default function App() {
               onNavigate={setActiveView}
             />
           )}
+
+          {activeView === 'robots' && <RobotBuilderView creds={creds} />}
 
           {activeView === 'connect' && (
             <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">

@@ -4,7 +4,8 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import { PendingRequest, PairingAttemptEvent, LiveSyncChannel, NormalizedCandle} from "./types";
-import { persistExecutedTrades, loadPersistedTradesForAccount, setRobotHiddenPreference, loadHiddenMagicsForAccount, enqueueCommand, pollAndDispatchPendingCommands, acknowledgeCommand, listRecentCommands } from "./src/db/tradesDb";
+import { persistExecutedTrades, loadPersistedTradesForAccount, setRobotHiddenPreference, loadHiddenMagicsForAccount, enqueueCommand, pollAndDispatchPendingCommands, acknowledgeCommand, listRecentCommands, listManagedRobots, createManagedRobot, updateManagedRobot, markManagedRobotSignal, updateManagedRobotDecision, deleteManagedRobot, hasActiveCommandForMagic } from "./src/db/tradesDb";
+import { evaluateManagedRobot } from "./src/engine/robotEngine";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -149,6 +150,59 @@ function pushPairingEvent(
   }
 }
 
+
+function resolveManagedSymbol(channel: LiveSyncChannel, rawSymbol: string): string {
+  const sym = String(rawSymbol || "").trim().toUpperCase();
+  if (!sym) return "WIN$";
+  if (sym.endsWith("$") && channel.activeContracts) {
+    const active = channel.activeContracts[sym.slice(0, -1)];
+    if (active) return active.toUpperCase();
+  }
+  return sym;
+}
+
+function getWatchSymbolsForChannel(channelId: string, channel: LiveSyncChannel): Array<{ symbol: string; timeframe: string }> {
+  const seen = new Set<string>();
+  const list: Array<{ symbol: string; timeframe: string }> = [];
+  for (const bot of listManagedRobots(channelId).filter((b) => b.enabled)) {
+    const sym = resolveManagedSymbol(channel, bot.symbol);
+    const tf = bot.timeframe.toUpperCase();
+    const key = `${sym}:${tf}`;
+    if (!seen.has(key)) { seen.add(key); list.push({ symbol: sym, timeframe: tf }); }
+  }
+  return list;
+}
+
+function runManagedRobotsCycle(channelId: string, channel: LiveSyncChannel) {
+  const activeBots = listManagedRobots(channelId).filter((b) => b.enabled);
+  if (activeBots.length === 0) return;
+  for (const bot of activeBots) {
+    const resolvedSymbol = resolveManagedSymbol(channel, bot.symbol);
+    const tf = bot.timeframe.toUpperCase();
+    const candles = chartCandlesCache.get(`${channelId}:${resolvedSymbol}:${tf}`) || [];
+    let openPosition: { side: "COMPRA" | "VENDA"; volume: number; entryPrice: number; currentPrice: number; sl: number; tp: number; floatingPnlBrl: number } | null = null;
+    let dailyPnlBrl = 0;
+    for (const r of channel.robots.values()) {
+      if (Number(r.magicNumber) === bot.magicNumber) {
+        dailyPnlBrl += Number(r.dailyPnlBrl || 0);
+        if (r.position) {
+          openPosition = { side: r.position.side === "VENDA" ? "VENDA" : "COMPRA", volume: Number(r.position.volume || 1), entryPrice: Number(r.position.entryPrice || 0), currentPrice: Number(r.position.currentPrice || 0), sl: Number(r.position.sl || 0), tp: Number(r.position.tp || 0), floatingPnlBrl: Number(r.position.floatingPnlBrl || 0) };
+        }
+      }
+    }
+    const evalRes = evaluateManagedRobot({ robot: bot, candles, resolvedSymbol, openPosition, dailyPnlBrl, hasPendingCommand: hasActiveCommandForMagic(channelId, bot.magicNumber) });
+    if (evalRes.directive) {
+      const cmdId = `cmd_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      const created = enqueueCommand({ id: cmdId, channelId, magicNumber: bot.magicNumber, action: evalRes.directive.type, symbol: evalRes.directive.symbol, side: evalRes.directive.side, volume: evalRes.directive.volume, sl: evalRes.directive.sl, tp: evalRes.directive.tp, ttlSeconds: 15 });
+      markManagedRobotSignal(bot.id, evalRes.directive.barTime, evalRes.decision);
+      pushPairingEvent(channel, { outcome: "request", httpStatus: 201, source: "backend", category: "orders", summary: `Robo ${bot.name} (#${bot.magicNumber}): ${evalRes.directive.type}${evalRes.directive.side ? ` ${evalRes.directive.side}` : ""}`, detail: evalRes.directive.reason, requestId: created.id, symbol: evalRes.directive.symbol, magicNumber: bot.magicNumber });
+      const ssePayload = `event: command_update\ndata: ${JSON.stringify(created)}\n\n`;
+      for (const sub of channel.subscribers) { try { sub.write(ssePayload); } catch {} }
+    } else if (bot.lastDecision !== evalRes.decision) {
+      updateManagedRobotDecision(bot.id, evalRes.decision);
+    }
+  }
+}
 
 function normalizeCandles(raw: unknown): NormalizedCandle[] {
   if (!Array.isArray(raw)) return [];
@@ -966,6 +1020,7 @@ async function startServer() {
     }
 
     channel.updatedAtMs = Date.now();
+    runManagedRobotsCycle(channelId, channel);
     const snapshot = buildSnapshotResponse(channelId, channel);
     const sseData = `event: telemetry\ndata: ${JSON.stringify(snapshot)}\n\n`;
 
@@ -1110,6 +1165,7 @@ async function startServer() {
       commands: pendingCommands,
       requests: responseRequests,
       activeChart: validFocus,
+      watchSymbols: getWatchSymbolsForChannel(channelId, channel),
     });
   });
 
@@ -1166,6 +1222,68 @@ async function startServer() {
       requestId,
       message: "Solicitação adicionada à fila e enviada ao robô."
     });
+  });
+
+  app.get("/api/mt5-sync/:channelId/managed-robots", (req, res) => {
+    const channelId = String(req.params.channelId || "").trim();
+    const token = extractSyncToken(req);
+    const channel = channelId.length >= 4 && token.length >= 6 ? getOrCreateChannel(channelId, token) : null;
+    if (!channel) { res.status(403).json({ error: "Token invalido." }); return; }
+    res.json({ ok: true, robots: listManagedRobots(channelId) });
+  });
+
+  app.post("/api/mt5-sync/:channelId/managed-robots", (req, res) => {
+    const channelId = String(req.params.channelId || "").trim();
+    const token = extractSyncToken(req);
+    const channel = channelId.length >= 4 && token.length >= 6 ? getOrCreateChannel(channelId, token) : null;
+    if (!channel) { res.status(403).json({ error: "Token invalido." }); return; }
+    const b = req.body || {};
+    const tfRaw = String(b.timeframe || "M5").toUpperCase();
+    const timeframe = (["M1", "M5", "M15", "M30", "H1"].includes(tfRaw) ? tfRaw : "M5") as "M1" | "M5" | "M15" | "M30" | "H1";
+    const stRaw = String(b.strategyType || "ema_cross");
+    const strategyType = (["ema_cross", "rsi_reversal", "breakout"].includes(stRaw) ? stRaw : "ema_cross") as "ema_cross" | "rsi_reversal" | "breakout";
+    const created = createManagedRobot({
+      channelId,
+      name: String(b.name || "").trim() || "Robo App",
+      magicNumber: Number(b.magicNumber) || undefined,
+      symbol: String(b.symbol || "WIN$").trim().toUpperCase(),
+      timeframe,
+      enabled: Boolean(b.enabled),
+      strategyType,
+      params: typeof b.params === "object" && b.params ? b.params : {},
+      risk: {
+        volume: Math.max(0.01, Number(b.risk?.volume) || 1),
+        stopPoints: Math.max(0, Number(b.risk?.stopPoints) || 0),
+        takePoints: Math.max(0, Number(b.risk?.takePoints) || 0),
+        startTime: String(b.risk?.startTime || "09:05"),
+        endTime: String(b.risk?.endTime || "17:15"),
+        closeTime: String(b.risk?.closeTime || "17:45"),
+        maxDailyLossBrl: Math.max(0, Number(b.risk?.maxDailyLossBrl) || 0),
+        reverseOnOpposite: b.risk?.reverseOnOpposite !== false,
+      },
+    });
+    res.status(201).json({ ok: true, robot: created });
+  });
+
+  app.patch("/api/mt5-sync/:channelId/managed-robots/:robotId", (req, res) => {
+    const channelId = String(req.params.channelId || "").trim();
+    const robotId = String(req.params.robotId || "").trim();
+    const token = extractSyncToken(req);
+    const channel = channelId.length >= 4 && token.length >= 6 ? getOrCreateChannel(channelId, token) : null;
+    if (!channel) { res.status(403).json({ error: "Token invalido." }); return; }
+    const updated = updateManagedRobot(channelId, robotId, req.body || {});
+    if (!updated) { res.status(404).json({ error: "Robo nao encontrado." }); return; }
+    res.json({ ok: true, robot: updated });
+  });
+
+  app.delete("/api/mt5-sync/:channelId/managed-robots/:robotId", (req, res) => {
+    const channelId = String(req.params.channelId || "").trim();
+    const robotId = String(req.params.robotId || "").trim();
+    const token = extractSyncToken(req);
+    const channel = channelId.length >= 4 && token.length >= 6 ? getOrCreateChannel(channelId, token) : null;
+    if (!channel) { res.status(403).json({ error: "Token invalido." }); return; }
+    deleteManagedRobot(channelId, robotId);
+    res.json({ ok: true });
   });
 
   app.get("/api/mt5-sync/:channelId/commands", (req, res) => {
