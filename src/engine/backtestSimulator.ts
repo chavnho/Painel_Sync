@@ -212,10 +212,11 @@ export function runBacktestSimulation(input: {
         closePos(curBar.close, barTs, fmt.label, evalRes.directive.reason);
       } else if (evalRes.directive.type === "OPEN_ORDER" && !pos && evalRes.directive.side) {
         lastSignalBar = evalRes.directive.barTime;
+        const execPrice = Number(curBar.open) || curBar.close;
         pos = {
           side: evalRes.directive.side,
           volume: safeVol,
-          entryPrice: curBar.close,
+          entryPrice: execPrice,
           entryTime: barTs,
           entryLabel: fmt.label,
           sl: Number(evalRes.directive.sl || 0),
