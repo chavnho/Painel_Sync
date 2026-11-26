@@ -456,7 +456,7 @@ export function RobotBuilderView({ creds }: RobotBuilderViewProps) {
                         </span>
                       </div>
                       <div className="text-xs text-gray-400 font-mono mt-1">
-                        {bot.symbol} ? {bot.timeframe} ? {strategyLabel(bot.strategyType)} ? Vol {bot.risk.volume} ? SL {bot.risk.stopPoints} / TP {bot.risk.takePoints} pts
+                        {bot.symbol} · {bot.timeframe} · {strategyLabel(bot.strategyType)} · Vol {bot.risk.volume} · SL {bot.risk.stopPoints} / TP {bot.risk.takePoints} pts
                       </div>
                     </div>
 
