@@ -18,6 +18,7 @@ const NAV_ITEMS: Array<{ id: DashboardView; label: string }> = [
   { id: 'buy-sell', label: 'Compras & Vendas' },
   { id: 'operations', label: 'Operações' },
   { id: 'robots', label: 'Robôs' },
+  { id: 'simulator', label: 'Simulador' },
   { id: 'reports', label: 'Relatórios' },
 ];
 

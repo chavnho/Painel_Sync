@@ -5,6 +5,7 @@ export type DashboardView =
   | 'operations'
   | 'reports'
   | 'robots'
+  | 'simulator'
   | 'connect';
 
 export type TradeSide = 'COMPRA' | 'VENDA';

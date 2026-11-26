@@ -11,6 +11,7 @@ import { TradingChartView } from './components/TradingChartView';
 import { WeeklyMonthlyReportView } from './components/WeeklyMonthlyReportView';
 import { ConnectView } from './components/ConnectView';
 import { RobotBuilderView } from './components/RobotBuilderView';
+import { BacktestReplayView } from './components/BacktestReplayView';
 import { LiveLogView } from './components/LiveLogView';
 import type {
   DashboardTelemetry,
@@ -339,6 +340,7 @@ export default function App() {
           )}
 
           {activeView === 'robots' && <RobotBuilderView creds={creds} />}
+          {activeView === 'simulator' && <BacktestReplayView creds={creds} activeContracts={telemetry?.activeContracts} />}
 
           {activeView === 'connect' && (
             <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
