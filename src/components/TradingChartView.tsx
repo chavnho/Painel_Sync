@@ -628,7 +628,8 @@ export function TradingChartView({
     let running = 0;
     let tIdx = 0;
     return allCandles.map((c, idx) => {
-      while (tIdx < symbolTrades.length && symbolTrades[tIdx].exitTime <= c.timeLabel) {
+      const candleHm = (c.timeLabel.split(" ").pop() || c.timeLabel).slice(0, 5);
+      while (tIdx < symbolTrades.length && (symbolTrades[tIdx].exitTime || "").slice(0, 5) <= candleHm) {
         running += symbolTrades[tIdx].pnlBrl;
         tIdx++;
       }

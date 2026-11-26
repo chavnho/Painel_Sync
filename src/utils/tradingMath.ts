@@ -26,7 +26,7 @@ export function getPriceDigits(symbol?: string): number {
     return 0;
   }
   if (upper.startsWith('WDO') || upper.startsWith('DOL')) {
-    return 2;
+    return 1;
   }
   if (/^[A-Z]{6}$/.test(upper)) {
     return upper.includes('JPY') ? 3 : 5;

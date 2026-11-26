@@ -596,9 +596,7 @@ async function startServer() {
       });
     }
 
-    const cachedChart =
-      chartCandlesCache.get(`${channelId}:${symKey}:${tfKey}`) ||
-      chartCandlesCache.get(`${channelId}:${symKey}:`);
+    const cachedChart = chartCandlesCache.get(`${channelId}:${symKey}:${tfKey}`);
 
     if (cachedChart && cachedChart.length > 0) {
       res.json({
@@ -620,11 +618,8 @@ async function startServer() {
 
 
     let candles = robot.candles;
-    if (timeframe && robot.candlesByTimeframe) {
-      const tfKey = timeframe.toUpperCase();
-      if (robot.candlesByTimeframe[tfKey]) {
-        candles = robot.candlesByTimeframe[tfKey];
-      }
+    if (tfKey && robot.candlesByTimeframe && robot.candlesByTimeframe[tfKey]) {
+      candles = robot.candlesByTimeframe[tfKey];
     }
 
     res.json({
