@@ -188,9 +188,10 @@ export function evaluateManagedRobot(input: {
   hasPendingCommand: boolean;
   brokerSpec?: { tickSize?: number; digits?: number; volumeMin?: number; volumeMax?: number; volumeStep?: number } | null;
   now?: Date;
+  overrideHHMM?: string;
 }): EngineEvaluationResult {
   const { robot, candles, resolvedSymbol, openPosition, dailyPnlBrl, hasPendingCommand } = input;
-  const hhmm = getBrtHHMM(input.now ?? new Date());
+  const hhmm = input.overrideHHMM || getBrtHHMM(input.now ?? new Date());
 
   if (!Array.isArray(candles) || candles.length < 5) {
     return { decision: `Aguardando historico de candles (${candles?.length ?? 0} velas)`, directive: null, overlays: [] };
@@ -245,6 +246,17 @@ export function evaluateManagedRobot(input: {
     }
   } else if (robot.strategyType === "breakout") {
     const lookback = Math.max(2, Number(robot.params.lookbackBars) || 10);
+    const upperSeries: Array<number | null> = new Array(candles.length).fill(null);
+    const lowerSeries: Array<number | null> = new Array(candles.length).fill(null);
+    for (let idx = lookback; idx < candles.length; idx++) {
+      const sliceWin = candles.slice(idx - lookback, idx);
+      upperSeries[idx] = Math.max(...sliceWin.map((b) => b.high));
+      lowerSeries[idx] = Math.min(...sliceWin.map((b) => b.low));
+    }
+    overlays.push(
+      { id: `${robot.id}_ch_high`, label: `Canal Sup (${lookback}v)`, color: "#38BDF8", dashed: true, values: upperSeries },
+      { id: `${robot.id}_ch_low`, label: `Canal Inf (${lookback}v)`, color: "#F59E0B", dashed: true, values: lowerSeries }
+    );
     if (closed.length > lookback + 1) {
       const win = closed.slice(-(lookback + 1), -1);
       const highest = Math.max(...win.map((b) => b.high));

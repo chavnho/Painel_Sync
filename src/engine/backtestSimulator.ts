@@ -62,7 +62,7 @@ function normalizeEpochSec(raw: unknown, fallbackSec: number): number {
   return n > 1e11 ? Math.floor(n / 1000) : Math.floor(n);
 }
 
-function formatUnixBrt(tsSec: number): { dateKey: string; label: string } {
+function formatUnixBrt(tsSec: number): { dateKey: string; hhmm: string; label: string } {
   const d = new Date(tsSec * 1000);
   const parts = new Intl.DateTimeFormat("pt-BR", {
     timeZone: "UTC",
@@ -75,6 +75,7 @@ function formatUnixBrt(tsSec: number): { dateKey: string; label: string } {
   const get = (t: string) => parts.find((p) => p.type === t)?.value || "00";
   return {
     dateKey: `${get("day")}/${get("month")}`,
+    hhmm: `${get("hour")}:${get("minute")}`,
     label: `${get("day")}/${get("month")} ${get("hour")}:${get("minute")}`,
   };
 }
@@ -201,7 +202,7 @@ export function runBacktestSimulation(input: {
       openPosition: openPosView,
       dailyPnlBrl: dailyRealizedBrl + floatingPnlBrl,
       hasPendingCommand: false,
-      now: new Date((barTs + 3 * 3600) * 1000),
+      overrideHHMM: fmt.hhmm,
     });
 
     lastDecision = evalRes.decision;

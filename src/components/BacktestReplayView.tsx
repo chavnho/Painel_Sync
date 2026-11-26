@@ -23,7 +23,6 @@ import {
   Play,
   RotateCcw,
   SkipForward,
-  Sparkles,
 } from 'lucide-react';
 import { runBacktestSimulation } from '../engine/backtestSimulator';
 import type {
@@ -59,27 +58,6 @@ function toChartTime(raw: unknown, fallbackSec = 0): UTCTimestamp {
   return (n > 1e11 ? Math.floor(n / 1000) : Math.floor(n)) as UTCTimestamp;
 }
 
-function generateSampleCandles(symbol: string, count = 350): LiveCandle[] {
-  const isWdo = /^(WDO|DOL)/i.test(symbol);
-  const step = isWdo ? 0.5 : /^(WIN|IND)/i.test(symbol) ? 5 : 0.01;
-  let price = isWdo ? 5800 : /^(WIN|IND)/i.test(symbol) ? 128500 : 38.5;
-  const nowSec = Math.floor(Date.now() / 1000) - count * 300;
-  const out: LiveCandle[] = [];
-  for (let i = 0; i < count; i++) {
-    const wave = Math.sin(i / 14) * step * 6 + (Math.random() - 0.5) * step * 8;
-    const open = Number(price.toFixed(2));
-    const close = Number((price + wave).toFixed(2));
-    const high = Number((Math.max(open, close) + Math.abs(Math.random() * step * 5)).toFixed(2));
-    const low = Number((Math.min(open, close) - Math.abs(Math.random() * step * 5)).toFixed(2));
-    const ts = nowSec + i * 300;
-    const d = new Date(ts * 1000);
-    const timeLabel = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-    out.push({ index: i, time: ts, timeLabel, open, high, low, close, volume: Math.floor(100 + Math.random() * 900) });
-    price = close;
-  }
-  return out;
-}
-
 export function BacktestReplayView({ creds, activeContracts }: BacktestReplayViewProps) {
   const [savedRobots, setSavedRobots] = useState<ManagedRobot[]>([]);
   const [selectedBotId, setSelectedBotId] = useState('');
@@ -101,7 +79,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
   const [candles, setCandles] = useState<LiveCandle[]>(new Array());
   const [selectedDay, setSelectedDay] = useState<string>('ALL');
   const [loadingCandles, setLoadingCandles] = useState(false);
-  const [candleStatus, setCandleStatus] = useState('Carregue velas do MT5 ou gere uma amostra para simular.');
+  const [candleStatus, setCandleStatus] = useState('Clique em Puxar Velas do MT5 para carregar o hist\u00f3rico real.');
   const [replayBars, setReplayBars] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [speedMs, setSpeedMs] = useState(600);
@@ -167,17 +145,6 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     } finally {
       setLoadingCandles(false);
     }
-  };
-
-  const handleGenerateSample = () => {
-    setIsPlaying(false);
-    const sample = generateSampleCandles(symbol, 350);
-    setCandles(sample);
-    const lastD = new Date(Number(sample.at(-1)?.time || 0) * 1000).toISOString().slice(0, 10);
-    setSelectedDay(lastD);
-    const dayCount = sample.filter((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) === lastD).length;
-    setReplayBars(dayCount || sample.length);
-    setCandleStatus(`350 velas sintéticas geradas para ${symbol.toUpperCase()} (${timeframe}).`);
   };
 
   const availableDays = useMemo(() => {
@@ -271,10 +238,10 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     overlays.forEach((ov, ovIdx) => {
       let line = overlaySeriesRef.current[ovIdx];
       if (!line) {
-        line = chart.addSeries(LineSeries, { color: ov.color, lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
+        line = chart.addSeries(LineSeries, { color: ov.color, lineWidth: 2, lineStyle: ov.dashed ? 2 : 0, priceLineVisible: false, lastValueVisible: false });
         overlaySeriesRef.current[ovIdx] = line;
       } else {
-        line.applyOptions({ color: ov.color });
+        line.applyOptions({ color: ov.color, lineStyle: ov.dashed ? 2 : 0 });
       }
       const pts: Array<{ time: UTCTimestamp; value: number }> = [];
       visibleCandles.forEach((_, idx) => {
@@ -317,14 +284,11 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="font-display text-xl font-bold text-gray-100">Simulador de Backtest & Replay</h1>
-            <p className="text-xs text-gray-400 mt-0.5">Teste qualquer robô criado no painel sobre velas históricas reais do MT5 ou avance vela por vela no modo Replay.</p>
+            <p className="text-xs text-gray-400 mt-0.5">Teste qualquer robô criado no painel sobre velas históricas reais do MT5 e avance vela por vela no modo Replay.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" onClick={handleLoadMt5Candles} disabled={loadingCandles} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold cursor-pointer disabled:opacity-60">
               <Download className="w-3.5 h-3.5" /><span>{loadingCandles ? 'Carregando...' : 'Puxar Velas do MT5'}</span>
-            </button>
-            <button type="button" onClick={handleGenerateSample} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-gray-200 text-xs font-medium cursor-pointer">
-              <Sparkles className="w-3.5 h-3.5 text-sky-400" /><span>Amostra Sintética (Offline)</span>
             </button>
           </div>
         </div>
