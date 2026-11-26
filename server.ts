@@ -884,7 +884,7 @@ async function startServer() {
         const existing = chartCandlesCache.get(`${channelId}:${chartSymbol}:${chartTf}`) || [];
         if (existing.length > 0 && chartCandles.length > 0) {
           const merged = [...existing];
-          for (const incoming of chartCandles) {
+          for (const incoming of chartCandles.slice(-2)) {
             const idx = merged.findIndex((c) => c.time === incoming.time);
             if (idx >= 0) {
               merged[idx] = { ...incoming, index: idx };
@@ -901,7 +901,6 @@ async function startServer() {
           ok: true,
           isChartDelta: true,
           candlesCount: chartCandles.length,
-      }); console.log("[ChartRecv]", chartSymbol, chartTf, "count=" + chartCandles.length, "first=" + (chartCandles.at(0)?.timeLabel ?? chartCandles.at(0)?.time), "last=" + (chartCandles.at(-1)?.timeLabel ?? chartCandles.at(-1)?.time)); void ({
           serverReceivedAt,
         });
         return;
@@ -910,6 +909,7 @@ async function startServer() {
       if (chartSymbol) {
         mergeChannelSymbols(channel, [chartSymbol]);
         if (chartCandles.length > 0) {
+          const gaps=[]; for(let i=1;i<chartCandles.length;i++){const d=Number(chartCandles[i].time)-Number(chartCandles[i-1].time); if(d>60 && d<36000) gaps.push(chartCandles[i-1].timeLabel+"->"+chartCandles[i].timeLabel+"("+d+"s)");} console.log("[SnapGaps]", chartSymbol, chartTf, "count="+chartCandles.length, "intradayGaps="+gaps.length, gaps.join(" | "));
           const prevCached = chartCandlesCache.get(`${channelId}:${chartSymbol}:${chartTf}`) || [];
           const byTime = new Map<number, NormalizedCandle>();
           for (const c of prevCached) { const t = Number(c.time ?? 0); if (t > 0) byTime.set(t, c); }
