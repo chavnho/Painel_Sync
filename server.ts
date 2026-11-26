@@ -84,7 +84,7 @@ interface NormalizedRobot {
 const mt5Channels = new Map<string, LiveSyncChannel>();
 
 const requestQueue: PendingRequest[] = [];
-const MAX_CHART_CANDLES = 1000;
+const MAX_CHART_CANDLES = 1500;
 const chartCandlesCache = new Map<string, NormalizedCandle[]>();
 const requestDateMap = new Map<string, string>();
 const activeChartFocus = new Map<string, { symbol: string; timeframe: string; expiresAt: number }>();
@@ -909,7 +909,6 @@ async function startServer() {
       if (chartSymbol) {
         mergeChannelSymbols(channel, [chartSymbol]);
         if (chartCandles.length > 0) {
-          const gaps=[]; for(let i=1;i<chartCandles.length;i++){const d=Number(chartCandles[i].time)-Number(chartCandles[i-1].time); if(d>60 && d<36000) gaps.push(chartCandles[i-1].timeLabel+"->"+chartCandles[i].timeLabel+"("+d+"s)");} console.log("[SnapGaps]", chartSymbol, chartTf, "count="+chartCandles.length, "intradayGaps="+gaps.length, gaps.join(" | "));
           const prevCached = chartCandlesCache.get(`${channelId}:${chartSymbol}:${chartTf}`) || [];
           const byTime = new Map<number, NormalizedCandle>();
           for (const c of prevCached) { const t = Number(c.time ?? 0); if (t > 0) byTime.set(t, c); }
