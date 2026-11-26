@@ -327,7 +327,7 @@ export default function App() {
             />
           )}
 
-          {activeView === 'robots' && <RobotBuilderView creds={creds} />}
+          {activeView === 'robots' && <RobotBuilderView creds={creds} mt5Robots={robots} onRenameMagic={handleRenameMagic} onToggleHideMagic={handleToggleHideMagic} onSelectRobot={setSelectedRobotId} onNavigate={setActiveView} />}
           {activeView === 'simulator' && <BacktestReplayView creds={creds} activeContracts={telemetry?.activeContracts} />}
 
           {activeView === 'connect' && (
