@@ -33,6 +33,8 @@ string g_prevPosDesc[];
 ulong g_prevOrdTickets[];
 string g_prevOrdDesc[];
 bool g_stateInitialized = false;
+bool g_historySynced = false;
+datetime g_lastHistoryRetry = 0;
 
 struct RobotSummary
 {
@@ -69,6 +71,7 @@ void OnStart()
          Sleep(200);
       if(IsStopped()) break;
 
+      if(!g_historySynced && InpHistoryBackfillDays > 0 && TimeCurrent() - g_lastHistoryRetry >= 30) { g_lastHistoryRetry = TimeCurrent(); SyncHistoricalTrades(InpHistoryBackfillDays); }
       LogAccountStateChanges();
       FetchPendingRequest();
       SendAccountAndRobotsTelemetry();
@@ -491,44 +494,54 @@ bool ClosePosTk(const ulong tk, uint &rc, string &msg) {
 void ExecuteRemoteCommand(const string obj) {
    string id = ExtractJsonString(obj, "id"), act = ExtractJsonString(obj, "action"), sym = ExtractJsonString(obj, "symbol"), side = ExtractJsonString(obj, "side");
    string mgS = ExtractJsonString(obj, "magicNumber"), ptS = ExtractJsonString(obj, "positionTicket"), otS = ExtractJsonString(obj, "orderTicket");
-   string vS = ExtractJsonString(obj, "volume"), pS = ExtractJsonString(obj, "price");
-   long tMg = (mgS != "") ? StringToInteger(mgS) : -1; ulong tPos = (ptS != "") ? (ulong)StringToInteger(ptS) : 0; ulong tOrd = (otS != "") ? (ulong)StringToInteger(otS) : 0;
+   string vS = ExtractJsonString(obj, "volume"), pS = ExtractJsonString(obj, "price"), slS = ExtractJsonString(obj, "sl"), tpS = ExtractJsonString(obj, "tp");
+   long tMg = (mgS != "") ? StringToInteger(mgS) : -1;
+   ulong tPos = (ptS != "") ? (ulong)StringToInteger(ptS) : 0, tOrd = (otS != "") ? (ulong)StringToInteger(otS) : 0;
    double vol = (vS != "") ? StringToDouble(vS) : 0.0, prc = (pS != "") ? StringToDouble(pS) : 0.0;
+   double sl = (slS != "") ? StringToDouble(slS) : 0.0, tp = (tpS != "") ? StringToDouble(tpS) : 0.0;
    if(id == "" || act == "") return;
    Print("PainelSync [CMD] Recebido: " + act + " | Magic: " + IntegerToString((int)tMg) + " | Simbolo: " + sym);
+   if(tMg == 0 && !InpIncludeManual && (act == "CLOSE_MAGIC" || act == "CANCEL_ORDERS")) { SendCommandAck(id, false, 0, 0, 10013, "Magic 0 desabilitado"); return; }
    if(act == "CLOSE_MAGIC") {
       if(tPos > 0) { uint rc = 0; string m = ""; bool ok = ClosePosTk(tPos, rc, m); SendCommandAck(id, ok, 0, tPos, rc, ok ? "Zerada" : m); return; }
       ulong tks[];
-      for(int i = PositionsTotal() - 1; i >= 0; i--) { ulong tk = PositionGetTicket(i); if(tk == 0) continue; if(tMg >= 0 && PositionGetInteger(POSITION_MAGIC) != tMg) continue; if(sym != "" && PositionGetString(POSITION_SYMBOL) != sym) continue; int n = ArraySize(tks); ArrayResize(tks, n + 1); tks[n] = tk; }
-      int c = 0; uint lrc = 10009; string lm = "Nenhuma posicao";
-      for(int k = 0; k < ArraySize(tks); k++) if(ClosePosTk(tks[k], lrc, lm)) c++;
-      SendCommandAck(id, c > 0 || ArraySize(tks) == 0, 0, 0, lrc, c > 0 ? ("Zeradas: " + IntegerToString(c)) : lm); return;
+      for(int i = PositionsTotal() - 1; i >= 0; i--) { ulong tk = PositionGetTicket(i); if(tk == 0) continue; long pm = PositionGetInteger(POSITION_MAGIC); if(tMg >= 0 && pm != tMg) continue; if(tMg < 0 && pm == 0 && !InpIncludeManual) continue; if(sym != "" && PositionGetString(POSITION_SYMBOL) != sym) continue; int n = ArraySize(tks); ArrayResize(tks, n + 1); tks[n] = tk; }
+      int c = 0, fail = 0; uint lrc = 10009; string lm = "Nenhuma posicao";
+      for(int k = 0; k < ArraySize(tks); k++) { if(ClosePosTk(tks[k], lrc, lm)) c++; else fail++; }
+      SendCommandAck(id, fail == 0, 0, 0, lrc, fail > 0 ? ("Zeradas: " + IntegerToString(c) + " | Falhas: " + IntegerToString(fail)) : (c > 0 ? ("Zeradas: " + IntegerToString(c)) : lm)); return;
    }
    if(act == "CANCEL_ORDERS") {
       ulong oks[]; int totOrd = OrdersTotal();
-      for(int i = totOrd - 1; i >= 0; i--) { ulong ot = OrderGetTicket(i); if(ot == 0 || !OrderSelect(ot)) continue; if(tMg >= 0 && OrderGetInteger(ORDER_MAGIC) != tMg) continue; if(sym != "" && OrderGetString(ORDER_SYMBOL) != sym) continue; int n = ArraySize(oks); ArrayResize(oks, n + 1); oks[n] = ot; }
-      int c = 0; uint lrc = 10009; string lm = "Nenhuma ordem (total=" + IntegerToString(totOrd) + ")";
-      for(int k = 0; k < ArraySize(oks); k++) { MqlTradeRequest r; MqlTradeResult s; ZeroMemory(r); ZeroMemory(s); r.action = TRADE_ACTION_REMOVE; r.order = oks[k]; bool okR = OrderSend(r, s); lrc = s.retcode; lm = s.comment; Print("PainelSync [CMD] Cancelar #" + IntegerToString((long)oks[k]) + " -> retcode=" + IntegerToString((int)lrc) + " (" + lm + ")"); if(okR && (lrc == TRADE_RETCODE_DONE || lrc == TRADE_RETCODE_PLACED)) c++; }
-      if(ArraySize(oks) == 0) Print("PainelSync [CMD] " + lm);
-      SendCommandAck(id, c > 0 || ArraySize(oks) == 0, 0, 0, lrc, c > 0 ? ("Canceladas: " + IntegerToString(c)) : lm); return;
+      for(int i = totOrd - 1; i >= 0; i--) { ulong ot = OrderGetTicket(i); if(ot == 0 || !OrderSelect(ot)) continue; long om = OrderGetInteger(ORDER_MAGIC); if(tMg >= 0 && om != tMg) continue; if(tMg < 0 && om == 0 && !InpIncludeManual) continue; if(sym != "" && OrderGetString(ORDER_SYMBOL) != sym) continue; int n = ArraySize(oks); ArrayResize(oks, n + 1); oks[n] = ot; }
+      int c = 0, fail = 0; uint lrc = 10009; string lm = "Nenhuma ordem";
+      for(int k = 0; k < ArraySize(oks); k++) { MqlTradeRequest r; MqlTradeResult s; ZeroMemory(r); ZeroMemory(s); r.action = TRADE_ACTION_REMOVE; r.order = oks[k]; bool okR = OrderSend(r, s); lrc = s.retcode; lm = s.comment; if(okR && (lrc == TRADE_RETCODE_DONE || lrc == TRADE_RETCODE_PLACED)) c++; else fail++; }
+      SendCommandAck(id, fail == 0, 0, 0, lrc, fail > 0 ? ("Canceladas: " + IntegerToString(c) + " | Falhas: " + IntegerToString(fail)) : (c > 0 ? ("Canceladas: " + IntegerToString(c)) : lm)); return;
    }
    if(act == "CLOSE_ALL") {
-      ulong ap[]; for(int i = PositionsTotal() - 1; i >= 0; i--) { ulong tk = PositionGetTicket(i); if(tk == 0) continue; if(tMg >= 0 && PositionGetInteger(POSITION_MAGIC) != tMg) continue; if(sym != "" && PositionGetString(POSITION_SYMBOL) != sym) continue; int n = ArraySize(ap); ArrayResize(ap, n + 1); ap[n] = tk; }
-      int c = 0; uint rc = 10009; string m = ""; for(int k = 0; k < ArraySize(ap); k++) if(ClosePosTk(ap[k], rc, m)) c++;
-      ulong ao[]; for(int i = OrdersTotal() - 1; i >= 0; i--) { ulong ot = OrderGetTicket(i); if(ot == 0 || !OrderSelect(ot)) continue; if(tMg >= 0 && OrderGetInteger(ORDER_MAGIC) != tMg) continue; if(sym != "" && OrderGetString(ORDER_SYMBOL) != sym) continue; int n = ArraySize(ao); ArrayResize(ao, n + 1); ao[n] = ot; }
-      int ca = 0; for(int k = 0; k < ArraySize(ao); k++) { MqlTradeRequest r; MqlTradeResult s; ZeroMemory(r); ZeroMemory(s); r.action = TRADE_ACTION_REMOVE; r.order = ao[k]; bool okR = OrderSend(r, s); if(okR && (s.retcode == TRADE_RETCODE_DONE || s.retcode == TRADE_RETCODE_PLACED)) ca++; }
-      SendCommandAck(id, true, 0, 0, 10009, "Zerado: " + IntegerToString(c) + " pos, " + IntegerToString(ca) + " ord"); return;
+      ulong ap[]; for(int i = PositionsTotal() - 1; i >= 0; i--) { ulong tk = PositionGetTicket(i); if(tk == 0) continue; long pm = PositionGetInteger(POSITION_MAGIC); if(tMg >= 0 && pm != tMg) continue; if(tMg < 0 && pm == 0 && !InpIncludeManual) continue; if(sym != "" && PositionGetString(POSITION_SYMBOL) != sym) continue; int n = ArraySize(ap); ArrayResize(ap, n + 1); ap[n] = tk; }
+      int c = 0, failP = 0; uint rc = 10009; string m = ""; for(int k = 0; k < ArraySize(ap); k++) { if(ClosePosTk(ap[k], rc, m)) c++; else failP++; }
+      ulong ao[]; for(int i = OrdersTotal() - 1; i >= 0; i--) { ulong ot = OrderGetTicket(i); if(ot == 0 || !OrderSelect(ot)) continue; long om = OrderGetInteger(ORDER_MAGIC); if(tMg >= 0 && om != tMg) continue; if(tMg < 0 && om == 0 && !InpIncludeManual) continue; if(sym != "" && OrderGetString(ORDER_SYMBOL) != sym) continue; int n = ArraySize(ao); ArrayResize(ao, n + 1); ao[n] = ot; }
+      int ca = 0, failO = 0; for(int k = 0; k < ArraySize(ao); k++) { MqlTradeRequest r; MqlTradeResult s; ZeroMemory(r); ZeroMemory(s); r.action = TRADE_ACTION_REMOVE; r.order = ao[k]; bool okR = OrderSend(r, s); if(okR && (s.retcode == TRADE_RETCODE_DONE || s.retcode == TRADE_RETCODE_PLACED)) ca++; else { failO++; rc = s.retcode; m = s.comment; } }
+      bool okAll = (failP == 0 && failO == 0);
+      SendCommandAck(id, okAll, 0, 0, okAll ? 10009 : rc, "Zerado: " + IntegerToString(c) + " pos, " + IntegerToString(ca) + " ord" + (okAll ? "" : (" | Falhas: " + IntegerToString(failP + failO)))); return;
+   }
+   if(act == "MODIFY_SL_TP") {
+      if(tPos > 0 && PositionSelectByTicket(tPos)) { string pSym = PositionGetString(POSITION_SYMBOL); int dg = (int)SymbolInfoInteger(pSym, SYMBOL_DIGITS); MqlTradeRequest r; MqlTradeResult s; ZeroMemory(r); ZeroMemory(s); r.action = TRADE_ACTION_SLTP; r.position = tPos; r.symbol = pSym; r.sl = (sl > 0.0) ? NormalizeDouble(sl, dg) : 0.0; r.tp = (tp > 0.0) ? NormalizeDouble(tp, dg) : 0.0; bool ok = OrderSend(r, s); bool done = (ok && (s.retcode == TRADE_RETCODE_DONE || s.retcode == TRADE_RETCODE_PLACED)); SendCommandAck(id, done, 0, tPos, s.retcode, done ? "SL/TP atualizado" : s.comment); return; }
+      if(tOrd > 0 && OrderSelect(tOrd)) { string oSym = OrderGetString(ORDER_SYMBOL); int dg = (int)SymbolInfoInteger(oSym, SYMBOL_DIGITS); MqlTradeRequest r; MqlTradeResult s; ZeroMemory(r); ZeroMemory(s); r.action = TRADE_ACTION_MODIFY; r.order = tOrd; r.price = (prc > 0.0) ? NormalizeDouble(prc, dg) : OrderGetDouble(ORDER_PRICE_OPEN); r.sl = (sl > 0.0) ? NormalizeDouble(sl, dg) : 0.0; r.tp = (tp > 0.0) ? NormalizeDouble(tp, dg) : 0.0; bool ok = OrderSend(r, s); bool done = (ok && (s.retcode == TRADE_RETCODE_DONE || s.retcode == TRADE_RETCODE_PLACED)); SendCommandAck(id, done, tOrd, 0, s.retcode, done ? "Ordem modificada" : s.comment); return; }
+      SendCommandAck(id, false, tOrd, tPos, 10013, "Nao encontrada"); return;
    }
    if(act == "OPEN_ORDER") {
       if(sym == "" || vol <= 0.0) { SendCommandAck(id, false, 0, 0, 10013, "Invalidos"); return; }
       SymbolSelect(sym, true); MqlTradeRequest r; MqlTradeResult s; ZeroMemory(r); ZeroMemory(s); int dg = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
       r.symbol = sym; r.volume = vol; r.magic = (tMg >= 0) ? tMg : 0; r.deviation = 50; r.type_filling = ORDER_FILLING_RETURN;
+      if(sl > 0.0) r.sl = NormalizeDouble(sl, dg); if(tp > 0.0) r.tp = NormalizeDouble(tp, dg);
       if(prc <= 0.0) { r.action = TRADE_ACTION_DEAL; r.type = (side == "VENDA") ? ORDER_TYPE_SELL : ORDER_TYPE_BUY; r.price = NormalizeDouble(SymbolInfoDouble(sym, (side == "VENDA") ? SYMBOL_BID : SYMBOL_ASK), dg); }
       else { r.action = TRADE_ACTION_PENDING; r.type = (side == "VENDA") ? ORDER_TYPE_SELL_LIMIT : ORDER_TYPE_BUY_LIMIT; r.price = NormalizeDouble(prc, dg); }
       bool sent = OrderSend(r, s); bool ok = (sent && (s.retcode == TRADE_RETCODE_DONE || s.retcode == TRADE_RETCODE_PLACED || s.retcode == TRADE_RETCODE_DONE_PARTIAL));
       SendCommandAck(id, ok, s.order, s.deal, s.retcode, ok ? "Enviada" : s.comment);
    }
 }
+
 string g_chartTempSym = "";
 int g_chartTempIdle = 0;
 void FetchPendingRequest()
@@ -709,7 +722,7 @@ bool IsRelevantSymbol(const string name)
       StringFind(name, "ICF") == 0 || StringFind(name, "DI1") == 0)
       return true;
 
-   // AÃ§Ãµes Ã  vista, FIIs, ETFs e BDRs padrÃ£o B3 (ex: PETR4, VALE3, BOVA11, MXRF11, AAPL34)
+   // AÃ§Ãµes Ã  vista, FIIs, ETFs e BDRs padrÃ£o B3 (ex: PETR4, VALE3, BOVA11, MXRF11, AAPL34)
    if(len == 5 || len == 6)
    {
       string suffix = StringSubstr(name, 4);
@@ -911,6 +924,7 @@ void SyncHistoricalTrades(const int daysBack)
       }
    }
 
+   g_historySynced = true;
    Print("PainelSync: Importacao historica concluida (", totalImported, " operacoes processadas).");
 }
 
@@ -932,7 +946,11 @@ void SendToServer(const string jsonPayload)
    {
       Print("PainelSync: Erro WebRequest (", GetLastError(), "). Libere ", InpEndpointUrl, " em Ferramentas > Opcoes > Expert Advisors.");
    }
-   else if(res >= 400)
+   else if(InpLogServer)
+   {
+      Print("PainelSync [HTTP] POST telemetria -> status=", res, " (", ArraySize(data), " bytes)");
+   }
+   if(res >= 400)
    {
       Print("PainelSync: HTTP ", res, " -> ", CharArrayToString(result, 0, WHOLE_ARRAY, CP_UTF8));
    }
