@@ -213,14 +213,19 @@ export function runBacktestSimulation(input: {
       } else if (evalRes.directive.type === "OPEN_ORDER" && !pos && evalRes.directive.side) {
         lastSignalBar = evalRes.directive.barTime;
         const execPrice = Number(curBar.open) || curBar.close;
+        const stopPts = Math.max(0, Number(input.robot.risk.stopPoints) || 0);
+        const takePts = Math.max(0, Number(input.robot.risk.takePoints) || 0);
+        const isBuySide = evalRes.directive.side === "COMPRA";
+        const calcSl = stopPts > 0 ? (isBuySide ? execPrice - stopPts : execPrice + stopPts) : 0;
+        const calcTp = takePts > 0 ? (isBuySide ? execPrice + takePts : execPrice - takePts) : 0;
         pos = {
           side: evalRes.directive.side,
           volume: safeVol,
           entryPrice: execPrice,
           entryTime: barTs,
           entryLabel: fmt.label,
-          sl: Number(evalRes.directive.sl || 0),
-          tp: Number(evalRes.directive.tp || 0),
+          sl: calcSl,
+          tp: calcTp,
         };
       }
     }

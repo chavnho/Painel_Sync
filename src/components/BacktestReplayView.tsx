@@ -27,6 +27,7 @@ import {
   X,
 } from 'lucide-react';
 import { runBacktestSimulation } from '../engine/backtestSimulator';
+import { TradeLinesPrimitive, type TradeSegmentItem } from '../utils/tradeLinesPrimitive';
 import type {
   LiveCandle,
   ManagedRobot,
@@ -116,6 +117,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const markersPluginRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
+  const tradeLinesPrimitiveRef = useRef<TradeLinesPrimitive | null>(null);
   const priceLinesRef = useRef<IPriceLine[]>([]);
   const overlaySeriesRef = useRef<Array<ISeriesApi<'Line'>>>([]);
   const lastRenderedCountRef = useRef<number>(0);
@@ -243,6 +245,9 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
       upColor: '#10B981', downColor: '#EF4444', borderUpColor: '#10B981', borderDownColor: '#EF4444', wickUpColor: '#10B981', wickDownColor: '#EF4444',
     });
     markersPluginRef.current = createSeriesMarkers(series, []);
+    const tradeLinesPrimitive = new TradeLinesPrimitive();
+    series.attachPrimitive(tradeLinesPrimitive);
+    tradeLinesPrimitiveRef.current = tradeLinesPrimitive;
     chartRef.current = chart;
     candleSeriesRef.current = series;
     return () => {
@@ -250,6 +255,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
       chartRef.current = null;
       candleSeriesRef.current = null;
       markersPluginRef.current = null;
+      tradeLinesPrimitiveRef.current = null;
       priceLinesRef.current = [];
       overlaySeriesRef.current = [];
     };
@@ -302,10 +308,55 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     });
     if (simResult) {
       const markers: Array<SeriesMarker<Time>> = [];
+      const segments: TradeSegmentItem[] = [];
       for (const tr of simResult.trades) {
-        markers.push({ time: toChartTime(tr.entryTime), position: tr.side === 'COMPRA' ? 'belowBar' : 'aboveBar', color: tr.side === 'COMPRA' ? '#10B981' : '#EF4444', shape: tr.side === 'COMPRA' ? 'arrowUp' : 'arrowDown', text: tr.side === 'COMPRA' ? 'C' : 'V' });
-        markers.push({ time: toChartTime(tr.exitTime), position: tr.side === 'COMPRA' ? 'aboveBar' : 'belowBar', color: tr.pnlBrl >= 0 ? '#38BDF8' : '#F59E0B', shape: 'circle', text: tr.exitReason === 'Take Profit' ? 'TP' : tr.exitReason === 'Stop Loss' ? 'SL' : 'X' });
+        const isBuy = tr.side === 'COMPRA';
+        const isWin = tr.pnlBrl >= 0;
+        const entryT = toChartTime(tr.entryTime);
+        const exitT = toChartTime(tr.exitTime);
+        const tradeColor = isWin ? '#34D399' : '#F87171';
+        const ptsLabel = `${tr.points >= 0 ? '+' : ''}${tr.points} pts`;
+        markers.push({
+          time: entryT,
+          position: isBuy ? 'belowBar' : 'aboveBar',
+          color: isBuy ? '#10B981' : '#EF4444',
+          shape: isBuy ? 'arrowUp' : 'arrowDown',
+          text: isBuy ? 'C' : 'V',
+        });
+        markers.push({
+          time: exitT,
+          position: isBuy ? 'aboveBar' : 'belowBar',
+          color: tradeColor,
+          shape: isBuy ? 'arrowDown' : 'arrowUp',
+          text: ptsLabel,
+        });
+        if (tr.entryPrice > 0 && tr.exitPrice > 0) {
+          segments.push({
+            entryTime: entryT,
+            entryPrice: tr.entryPrice,
+            exitTime: exitT,
+            exitPrice: tr.exitPrice,
+            color: tradeColor,
+            dotColor: isBuy ? '#10B981' : '#EF4444',
+          });
+        }
       }
+      if (simResult.openPosition) {
+        const op = simResult.openPosition;
+        const isBuy = op.side === 'COMPRA';
+        const activeTr = simResult.trades.at(-1);
+        const openTime = activeTr ? undefined : barTimes.at(-1);
+        if (openTime) {
+          markers.push({
+            time: openTime,
+            position: isBuy ? 'belowBar' : 'aboveBar',
+            color: isBuy ? '#10B981' : '#EF4444',
+            shape: isBuy ? 'arrowUp' : 'arrowDown',
+            text: isBuy ? 'C' : 'V',
+          });
+        }
+      }
+      tradeLinesPrimitiveRef.current?.setSegments(segments);
       markers.sort((a, b) => Number(a.time) - Number(b.time));
       markersPluginRef.current?.setMarkers(markers);
       if (simResult.openPosition) {
@@ -315,6 +366,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
         if (op.sl > 0) priceLinesRef.current.push(series.createPriceLine({ price: op.sl, color: '#F59E0B', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'SL' }));
       }
     } else {
+      tradeLinesPrimitiveRef.current?.setSegments([]);
       markersPluginRef.current?.setMarkers([]);
     }
   }, [activeCandles, replayBars, simResult]);
