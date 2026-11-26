@@ -256,7 +256,7 @@ export function loadHiddenMagicsForAccount(accountLogin: string): Set<number> {
 export interface PersistedCommandRecord {
   id: string;
   channelId: string;
-  magicNumber: number;
+  magicNumber?: number;
   action: "CLOSE_MAGIC" | "CANCEL_ORDERS" | "CLOSE_ALL" | "OPEN_ORDER" | "MODIFY_SL_TP";
   symbol?: string;
   side?: "COMPRA" | "VENDA";
@@ -319,7 +319,7 @@ function mapCommandRow(r: Record<string, unknown>): PersistedCommandRecord {
   return {
     id: String(r.id),
     channelId: String(r.channel_id),
-    magicNumber: Number(r.magic_number) || 0,
+    magicNumber: (r.magic_number !== null && r.magic_number !== undefined && Number(r.magic_number) >= 0) ? Number(r.magic_number) : undefined,
     action: String(r.action) as PersistedCommandRecord["action"],
     symbol: r.symbol ? String(r.symbol) : undefined,
     side: sideRaw === "COMPRA" || sideRaw === "VENDA" ? sideRaw : undefined,
@@ -359,7 +359,7 @@ export function enqueueCommand(input: {
   insertCmdStmt.run(
     input.id,
     input.channelId,
-    Math.trunc(Number(input.magicNumber) || 0),
+    (input.magicNumber !== undefined && input.magicNumber !== null && Number.isFinite(Number(input.magicNumber))) ? Math.trunc(Number(input.magicNumber)) : -1,
     input.action,
     String(input.symbol || "").toUpperCase(),
     input.side || "",

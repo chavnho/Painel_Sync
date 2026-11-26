@@ -1,6 +1,4 @@
 ﻿////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// ------------------------------------------- Parte 1 ---------------------------------------------------//
-// ------------------------------------------- $parte1 = @' ----------------------------------------------//
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 //+------------------------------------------------------------------+
@@ -10,11 +8,12 @@
 #property copyright "Painel Sync"
 #property version   "2.00"
 #property strict
+#property service
 
 input group "=== 1. Conexão e Autenticação ==="
 input string   InpEndpointUrl         = "http://127.0.0.1:3000"; // URL do Servidor Painel Sync
-input string   InpChannelId           = "ps_c9a2rn8qcr";          // ID do Canal da Sessão
-input string   InpToken               = "tk_test_1234567890";    // Token de Autenticação
+input string   InpChannelId           = "ps_950f4jzchg";          // ID do Canal da Sessão
+input string   InpToken               = "tk_4r7ay6gleb3jtko69d";    // Token de Autenticação
 
 input group "=== 2. Sincronização e Histórico ==="
 input int      InpSyncIntervalSec     = 2;                       // Intervalo de Envio (segundos)
@@ -53,41 +52,34 @@ struct RobotSummary
 
 datetime g_lastSymbolsReport = 0;
 
-int OnInit()
+void OnStart()
 {
-   Print("PainelSync v2.0: Iniciando monitoramento da conta no canal ", InpChannelId, "...");
-
-   if(!EventSetTimer(MathMax(1, InpSyncIntervalSec)))
-   {
-      Print("PainelSync: Falha ao configurar o Timer.");
-      return(INIT_FAILED);
-   }
+   Print("PainelSync Service v2.0: Iniciando monitoramento em segundo plano no canal ", InpChannelId, "...");
 
    g_lastSymbolsReport = TimeCurrent();
    SendSymbolsReport();
    if(InpHistoryBackfillDays > 0)
       SyncHistoricalTrades(InpHistoryBackfillDays);
    SendAccountAndRobotsTelemetry();
-   return(INIT_SUCCEEDED);
-}
 
-void OnDeinit(const int reason)
-{
-   EventKillTimer();
-}
-
-void OnTick() {}
-
-void OnTimer()
-{
-   FetchPendingRequest();
-   SendAccountAndRobotsTelemetry();
-
-   if(TimeCurrent() - g_lastSymbolsReport >= 60)
+   while(!IsStopped())
    {
-      g_lastSymbolsReport = TimeCurrent();
-      SendSymbolsReport();
+      int waitMs = MathMax(1, InpSyncIntervalSec) * 1000;
+      for(int elapsed = 0; elapsed < waitMs && !IsStopped(); elapsed += 200)
+         Sleep(200);
+      if(IsStopped()) break;
+
+      LogAccountStateChanges();
+      FetchPendingRequest();
+      SendAccountAndRobotsTelemetry();
+
+      if(TimeCurrent() - g_lastSymbolsReport >= 60)
+      {
+         g_lastSymbolsReport = TimeCurrent();
+         SendSymbolsReport();
+      }
    }
+   Print("PainelSync Service: Monitoramento encerrado.");
 }
 
 void LogAccountStateChanges()
@@ -122,7 +114,7 @@ void LogAccountStateChanges()
          if(!stillOpen) Print("PainelSync [POSICOES] Encerrada: ", g_prevPosDesc[k]);
       }
    }
-   ArrayCopy(g_prevPosTickets, currPosT); ArrayCopy(g_prevPosDesc, currPosD);
+   ArrayFree(g_prevPosTickets); ArrayFree(g_prevPosDesc); if(ArraySize(currPosT) > 0) { ArrayCopy(g_prevPosTickets, currPosT); ArrayCopy(g_prevPosDesc, currPosD); }
 
    ulong currOrdT[]; string currOrdD[];
    int oTot = OrdersTotal();
@@ -153,7 +145,7 @@ void LogAccountStateChanges()
          if(!stillExists) Print("PainelSync [ORDENS] Removida/Cancelada: ", g_prevOrdDesc[k]);
       }
    }
-   ArrayCopy(g_prevOrdTickets, currOrdT); ArrayCopy(g_prevOrdDesc, currOrdD);
+   ArrayFree(g_prevOrdTickets); ArrayFree(g_prevOrdDesc); if(ArraySize(currOrdT) > 0) { ArrayCopy(g_prevOrdTickets, currOrdT); ArrayCopy(g_prevOrdDesc, currOrdD); }
    g_stateInitialized = true;
 }
 
@@ -339,8 +331,6 @@ void SendAccountAndRobotsTelemetry()
 //Write-Host "Parte 1 gravada com sucesso!" -ForegroundColor Green
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// ----------------------------- Parte 2 -----------------------------------------------------------------//
-// ----------------------------- $parte2 = @' ------------------------------------------------------------//
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
    long login       = AccountInfoInteger(ACCOUNT_LOGIN);
@@ -474,6 +464,73 @@ void FindEntryDealInfo(const long posId, const ulong outTicket, double &entryPri
    }
 }
 
+void SendCommandAck(const string id, const bool ok, const ulong oTk, const ulong pTk, const uint rc, const string msg) {
+   string u = InpEndpointUrl + "/api/mt5-sync/" + InpChannelId + "/commands/" + id + "/ack";
+   string h = "Content-Type: application/json\r\nX-Sync-Token: " + InpToken + "\r\n";
+   string m = msg; StringReplace(m, "\\", "/"); StringReplace(m, "\"", "'");
+   string p = "{\"ok\":" + (ok ? "true" : "false") + ",\"orderTicket\":\"" + (oTk > 0 ? IntegerToString((long)oTk) : "") + "\",\"positionTicket\":\"" + (pTk > 0 ? IntegerToString((long)pTk) : "") + "\",\"retcode\":" + IntegerToString((int)rc) + ",\"message\":\"" + m + "\"}";
+   char post[], res[]; string rH = "";
+   int len = StringToCharArray(p, post, 0, WHOLE_ARRAY, CP_UTF8); if(len > 0) ArrayResize(post, len - 1);
+   WebRequest("POST", u, h, 3000, post, res, rH);
+}
+bool ClosePosTk(const ulong tk, uint &rc, string &msg) {
+   if(!PositionSelectByTicket(tk)) { rc = 10013; msg = "Nao encontrada"; return false; }
+   string sym = PositionGetString(POSITION_SYMBOL); double vol = PositionGetDouble(POSITION_VOLUME);
+   ENUM_POSITION_TYPE pt = (ENUM_POSITION_TYPE)PositionGetInteger(POSITION_TYPE); long mg = PositionGetInteger(POSITION_MAGIC);
+   int dg = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
+   MqlTradeRequest r; MqlTradeResult s; ZeroMemory(r); ZeroMemory(s);
+   r.action = TRADE_ACTION_DEAL; r.position = tk; r.symbol = sym; r.volume = vol; r.magic = mg; r.deviation = 50; r.type_filling = ORDER_FILLING_RETURN;
+   if(pt == POSITION_TYPE_BUY) { r.type = ORDER_TYPE_SELL; r.price = NormalizeDouble(SymbolInfoDouble(sym, SYMBOL_BID), dg); }
+   else { r.type = ORDER_TYPE_BUY; r.price = NormalizeDouble(SymbolInfoDouble(sym, SYMBOL_ASK), dg); }
+   bool ok = OrderSend(r, s);
+   if(!ok || (s.retcode != TRADE_RETCODE_DONE && s.retcode != TRADE_RETCODE_PLACED && s.retcode != TRADE_RETCODE_DONE_PARTIAL)) { r.type_filling = ORDER_FILLING_IOC; ZeroMemory(s); ok = OrderSend(r, s); }
+   rc = s.retcode; msg = s.comment;
+   Print("PainelSync [CMD] Fechar #" + IntegerToString((long)tk) + " -> retcode=" + IntegerToString((int)rc) + " (" + msg + ")");
+   return (ok && (s.retcode == TRADE_RETCODE_DONE || s.retcode == TRADE_RETCODE_PLACED || s.retcode == TRADE_RETCODE_DONE_PARTIAL));
+}
+void ExecuteRemoteCommand(const string obj) {
+   string id = ExtractJsonString(obj, "id"), act = ExtractJsonString(obj, "action"), sym = ExtractJsonString(obj, "symbol"), side = ExtractJsonString(obj, "side");
+   string mgS = ExtractJsonString(obj, "magicNumber"), ptS = ExtractJsonString(obj, "positionTicket"), otS = ExtractJsonString(obj, "orderTicket");
+   string vS = ExtractJsonString(obj, "volume"), pS = ExtractJsonString(obj, "price");
+   long tMg = (mgS != "") ? StringToInteger(mgS) : -1; ulong tPos = (ptS != "") ? (ulong)StringToInteger(ptS) : 0; ulong tOrd = (otS != "") ? (ulong)StringToInteger(otS) : 0;
+   double vol = (vS != "") ? StringToDouble(vS) : 0.0, prc = (pS != "") ? StringToDouble(pS) : 0.0;
+   if(id == "" || act == "") return;
+   Print("PainelSync [CMD] Recebido: " + act + " | Magic: " + IntegerToString((int)tMg) + " | Simbolo: " + sym);
+   if(act == "CLOSE_MAGIC") {
+      if(tPos > 0) { uint rc = 0; string m = ""; bool ok = ClosePosTk(tPos, rc, m); SendCommandAck(id, ok, 0, tPos, rc, ok ? "Zerada" : m); return; }
+      ulong tks[];
+      for(int i = PositionsTotal() - 1; i >= 0; i--) { ulong tk = PositionGetTicket(i); if(tk == 0) continue; if(tMg >= 0 && PositionGetInteger(POSITION_MAGIC) != tMg) continue; if(sym != "" && PositionGetString(POSITION_SYMBOL) != sym) continue; int n = ArraySize(tks); ArrayResize(tks, n + 1); tks[n] = tk; }
+      int c = 0; uint lrc = 10009; string lm = "Nenhuma posicao";
+      for(int k = 0; k < ArraySize(tks); k++) if(ClosePosTk(tks[k], lrc, lm)) c++;
+      SendCommandAck(id, c > 0 || ArraySize(tks) == 0, 0, 0, lrc, c > 0 ? ("Zeradas: " + IntegerToString(c)) : lm); return;
+   }
+   if(act == "CANCEL_ORDERS") {
+      ulong oks[]; int totOrd = OrdersTotal();
+      for(int i = totOrd - 1; i >= 0; i--) { ulong ot = OrderGetTicket(i); if(ot == 0 || !OrderSelect(ot)) continue; if(tMg >= 0 && OrderGetInteger(ORDER_MAGIC) != tMg) continue; if(sym != "" && OrderGetString(ORDER_SYMBOL) != sym) continue; int n = ArraySize(oks); ArrayResize(oks, n + 1); oks[n] = ot; }
+      int c = 0; uint lrc = 10009; string lm = "Nenhuma ordem (total=" + IntegerToString(totOrd) + ")";
+      for(int k = 0; k < ArraySize(oks); k++) { MqlTradeRequest r; MqlTradeResult s; ZeroMemory(r); ZeroMemory(s); r.action = TRADE_ACTION_REMOVE; r.order = oks[k]; bool okR = OrderSend(r, s); lrc = s.retcode; lm = s.comment; Print("PainelSync [CMD] Cancelar #" + IntegerToString((long)oks[k]) + " -> retcode=" + IntegerToString((int)lrc) + " (" + lm + ")"); if(okR && (lrc == TRADE_RETCODE_DONE || lrc == TRADE_RETCODE_PLACED)) c++; }
+      if(ArraySize(oks) == 0) Print("PainelSync [CMD] " + lm);
+      SendCommandAck(id, c > 0 || ArraySize(oks) == 0, 0, 0, lrc, c > 0 ? ("Canceladas: " + IntegerToString(c)) : lm); return;
+   }
+   if(act == "CLOSE_ALL") {
+      ulong ap[]; for(int i = PositionsTotal() - 1; i >= 0; i--) { ulong tk = PositionGetTicket(i); if(tk == 0) continue; if(tMg >= 0 && PositionGetInteger(POSITION_MAGIC) != tMg) continue; if(sym != "" && PositionGetString(POSITION_SYMBOL) != sym) continue; int n = ArraySize(ap); ArrayResize(ap, n + 1); ap[n] = tk; }
+      int c = 0; uint rc = 10009; string m = ""; for(int k = 0; k < ArraySize(ap); k++) if(ClosePosTk(ap[k], rc, m)) c++;
+      ulong ao[]; for(int i = OrdersTotal() - 1; i >= 0; i--) { ulong ot = OrderGetTicket(i); if(ot == 0 || !OrderSelect(ot)) continue; if(tMg >= 0 && OrderGetInteger(ORDER_MAGIC) != tMg) continue; if(sym != "" && OrderGetString(ORDER_SYMBOL) != sym) continue; int n = ArraySize(ao); ArrayResize(ao, n + 1); ao[n] = ot; }
+      int ca = 0; for(int k = 0; k < ArraySize(ao); k++) { MqlTradeRequest r; MqlTradeResult s; ZeroMemory(r); ZeroMemory(s); r.action = TRADE_ACTION_REMOVE; r.order = ao[k]; bool okR = OrderSend(r, s); if(okR && (s.retcode == TRADE_RETCODE_DONE || s.retcode == TRADE_RETCODE_PLACED)) ca++; }
+      SendCommandAck(id, true, 0, 0, 10009, "Zerado: " + IntegerToString(c) + " pos, " + IntegerToString(ca) + " ord"); return;
+   }
+   if(act == "OPEN_ORDER") {
+      if(sym == "" || vol <= 0.0) { SendCommandAck(id, false, 0, 0, 10013, "Invalidos"); return; }
+      SymbolSelect(sym, true); MqlTradeRequest r; MqlTradeResult s; ZeroMemory(r); ZeroMemory(s); int dg = (int)SymbolInfoInteger(sym, SYMBOL_DIGITS);
+      r.symbol = sym; r.volume = vol; r.magic = (tMg >= 0) ? tMg : 0; r.deviation = 50; r.type_filling = ORDER_FILLING_RETURN;
+      if(prc <= 0.0) { r.action = TRADE_ACTION_DEAL; r.type = (side == "VENDA") ? ORDER_TYPE_SELL : ORDER_TYPE_BUY; r.price = NormalizeDouble(SymbolInfoDouble(sym, (side == "VENDA") ? SYMBOL_BID : SYMBOL_ASK), dg); }
+      else { r.action = TRADE_ACTION_PENDING; r.type = (side == "VENDA") ? ORDER_TYPE_SELL_LIMIT : ORDER_TYPE_BUY_LIMIT; r.price = NormalizeDouble(prc, dg); }
+      bool sent = OrderSend(r, s); bool ok = (sent && (s.retcode == TRADE_RETCODE_DONE || s.retcode == TRADE_RETCODE_PLACED || s.retcode == TRADE_RETCODE_DONE_PARTIAL));
+      SendCommandAck(id, ok, s.order, s.deal, s.retcode, ok ? "Enviada" : s.comment);
+   }
+}
+string g_chartTempSym = "";
+int g_chartTempIdle = 0;
 void FetchPendingRequest()
 {
    string url = InpEndpointUrl + "/api/mt5-sync/" + InpChannelId + "/pending";
@@ -489,7 +546,20 @@ void FetchPendingRequest()
    string response = CharArrayToString(result, 0, WHOLE_ARRAY, CP_UTF8);
 
    // 1. Processa pedidos explÃ­citos da fila (Snapshot inicial de 1000 candles)
-   int pos = StringFind(response, "\"requests\":[");
+      int cP = StringFind(response, "\"commands\":[");
+   if(cP >= 0) {
+      cP += StringLen("\"commands\":[");
+      int cL = StringLen(response);
+      while(cP < cL) {
+         int s1 = StringFind(response, "{", cP), eA = StringFind(response, "]", cP);
+         if(s1 < 0 || (eA >= 0 && s1 > eA)) break;
+         int e1 = StringFind(response, "}", s1);
+         if(e1 < 0) break;
+         ExecuteRemoteCommand(StringSubstr(response, s1, e1 - s1 + 1));
+         cP = e1 + 1;
+      }
+   }
+int pos = StringFind(response, "\"requests\":[");
    if(pos >= 0)
    {
       pos += StringLen("\"requests\":[");
@@ -520,19 +590,43 @@ void FetchPendingRequest()
    }
 
    // 2. Se houver um grÃ¡fico ativo em foco no painel, envia Delta incremental (apenas 2 velas)
-   int focusPos = StringFind(response, "\"activeChart\":{");
+   int focusPos = StringFind(response, "\"activeChart\"");
+   bool hasFocus = false;
    if(focusPos >= 0)
    {
-      int focusEnd = StringFind(response, "}", focusPos);
-      if(focusEnd > focusPos)
+      int cPos = StringFind(response, ":", focusPos);
+      int fStart = (cPos >= 0) ? StringFind(response, "{", cPos) : -1;
+      int nPos = (cPos >= 0) ? StringFind(response, "null", cPos) : -1;
+      if(fStart >= 0 && (nPos < 0 || fStart < nPos))
       {
-         string focusObj = StringSubstr(response, focusPos, focusEnd - focusPos + 1);
-         string focusSym = ExtractJsonString(focusObj, "symbol");
-         string focusTf  = ExtractJsonString(focusObj, "timeframe");
-         if(focusSym != "" && focusTf != "")
+         int fEnd = StringFind(response, "}", fStart);
+         if(fEnd > fStart)
          {
-            SendCandlesData(focusSym, StringToTimeframe(focusTf), "", 2, true);
+            string fObj = StringSubstr(response, fStart, fEnd - fStart + 1);
+            string fSym = ExtractJsonString(fObj, "symbol");
+            string fTf  = ExtractJsonString(fObj, "timeframe");
+            if(fSym != "" && fTf != "")
+            {
+               hasFocus = true;
+               g_chartTempIdle = 0;
+               if(g_chartTempSym != "" && g_chartTempSym != fSym)
+               {
+                  SymbolSelect(g_chartTempSym, false);
+                  g_chartTempSym = "";
+               }
+               SendCandlesData(fSym, StringToTimeframe(fTf), "", 50, true);
+            }
          }
+      }
+   }
+   if(!hasFocus && g_chartTempSym != "")
+   {
+      g_chartTempIdle++;
+      if(g_chartTempIdle >= 20)
+      {
+         SymbolSelect(g_chartTempSym, false);
+         g_chartTempSym = "";
+         g_chartTempIdle = 0;
       }
    }
 }
@@ -554,14 +648,16 @@ void SendCandlesData(const string symbol, const ENUM_TIMEFRAMES period, const st
    // Se acabou de ser adicionado agora, dÃ¡ 250ms para a corretora entregar o histÃ³rico
    if(total <= 0 && !wasSelected)
    {
-      Sleep(250);
+      Sleep(500);
       total = CopyRates(symbol, period, 0, MathMax(2, barsCount), rates);
    }
 
    // Se nÃ£o estava na ObservaÃ§Ã£o do Mercado antes, remove para nÃ£o poluir sua lista
    if(!wasSelected)
    {
-      SymbolSelect(symbol, false);
+      if(g_chartTempSym != "" && g_chartTempSym != symbol) SymbolSelect(g_chartTempSym, false);
+      g_chartTempSym = symbol;
+      g_chartTempIdle = 0;
    }
 
    if(total <= 0) return;
@@ -613,7 +709,7 @@ bool IsRelevantSymbol(const string name)
       StringFind(name, "ICF") == 0 || StringFind(name, "DI1") == 0)
       return true;
 
-   // AÃ§Ãµes Ã  vista, FIIs, ETFs e BDRs padrÃ£o B3 (ex: PETR4, VALE3, BOVA11, MXRF11, AAPL34)
+   // AÃ§Ãµes Ã  vista, FIIs, ETFs e BDRs padrÃ£o B3 (ex: PETR4, VALE3, BOVA11, MXRF11, AAPL34)
    if(len == 5 || len == 6)
    {
       string suffix = StringSubstr(name, 4);
@@ -877,7 +973,9 @@ ENUM_TIMEFRAMES StringToTimeframe(string tf)
    if(tf == "M30") return PERIOD_M30;
    if(tf == "H1")  return PERIOD_H1;
    if(tf == "H4")  return PERIOD_H4;
-   if(tf == "D1")  return PERIOD_D1;
+   if(tf == "D1" || tf == "D")   return PERIOD_D1;
+   if(tf == "W1" || tf == "W")   return PERIOD_W1;
+   if(tf == "MN1" || tf == "M")  return PERIOD_MN1;
    return PERIOD_M5;
 }
 
@@ -893,18 +991,18 @@ string TimeframeToShortString(ENUM_TIMEFRAMES period)
       case PERIOD_M30: return "M30";
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// ------------------------------------------- Parte 3 ---------------------------------------------------//
 // ------------------------------------------- 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
       case PERIOD_H1:  return "H1";
       case PERIOD_H4:  return "H4";
       case PERIOD_D1:  return "D1";
+      case PERIOD_W1:  return "W1";
+      case PERIOD_MN1: return "MN1";
       default:         return "M5";
    }
 }
 //'@
 //Add-Content -Path "Painel_Sync.mq5" -Value $parte2 -Encoding UTF8
 //Write-Host "Painel_Sync.mq5 finalizado com sucesso!" -ForegroundColor Green
-
 

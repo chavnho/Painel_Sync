@@ -221,7 +221,7 @@ export function buildPainelSyncMql5({ endpointUrl, token, channelId = '', mode =
          Sleep(200);
       if(IsStopped()) break;
 
-      LogAccountStateChanges();\n      FetchPendingRequest();
+      if(!g_historySynced && InpHistoryBackfillDays > 0 && TimeCurrent() - g_lastHistoryRetry >= 30) { g_lastHistoryRetry = TimeCurrent(); SyncHistoricalTrades(InpHistoryBackfillDays); }\n      LogAccountStateChanges();\n      FetchPendingRequest();
       SendAccountAndRobotsTelemetry();
 
       if(TimeCurrent() - g_lastSymbolsReport >= 60)

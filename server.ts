@@ -823,8 +823,7 @@ async function startServer() {
           merged.sort((a, b) => Number(a.time ?? 0) - Number(b.time ?? 0));
           const trimmed = merged.slice(-MAX_CHART_CANDLES).map((c, i) => ({ ...c, index: i }));
           chartCandlesCache.set(`${channelId}:${chartSymbol}:${chartTf}`, trimmed);
-          chartCandlesCache.set(`${channelId}:${chartSymbol}:`, trimmed);
-        }
+                  }
         channel.updatedAtMs = Date.now();
         res.json({
           ok: true,
@@ -839,8 +838,7 @@ async function startServer() {
         mergeChannelSymbols(channel, [chartSymbol]);
         if (chartCandles.length > 0) {
           chartCandlesCache.set(`${channelId}:${chartSymbol}:${chartTf}`, chartCandles);
-          chartCandlesCache.set(`${channelId}:${chartSymbol}:`, chartCandles);
-          activeChartFocus.set(channelId, {
+                    activeChartFocus.set(channelId, {
             symbol: chartSymbol,
             timeframe: chartTf,
             expiresAt: Date.now() + 15_000,
@@ -881,6 +879,12 @@ async function startServer() {
         mergeChannelSymbols(channel, [normalized.symbol]);
         normalizedList.push(normalized);
       }
+    }
+
+    if (normalizedList.length > 0) {
+      const acctSyncKey = channel.account?.login ? String(channel.account.login) : channelId;
+      const liveTrades = normalizedList.flatMap((b) => Array.isArray(b.trades) ? b.trades : []);
+      syncNewTelemetryTradesToDb(acctSyncKey, liveTrades);
     }
 
     if (Array.isArray(body.robots)) {
