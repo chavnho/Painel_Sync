@@ -11,11 +11,30 @@ import {
   createManagedRobotApi,
   deleteManagedRobotApi,
   fetchManagedRobots,
+  fetchSymbolTickSpec,
   updateManagedRobotApi,
 } from '../utils/mt5Bridge';
 
 interface RobotBuilderViewProps {
   creds: Mt5SyncCredentials;
+}
+
+
+function inferLocalTickInfo(sym: string): { tickSize: number; digits: number; isTickCountUnit: boolean } {
+  const u = String(sym || '').trim().toUpperCase();
+  if (/^(WIN|IND)/.test(u)) return { tickSize: 5, digits: 0, isTickCountUnit: false };
+  if (/^(WDO|DOL)/.test(u)) return { tickSize: 0.5, digits: 1, isTickCountUnit: false };
+  if (/^BIT/.test(u)) return { tickSize: 20, digits: 0, isTickCountUnit: false };
+  if (/^(BGI|ICF)/.test(u)) return { tickSize: 0.05, digits: 2, isTickCountUnit: true };
+  return { tickSize: 0.01, digits: 2, isTickCountUnit: true };
+}
+
+function snapRiskValue(val: number, spec: { tickSize: number; digits: number; isTickCountUnit: boolean }): number {
+  const n = Number(val);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  if (spec.isTickCountUnit) return Math.max(1, Math.round(n));
+  const snapped = Math.round(n / spec.tickSize) * spec.tickSize;
+  return Number(Math.max(spec.tickSize, snapped).toFixed(spec.digits));
 }
 
 const DEFAULT_RISK: ManagedRobotRisk = {
@@ -51,6 +70,20 @@ export function RobotBuilderView({ creds }: RobotBuilderViewProps) {
   const [lookbackBars, setLookbackBars] = useState(10);
 
   const [risk, setRisk] = useState<ManagedRobotRisk>(DEFAULT_RISK);
+  const [tickSpec, setTickSpec] = useState<{ tickSize: number; digits: number; isTickCountUnit: boolean }>(() => inferLocalTickInfo('WIN' + '$'));
+
+  useEffect(() => {
+    const local = inferLocalTickInfo(symbol);
+    setTickSpec(local);
+    let cancelled = false;
+    const t = window.setTimeout(async () => {
+      const remote = await fetchSymbolTickSpec(creds.channelId, creds.token, symbol);
+      if (!cancelled && remote && remote.tickSize > 0) {
+        setTickSpec({ tickSize: remote.tickSize, digits: remote.digits, isTickCountUnit: remote.isTickCountUnit });
+      }
+    }, 250);
+    return () => { cancelled = true; window.clearTimeout(t); };
+  }, [symbol, creds.channelId, creds.token]);
 
   const loadList = useCallback(async () => {
     try {
@@ -106,6 +139,12 @@ export function RobotBuilderView({ creds }: RobotBuilderViewProps) {
     setSaving(true);
     setErrorMsg(null);
     try {
+      const normalizedRisk: ManagedRobotRisk = {
+        ...risk,
+        stopPoints: snapRiskValue(risk.stopPoints, tickSpec),
+        takePoints: snapRiskValue(risk.takePoints, tickSpec),
+      };
+      setRisk(normalizedRisk);
       const params: ManagedRobotParams =
         strategyType === 'ema_cross'
           ? { maType, fastPeriod, slowPeriod }
@@ -120,7 +159,7 @@ export function RobotBuilderView({ creds }: RobotBuilderViewProps) {
           timeframe,
           strategyType,
           params,
-          risk,
+          risk: normalizedRisk,
         });
       } else {
         await createManagedRobotApi(creds.channelId, creds.token, {
@@ -130,7 +169,7 @@ export function RobotBuilderView({ creds }: RobotBuilderViewProps) {
           enabled: false,
           strategyType,
           params,
-          risk,
+          risk: normalizedRisk,
         });
       }
       resetForm();
@@ -274,19 +313,46 @@ export function RobotBuilderView({ creds }: RobotBuilderViewProps) {
               )}
 
               <div className="pt-2 border-t border-[#1E2633] space-y-2.5">
-                <div className="text-[11px] font-semibold text-gray-300">Gestão de Risco & Horários</div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold text-gray-300">Gestão de Risco & Horários</span>
+                  <span className="px-2 py-0.5 rounded bg-[#090D12] border border-[#1E2633] text-[10px] font-mono text-sky-300">
+                    {tickSpec.isTickCountUnit
+                      ? `Tick: R$ ${tickSpec.tickSize.toFixed(tickSpec.digits)} (em ticks)`
+                      : `Tick: ${tickSpec.tickSize} pt${tickSpec.tickSize > 1 ? 's' : ''}`}
+                  </span>
+                </div>
                 <div className="grid grid-cols-3 gap-2.5">
                   <div>
                     <label className="block text-[10px] text-gray-400 mb-1">Volume</label>
                     <input type="number" step="0.01" min="0.01" value={risk.volume} onChange={(e) => setRisk({ ...risk, volume: Number(e.target.value) })} className="w-full px-2.5 py-1.5 rounded bg-[#090D12] border border-[#1E2633] text-xs font-mono text-gray-100" />
                   </div>
                   <div>
-                    <label className="block text-[10px] text-gray-400 mb-1">Stop Loss (pts)</label>
-                    <input type="number" min="0" value={risk.stopPoints} onChange={(e) => setRisk({ ...risk, stopPoints: Number(e.target.value) })} className="w-full px-2.5 py-1.5 rounded bg-[#090D12] border border-[#1E2633] text-xs font-mono text-gray-100" />
+                    <label className="block text-[10px] text-gray-400 mb-1">
+                      Stop Loss ({tickSpec.isTickCountUnit ? `ticks = R$ ${(risk.stopPoints * tickSpec.tickSize).toFixed(2)}` : 'pts'})
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step={tickSpec.isTickCountUnit ? 1 : tickSpec.tickSize}
+                      value={risk.stopPoints}
+                      onChange={(e) => setRisk({ ...risk, stopPoints: Number(e.target.value) })}
+                      onBlur={() => setRisk((r) => ({ ...r, stopPoints: snapRiskValue(r.stopPoints, tickSpec) }))}
+                      className="w-full px-2.5 py-1.5 rounded bg-[#090D12] border border-[#1E2633] text-xs font-mono text-gray-100"
+                    />
                   </div>
                   <div>
-                    <label className="block text-[10px] text-gray-400 mb-1">Take Profit (pts)</label>
-                    <input type="number" min="0" value={risk.takePoints} onChange={(e) => setRisk({ ...risk, takePoints: Number(e.target.value) })} className="w-full px-2.5 py-1.5 rounded bg-[#090D12] border border-[#1E2633] text-xs font-mono text-gray-100" />
+                    <label className="block text-[10px] text-gray-400 mb-1">
+                      Take Profit ({tickSpec.isTickCountUnit ? `ticks = R$ ${(risk.takePoints * tickSpec.tickSize).toFixed(2)}` : 'pts'})
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step={tickSpec.isTickCountUnit ? 1 : tickSpec.tickSize}
+                      value={risk.takePoints}
+                      onChange={(e) => setRisk({ ...risk, takePoints: Number(e.target.value) })}
+                      onBlur={() => setRisk((r) => ({ ...r, takePoints: snapRiskValue(r.takePoints, tickSpec) }))}
+                      className="w-full px-2.5 py-1.5 rounded bg-[#090D12] border border-[#1E2633] text-xs font-mono text-gray-100"
+                    />
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-2.5">

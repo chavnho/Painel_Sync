@@ -92,16 +92,65 @@ function getBrtHHMM(now = new Date()): string {
   return new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit", hour12: false }).format(now);
 }
 
-function buildSlTp(symbol: string, side: "COMPRA" | "VENDA", refPrice: number, stopPoints: number, takePoints: number): { sl?: number; tp?: number } {
-  const isMini = /^(WIN|IND|WDO|DOL)/i.test(symbol);
-  const mult = isMini ? 1 : (refPrice < 500 ? 0.01 : 1);
-  const slDist = stopPoints > 0 ? stopPoints * mult : 0;
-  const tpDist = takePoints > 0 ? takePoints * mult : 0;
-  const digits = /^(WDO|DOL)/i.test(symbol) ? 1 : isMini ? 0 : 2;
-  if (side === "COMPRA") {
-    return { sl: slDist > 0 ? Number((refPrice - slDist).toFixed(digits)) : undefined, tp: tpDist > 0 ? Number((refPrice + tpDist).toFixed(digits)) : undefined };
+export interface SymbolTickSpec {
+  tickSize: number;
+  digits: number;
+  isTickCountUnit: boolean;
+}
+
+export function resolveSymbolTickSpec(
+  symbol: string,
+  refPrice = 0,
+  brokerSpec?: { tickSize?: number; digits?: number } | null
+): SymbolTickSpec {
+  const u = String(symbol || "").trim().toUpperCase();
+  if (brokerSpec && Number(brokerSpec.tickSize) > 0) {
+    const tickSize = Number(brokerSpec.tickSize);
+    const digits = Number.isInteger(brokerSpec.digits) && Number(brokerSpec.digits) >= 0
+      ? Number(brokerSpec.digits)
+      : tickSize >= 1 ? 0 : tickSize >= 0.1 ? 1 : 2;
+    return { tickSize, digits, isTickCountUnit: tickSize < 0.5 };
   }
-  return { sl: slDist > 0 ? Number((refPrice + slDist).toFixed(digits)) : undefined, tp: tpDist > 0 ? Number((refPrice - tpDist).toFixed(digits)) : undefined };
+  if (/^(WIN|IND)/.test(u)) return { tickSize: 5, digits: 0, isTickCountUnit: false };
+  if (/^(WDO|DOL)/.test(u)) return { tickSize: 0.5, digits: 1, isTickCountUnit: false };
+  if (/^BIT/.test(u)) return { tickSize: 20, digits: 0, isTickCountUnit: false };
+  if (/^CCM/.test(u)) return { tickSize: 0.01, digits: 2, isTickCountUnit: true };
+  if (/^BGI/.test(u)) return { tickSize: 0.05, digits: 2, isTickCountUnit: true };
+  if (/^ICF/.test(u)) return { tickSize: 0.05, digits: 2, isTickCountUnit: true };
+  if (refPrice > 0 && refPrice < 500) return { tickSize: 0.01, digits: 2, isTickCountUnit: true };
+  return { tickSize: 0.01, digits: 2, isTickCountUnit: true };
+}
+
+export function snapPriceToTick(rawPrice: number, tickSize: number, digits: number): number {
+  const step = tickSize > 0 ? tickSize : 0.01;
+  const snapped = Math.round(rawPrice / step) * step;
+  return Number(snapped.toFixed(Math.max(0, digits)));
+}
+
+function buildSlTp(
+  symbol: string,
+  side: "COMPRA" | "VENDA",
+  refPrice: number,
+  stopPoints: number,
+  takePoints: number,
+  brokerSpec?: { tickSize?: number; digits?: number } | null
+): { sl?: number; tp?: number } {
+  const spec = resolveSymbolTickSpec(symbol, refPrice, brokerSpec);
+  const rawSlDist = stopPoints > 0 ? (spec.isTickCountUnit ? stopPoints * spec.tickSize : stopPoints) : 0;
+  const rawTpDist = takePoints > 0 ? (spec.isTickCountUnit ? takePoints * spec.tickSize : takePoints) : 0;
+  const slDist = rawSlDist > 0 ? Math.max(spec.tickSize, Math.round(rawSlDist / spec.tickSize) * spec.tickSize) : 0;
+  const tpDist = rawTpDist > 0 ? Math.max(spec.tickSize, Math.round(rawTpDist / spec.tickSize) * spec.tickSize) : 0;
+
+  if (side === "COMPRA") {
+    return {
+      sl: slDist > 0 ? snapPriceToTick(refPrice - slDist, spec.tickSize, spec.digits) : undefined,
+      tp: tpDist > 0 ? snapPriceToTick(refPrice + tpDist, spec.tickSize, spec.digits) : undefined,
+    };
+  }
+  return {
+    sl: slDist > 0 ? snapPriceToTick(refPrice + slDist, spec.tickSize, spec.digits) : undefined,
+    tp: tpDist > 0 ? snapPriceToTick(refPrice - tpDist, spec.tickSize, spec.digits) : undefined,
+  };
 }
 
 export function evaluateManagedRobot(input: {
@@ -111,6 +160,7 @@ export function evaluateManagedRobot(input: {
   openPosition: EngineOpenPosition | null;
   dailyPnlBrl: number;
   hasPendingCommand: boolean;
+  brokerSpec?: { tickSize?: number; digits?: number } | null;
   now?: Date;
 }): EngineEvaluationResult {
   const { robot, candles, resolvedSymbol, openPosition, dailyPnlBrl, hasPendingCommand } = input;
@@ -206,7 +256,7 @@ export function evaluateManagedRobot(input: {
     return { decision: `[${hhmm}] Sinal ${rawSignal} ignorado (ja posicionado em ${openPosition.side})`, directive: null, overlays };
   }
 
-  const { sl, tp } = buildSlTp(resolvedSymbol, rawSignal, refPrice, robot.risk.stopPoints, robot.risk.takePoints);
+  const { sl, tp } = buildSlTp(resolvedSymbol, rawSignal, refPrice, robot.risk.stopPoints, robot.risk.takePoints, input.brokerSpec);
   return {
     decision: `[${hhmm}] ORDEM ${rawSignal}: ${signalDetail}`,
     overlays,

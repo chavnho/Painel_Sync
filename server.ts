@@ -5,7 +5,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { PendingRequest, PairingAttemptEvent, LiveSyncChannel, NormalizedCandle} from "./types";
 import { persistExecutedTrades, loadPersistedTradesForAccount, setRobotHiddenPreference, loadHiddenMagicsForAccount, enqueueCommand, pollAndDispatchPendingCommands, acknowledgeCommand, listRecentCommands, listManagedRobots, createManagedRobot, updateManagedRobot, markManagedRobotSignal, updateManagedRobotDecision, deleteManagedRobot, hasActiveCommandForMagic } from "./src/db/tradesDb";
-import { evaluateManagedRobot } from "./src/engine/robotEngine";
+import { evaluateManagedRobot, resolveSymbolTickSpec } from "./src/engine/robotEngine";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -190,7 +190,8 @@ function runManagedRobotsCycle(channelId: string, channel: LiveSyncChannel) {
         }
       }
     }
-    const evalRes = evaluateManagedRobot({ robot: bot, candles, resolvedSymbol, openPosition, dailyPnlBrl, hasPendingCommand: hasActiveCommandForMagic(channelId, bot.magicNumber) });
+    const brokerSpec = channel.symbolSpecs?.[resolvedSymbol] || channel.symbolSpecs?.[bot.symbol.toUpperCase()] || null;
+    const evalRes = evaluateManagedRobot({ robot: bot, candles, resolvedSymbol, openPosition, dailyPnlBrl, hasPendingCommand: hasActiveCommandForMagic(channelId, bot.magicNumber), brokerSpec });
     if (evalRes.directive) {
       const cmdId = `cmd_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
       const created = enqueueCommand({ id: cmdId, channelId, magicNumber: bot.magicNumber, action: evalRes.directive.type, symbol: evalRes.directive.symbol, side: evalRes.directive.side, volume: evalRes.directive.volume, sl: evalRes.directive.sl, tp: evalRes.directive.tp, ttlSeconds: 15 });
@@ -1222,6 +1223,18 @@ async function startServer() {
       requestId,
       message: "Solicitação adicionada à fila e enviada ao robô."
     });
+  });
+
+  app.get("/api/mt5-sync/:channelId/symbol-spec", (req, res) => {
+    const channelId = String(req.params.channelId || "").trim();
+    const token = extractSyncToken(req);
+    const channel = channelId.length >= 4 && token.length >= 6 ? getOrCreateChannel(channelId, token) : null;
+    if (!channel) { res.status(403).json({ error: "Token invalido." }); return; }
+    const rawSym = String(req.query.symbol || "WIN$").trim().toUpperCase();
+    const resolved = resolveManagedSymbol(channel, rawSym);
+    const brokerSpec = channel.symbolSpecs?.[resolved] || channel.symbolSpecs?.[rawSym] || null;
+    const spec = resolveSymbolTickSpec(resolved, 0, brokerSpec);
+    res.json({ ok: true, symbol: rawSym, resolvedSymbol: resolved, ...spec, source: brokerSpec ? "mt5" : "b3_default" });
   });
 
   app.get("/api/mt5-sync/:channelId/managed-robots", (req, res) => {

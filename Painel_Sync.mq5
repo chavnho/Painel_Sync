@@ -778,8 +778,10 @@ void SendCandlesData(const string symbol, const ENUM_TIMEFRAMES period, const st
    if(total <= 0) return;
 
    int digits = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
+   double tickSize = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_SIZE);
    string json = "{";
    json += "\"isChartRequest\":true";
+   if(tickSize > 0) json += ",\"tickSize\":" + DoubleToString(tickSize, 8) + ",\"digits\":" + IntegerToString(digits);
    if(isDelta)
       json += ",\"isChartDelta\":true";
    json += ",\"symbol\":\"" + symbol + "\"";
@@ -846,6 +848,8 @@ void SendSymbolsReport()
    string json = "{\"symbols\":[";
 
    // 1. Primeiro inclui 100% dos ativos que estÃ£o no seu Market Watch
+   string specsJson = "";
+   int specsCount = 0;
    int mwTotal = SymbolsTotal(true);
    for(int i = 0; i < mwTotal; i++)
    {
@@ -857,6 +861,15 @@ void SendSymbolsReport()
       ArrayResize(added, count + 1);
       added[count] = name;
       count++;
+
+      double ts = SymbolInfoDouble(name, SYMBOL_TRADE_TICK_SIZE);
+      int dg = (int)SymbolInfoInteger(name, SYMBOL_DIGITS);
+      if(ts > 0)
+      {
+         if(specsCount > 0) specsJson += ",";
+         specsJson += "\"" + EscapeJson(name) + "\":{\"tickSize\":" + DoubleToString(ts, 8) + ",\"digits\":" + IntegerToString(dg) + "}";
+         specsCount++;
+      }
    }
 
    // 2. Depois varre TODOS os ativos da corretora (sem corte em 5000) filtrando os negociÃ¡veis
