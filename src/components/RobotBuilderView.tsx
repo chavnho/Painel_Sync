@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Bot, CheckCircle2, Pause, Pencil, Play, Plus, ShieldAlert, Trash2, TrendingUp, X } from 'lucide-react';
+import { Bot, CheckCircle2, Pause, Pencil, Play, Plus, ArrowDownLeft, ArrowUpRight, Copy, ShieldAlert, Trash2, TrendingUp, X } from 'lucide-react';
 import type {
   ManagedRobot,
   ManagedRobotParams,
@@ -239,6 +239,10 @@ export function RobotBuilderView({ creds }: RobotBuilderViewProps) {
     }
   };
 
+  const handleChangeEnvironment = async (bot: ManagedRobot, environment: 'SIMULATOR' | 'PRODUCTION') => { try { await updateManagedRobotApi(creds.channelId, creds.token, bot.id, { environment, enabled: environment === 'SIMULATOR' ? false : bot.enabled }); await loadList(); } catch (err) { setErrorMsg(err instanceof Error ? err.message : 'Erro ao mover ambiente'); } };
+  const handleDuplicate = (bot: ManagedRobot) => { handleEdit(bot); setEditingId(null); setName(bot.name + ' (Copia)'); };
+  const productionBots = robots.filter((b) => b.environment === 'PRODUCTION');
+  const simulatorBots = robots.filter((b) => b.environment !== 'PRODUCTION');
   const handleToggleEnabled = async (bot: ManagedRobot) => {
     try {
       await updateManagedRobotApi(creds.channelId, creds.token, bot.id, { enabled: !bot.enabled });
@@ -465,78 +469,11 @@ export function RobotBuilderView({ creds }: RobotBuilderViewProps) {
 
                         <button type="submit" disabled={saving} className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors cursor-pointer disabled:opacity-60">
               <Plus className="w-4 h-4" />
-              <span>{saving ? 'Salvando...' : editingId ? 'Salvar Alterações' : 'Criar Robô (Pausado)'}</span>
+              <span>{saving ? 'Salvando...' : editingId ? 'Salvar Alterações' : 'Salvar no Simulador'}</span>
             </button>
           </form>
 
-          <div className="lg:col-span-7 space-y-3">
-            {loading ? (
-              <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] p-8 text-center text-xs text-gray-400">
-                Carregando robôs gerenciados...
-              </div>
-            ) : robots.length === 0 ? (
-              <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] p-8 text-center space-y-2">
-                <div className="text-sm font-medium text-gray-200">Nenhum robô criado no painel ainda</div>
-                <p className="text-xs text-gray-400 max-w-md mx-auto">
-                  Configure uma estratégia ao lado. Assim que você clicar em Ligar, o servidor avaliará os candles e enviará as ordens pelo Serviço do MT5.
-                </p>
-              </div>
-            ) : (
-              robots.map((bot) => (
-                <div key={bot.id} className="rounded-xl bg-[#0F141C] border border-[#1E2633] p-4 space-y-3">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-gray-100">{bot.name}</span>
-                        <span className="px-2 py-0.5 rounded bg-[#090D12] border border-[#1E2633] text-[10px] font-mono text-gray-400">
-                          Magic #{bot.magicNumber}
-                        </span>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${bot.enabled ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-500/40' : 'bg-gray-800/70 text-gray-400 border border-gray-700'}`}>
-                          {bot.enabled ? 'Ativo' : 'Pausado'}
-                        </span>
-                      </div>
-                      <div className="text-xs text-gray-400 font-mono mt-1">
-                        {bot.symbol} · {bot.timeframe} · {strategyLabel(bot.strategyType)} · Vol {bot.risk.volume} · SL {bot.risk.stopPoints} / TP {bot.risk.takePoints} pts
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => handleToggleEnabled(bot)}
-                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${bot.enabled ? 'bg-amber-950/40 hover:bg-amber-950/70 text-amber-300 border-amber-500/40' : 'bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-300 border-emerald-500/50'}`}
-                      >
-                        {bot.enabled ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-                        <span>{bot.enabled ? 'Pausar' : 'Ligar'}</span>
-                      </button>
-
-                      <button type="button" onClick={() => handleEdit(bot)} title="Editar" className="p-2 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#1E2633] text-gray-300 cursor-pointer">
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-
-                      {confirmDeleteId === bot.id ? (
-                        <button type="button" onClick={() => handleDelete(bot.id)} className="px-2.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold cursor-pointer">
-                          Confirmar
-                        </button>
-                      ) : (
-                        <button type="button" onClick={() => setConfirmDeleteId(bot.id)} title="Excluir" className="p-2 rounded-lg bg-[#161C25] hover:bg-rose-950/50 border border-[#1E2633] hover:border-rose-500/40 text-gray-400 hover:text-rose-300 cursor-pointer">
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="px-3 py-2 rounded-lg bg-[#090D12] border border-[#1E2633] flex items-center justify-between gap-2 text-[11px] font-mono text-gray-300">
-                    <span className="inline-flex items-center gap-1.5 truncate">
-                      <CheckCircle2 className={`w-3.5 h-3.5 shrink-0 ${bot.enabled ? 'text-emerald-400' : 'text-gray-500'}`} />
-                      <span className="truncate">{bot.lastDecision || 'Aguardando próximo ciclo de candles...'}</span>
-                    </span>
-                    <span className="text-gray-500 shrink-0">{bot.risk.startTime}–{bot.risk.endTime}</span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+          <div className="lg:col-span-7 space-y-6">{loading ? (<div className="rounded-xl bg-[#0F141C] border border-[#1E2633] p-8 text-center text-xs text-gray-400">Carregando robôs...</div>) : (<><div className="space-y-3"><div className="flex items-center justify-between"><div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-400" /><h2 className="text-xs font-bold uppercase tracking-wider text-gray-200">Produção / Real ({productionBots.length})</h2></div><span className="text-[11px] text-gray-500">Aptos a enviar ordens ao MT5</span></div>{productionBots.length === 0 ? (<div className="rounded-xl bg-[#0F141C]/60 border border-dashed border-[#1E2633] p-5 text-center text-xs text-gray-500">Nenhum robô em Produção. Valide no Simulador e clique em Promover.</div>) : (<div className="grid grid-cols-1 md:grid-cols-2 gap-3">{productionBots.map((bot) => (<div key={bot.id} className="rounded-xl bg-[#0F141C] border border-emerald-500/25 p-4 flex flex-col justify-between gap-3"><div className="space-y-2"><div className="text-sm font-semibold text-gray-100 truncate">{bot.name}</div><div className="flex flex-wrap items-center gap-1.5"><span className="px-1.5 py-0.5 rounded bg-emerald-950/70 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold uppercase">Produção</span><span className="px-1.5 py-0.5 rounded bg-[#090D12] border border-[#1E2633] text-[10px] font-mono text-gray-400">#{bot.magicNumber}</span><span className={"px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase " + (bot.enabled ? "bg-emerald-500/20 text-emerald-300" : "bg-gray-800 text-gray-400")}>{bot.enabled ? "Ativo" : "Pausado"}</span></div><div className="text-[11px] text-gray-400 font-mono">{bot.symbol} • {bot.timeframe} • {strategyLabel(bot.strategyType)}</div><div className="grid grid-cols-3 gap-1.5 text-center font-mono text-[10px]"><div className="rounded bg-[#090D12] border border-[#1E2633] py-1"><span className="text-gray-500">Vol </span><span className="text-gray-200">{bot.risk.volume}</span></div><div className="rounded bg-[#090D12] border border-[#1E2633] py-1"><span className="text-gray-500">SL </span><span className="text-rose-300">{bot.risk.stopPoints}</span></div><div className="rounded bg-[#090D12] border border-[#1E2633] py-1"><span className="text-gray-500">TP </span><span className="text-emerald-300">{bot.risk.takePoints}</span></div></div></div><div className="flex items-center justify-between gap-1.5 pt-2 border-t border-[#1E2633]"><button type="button" onClick={() => handleToggleEnabled(bot)} className={"inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold border cursor-pointer " + (bot.enabled ? "bg-amber-950/40 text-amber-300 border-amber-500/40" : "bg-emerald-950/50 text-emerald-300 border-emerald-500/50")}>{bot.enabled ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}<span>{bot.enabled ? "Pausar" : "Ligar"}</span></button><div className="flex items-center gap-1"><button type="button" onClick={() => handleChangeEnvironment(bot, "SIMULATOR")} title="Mover p/ Simulador" className="p-1.5 rounded-lg bg-[#161C25] border border-[#1E2633] text-sky-300 cursor-pointer"><ArrowDownLeft className="w-3.5 h-3.5" /></button><button type="button" onClick={() => handleDuplicate(bot)} title="Duplicar" className="p-1.5 rounded-lg bg-[#161C25] border border-[#1E2633] text-gray-300 cursor-pointer"><Copy className="w-3.5 h-3.5" /></button><button type="button" onClick={() => handleEdit(bot)} title="Editar" className="p-1.5 rounded-lg bg-[#161C25] border border-[#1E2633] text-gray-300 cursor-pointer"><Pencil className="w-3.5 h-3.5" /></button>{confirmDeleteId === bot.id ? (<button type="button" onClick={() => handleDelete(bot.id)} className="px-2 py-1 rounded-lg bg-rose-600 text-white text-[11px] font-semibold cursor-pointer">Confirmar</button>) : (<button type="button" onClick={() => setConfirmDeleteId(bot.id)} title="Excluir" className="p-1.5 rounded-lg bg-[#161C25] border border-[#1E2633] text-gray-400 hover:text-rose-300 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>)}</div></div></div>))}</div>)}</div><div className="space-y-3"><div className="flex items-center justify-between"><div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-sky-400" /><h2 className="text-xs font-bold uppercase tracking-wider text-gray-200">Simulador / Estudo ({simulatorBots.length})</h2></div><span className="text-[11px] text-gray-500">Bloqueados para envio real</span></div>{simulatorBots.length === 0 ? (<div className="rounded-xl bg-[#0F141C]/60 border border-dashed border-[#1E2633] p-5 text-center text-xs text-gray-500">Nenhum robô no Simulador. Crie um ao lado para testar.</div>) : (<div className="grid grid-cols-1 md:grid-cols-2 gap-3">{simulatorBots.map((bot) => (<div key={bot.id} className="rounded-xl bg-[#0F141C] border border-sky-500/20 p-4 flex flex-col justify-between gap-3"><div className="space-y-2"><div className="text-sm font-semibold text-gray-100 truncate">{bot.name}</div><div className="flex flex-wrap items-center gap-1.5"><span className="px-1.5 py-0.5 rounded bg-sky-950/70 text-sky-300 border border-sky-500/40 text-[10px] font-bold uppercase">Simulador</span><span className="px-1.5 py-0.5 rounded bg-[#090D12] border border-[#1E2633] text-[10px] font-mono text-gray-400">#{bot.magicNumber}</span></div><div className="text-[11px] text-gray-400 font-mono">{bot.symbol} • {bot.timeframe} • {strategyLabel(bot.strategyType)}</div><div className="grid grid-cols-3 gap-1.5 text-center font-mono text-[10px]"><div className="rounded bg-[#090D12] border border-[#1E2633] py-1"><span className="text-gray-500">Vol </span><span className="text-gray-200">{bot.risk.volume}</span></div><div className="rounded bg-[#090D12] border border-[#1E2633] py-1"><span className="text-gray-500">SL </span><span className="text-rose-300">{bot.risk.stopPoints}</span></div><div className="rounded bg-[#090D12] border border-[#1E2633] py-1"><span className="text-gray-500">TP </span><span className="text-emerald-300">{bot.risk.takePoints}</span></div></div></div><div className="flex items-center justify-between gap-1.5 pt-2 border-t border-[#1E2633]"><button type="button" onClick={() => handleChangeEnvironment(bot, "PRODUCTION")} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-500/40 text-xs font-semibold cursor-pointer"><ArrowUpRight className="w-3.5 h-3.5" /><span>Promover</span></button><div className="flex items-center gap-1"><button type="button" onClick={() => handleDuplicate(bot)} title="Duplicar" className="p-1.5 rounded-lg bg-[#161C25] border border-[#1E2633] text-gray-300 cursor-pointer"><Copy className="w-3.5 h-3.5" /></button><button type="button" onClick={() => handleEdit(bot)} title="Editar" className="p-1.5 rounded-lg bg-[#161C25] border border-[#1E2633] text-gray-300 cursor-pointer"><Pencil className="w-3.5 h-3.5" /></button>{confirmDeleteId === bot.id ? (<button type="button" onClick={() => handleDelete(bot.id)} className="px-2 py-1 rounded-lg bg-rose-600 text-white text-[11px] font-semibold cursor-pointer">Confirmar</button>) : (<button type="button" onClick={() => setConfirmDeleteId(bot.id)} title="Excluir" className="p-1.5 rounded-lg bg-[#161C25] border border-[#1E2633] text-gray-400 hover:text-rose-300 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>)}</div></div></div>))}</div>)}</div></>)}</div>
         </div>
       </div>
       </div>
