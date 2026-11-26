@@ -162,13 +162,13 @@ export function runBacktestSimulation(input: {
       dailyRealizedBrl = 0;
     }
 
-    if (pos) {
+    let closedOnThisBar = false; if (pos) {
       if (pos.side === "COMPRA") {
-        if (pos.sl > 0 && curBar.low <= pos.sl) closePos(pos.sl, barTs, fmt.label, "Stop Loss");
-        else if (pos.tp > 0 && curBar.high >= pos.tp) closePos(pos.tp, barTs, fmt.label, "Take Profit");
+        if (pos.sl > 0 && curBar.low <= pos.sl) { closedOnThisBar = true; closePos(pos.sl, barTs, fmt.label, "Stop Loss"); }
+        else if (pos.tp > 0 && curBar.high >= pos.tp) { closedOnThisBar = true; closePos(pos.tp, barTs, fmt.label, "Take Profit"); }
       } else {
-        if (pos.sl > 0 && curBar.high >= pos.sl) closePos(pos.sl, barTs, fmt.label, "Stop Loss");
-        else if (pos.tp > 0 && curBar.low <= pos.tp) closePos(pos.tp, barTs, fmt.label, "Take Profit");
+        if (pos.sl > 0 && curBar.high >= pos.sl) { closedOnThisBar = true; closePos(pos.sl, barTs, fmt.label, "Stop Loss"); }
+        else if (pos.tp > 0 && curBar.low <= pos.tp) { closedOnThisBar = true; closePos(pos.tp, barTs, fmt.label, "Take Profit"); }
       }
     }
 
@@ -209,8 +209,8 @@ export function runBacktestSimulation(input: {
 
     if (evalRes.directive) {
       if (evalRes.directive.type === "CLOSE_MAGIC" && pos) {
-        closePos(curBar.close, barTs, fmt.label, evalRes.directive.reason);
-      } else if (evalRes.directive.type === "OPEN_ORDER" && !pos && evalRes.directive.side) {
+        closePos(curBar.close, barTs, fmt.label, evalRes.directive.reason); closedOnThisBar = true;
+      } else if (evalRes.directive.type === "OPEN_ORDER" && !pos && !closedOnThisBar && evalRes.directive.side) {
         lastSignalBar = evalRes.directive.barTime;
         const execPrice = Number(curBar.open) || curBar.close;
         const stopPts = Math.max(0, Number(input.robot.risk.stopPoints) || 0);
