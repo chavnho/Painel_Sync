@@ -349,9 +349,59 @@ function mergeChannelSymbols(channel: LiveSyncChannel, incoming: unknown) {
   channel.symbols = Array.from(set).sort((a, b) => a.localeCompare(b));
 }
 
+const persistedTradesCache = new Map<string, { ts: number; trades: ReturnType<typeof loadPersistedTradesForAccount>; knownIds: Set<string> }>();
+
+function getCachedPersistedTrades(accountKey: string) {
+  const now = Date.now();
+  const cached = persistedTradesCache.get(accountKey);
+  if (cached && now - cached.ts < 10000) {
+    return cached.trades;
+  }
+  const trades = loadPersistedTradesForAccount(accountKey);
+  persistedTradesCache.set(accountKey, {
+    ts: now,
+    trades,
+    knownIds: new Set(trades.map((t) => String(t.id))),
+  });
+  return trades;
+}
+
+function syncNewTelemetryTradesToDb(accountKey: string, trades: NormalizedTrade[]) {
+  if (!accountKey || !Array.isArray(trades) || trades.length === 0) return;
+  let cached = persistedTradesCache.get(accountKey);
+  if (!cached) {
+    getCachedPersistedTrades(accountKey);
+    cached = persistedTradesCache.get(accountKey)!;
+  }
+  const unsaved = trades.filter((t) => t.id && !cached!.knownIds.has(String(t.id)));
+  if (unsaved.length === 0) return;
+  persistExecutedTrades(
+    accountKey,
+    unsaved.map((t) => ({
+      id: String(t.id),
+      robotId: String(t.robotId || `${t.magicNumber}_${t.symbol}`),
+      robotName: String(t.robotName || `Robo #${t.magicNumber}`),
+      magicNumber: Number(t.magicNumber) || 0,
+      symbol: String(t.symbol || ""),
+      side: t.side === "VENDA" ? "VENDA" : "COMPRA",
+      entryDate: String(t.entryDate || t.exitDate || ""),
+      exitDate: String(t.exitDate || ""),
+      entryTime: String(t.entryTime || t.exitTime || ""),
+      exitTime: String(t.exitTime || ""),
+      entryPrice: Number(t.entryPrice) || 0,
+      exitPrice: Number(t.exitPrice) || 0,
+      volume: Number(t.volume) || 1,
+      points: Number(t.points) || 0,
+      pnlBrl: Number(t.pnlBrl) || 0,
+      reason: String(t.reason || "MT5"),
+    }))
+  );
+  persistedTradesCache.delete(accountKey);
+}
+
 function buildSnapshotResponse(channelId: string, channel: LiveSyncChannel) {
   const accountKey = channel.account?.login || channelId;
-  const persistedAll = loadPersistedTradesForAccount(accountKey);
+  const persistedAll = getCachedPersistedTrades(accountKey);
   const hiddenMagics = new Set<number>([...loadHiddenMagicsForAccount(accountKey), ...loadHiddenMagicsForAccount(channelId)]);
 
   // Garante que robôs presentes no histórico SQLite (mesmo sem trades hoje) apareçam no painel
@@ -546,9 +596,7 @@ async function startServer() {
       });
     }
 
-    const cachedChart =
-      chartCandlesCache.get(`${channelId}:${symKey}:${tfKey}`) ||
-      chartCandlesCache.get(`${channelId}:${symKey}:`);
+    const cachedChart = chartCandlesCache.get(`${channelId}:${symKey}:${tfKey}`);
 
     if (cachedChart && cachedChart.length > 0) {
       res.json({
@@ -570,11 +618,8 @@ async function startServer() {
 
 
     let candles = robot.candles;
-    if (timeframe && robot.candlesByTimeframe) {
-      const tfKey = timeframe.toUpperCase();
-      if (robot.candlesByTimeframe[tfKey]) {
-        candles = robot.candlesByTimeframe[tfKey];
-      }
+    if (tfKey && robot.candlesByTimeframe && robot.candlesByTimeframe[tfKey]) {
+      candles = robot.candlesByTimeframe[tfKey];
     }
 
     res.json({
@@ -699,6 +744,7 @@ async function startServer() {
           reason: String(t.reason || "MT5"),
         }));
         persistExecutedTrades(login, normalized);
+        persistedTradesCache.delete(String(login));
       }
       channel.updatedAtMs = Date.now();
       res.json({
@@ -1136,7 +1182,7 @@ async function startServer() {
     const created = enqueueCommand({
       id: commandId,
       channelId,
-      magicNumber: Number(req.body?.magicNumber) || 0,
+      magicNumber: (req.body?.magicNumber !== undefined && req.body?.magicNumber !== null && String(req.body?.magicNumber).trim() !== "") ? Number(req.body.magicNumber) : undefined,
       action: action as "CLOSE_MAGIC" | "CANCEL_ORDERS" | "CLOSE_ALL" | "OPEN_ORDER" | "MODIFY_SL_TP",
       symbol: req.body?.symbol ? String(req.body.symbol) : undefined,
       side: req.body?.side === "COMPRA" || req.body?.side === "VENDA" ? req.body.side : undefined,
@@ -1181,7 +1227,7 @@ async function startServer() {
     }
 
     const ok = Boolean(req.body?.ok);
-    const updated = acknowledgeCommand(commandId, {
+    const updated = acknowledgeCommand(channelId, commandId, {
       status: ok ? "executed" : "failed",
       mt5OrderTicket: req.body?.orderTicket ? String(req.body.orderTicket) : undefined,
       mt5PositionTicket: req.body?.positionTicket ? String(req.body.positionTicket) : undefined,
