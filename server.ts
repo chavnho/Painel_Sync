@@ -909,7 +909,12 @@ async function startServer() {
       if (chartSymbol) {
         mergeChannelSymbols(channel, [chartSymbol]);
         if (chartCandles.length > 0) {
-          chartCandlesCache.set(`${channelId}:${chartSymbol}:${chartTf}`, chartCandles);
+          const prevCached = chartCandlesCache.get(`${channelId}:${chartSymbol}:${chartTf}`) || [];
+          const byTime = new Map<number, NormalizedCandle>();
+          for (const c of prevCached) { const t = Number(c.time ?? 0); if (t > 0) byTime.set(t, c); }
+          for (const c of chartCandles) { const t = Number(c.time ?? 0); if (t > 0) byTime.set(t, c); }
+          const mergedSnap = Array.from(byTime.entries()).sort((a, b) => a[0] - b[0]).slice(-MAX_CHART_CANDLES).map(([, c], i) => ({ ...c, index: i }));
+          chartCandlesCache.set(`${channelId}:${chartSymbol}:${chartTf}`, mergedSnap);
                     activeChartFocus.set(channelId, {
             symbol: chartSymbol,
             timeframe: chartTf,

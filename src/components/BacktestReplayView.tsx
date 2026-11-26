@@ -77,6 +77,12 @@ function describeNoTradingDay(dateStr: string): string {
   return 'feriado ou data sem histórico disponível na corretora';
 }
 
+function toSec(raw: unknown): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return n > 1e11 ? Math.floor(n / 1000) : Math.floor(n);
+}
+
 function toChartTime(raw: unknown, fallbackSec = 0): UTCTimestamp {
   const n = Number(raw);
   if (!Number.isFinite(n) || n <= 0) return Math.floor(fallbackSec) as UTCTimestamp;
@@ -233,7 +239,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
           : await fetchCandles(creds.channelId, creds.token, resolvedSymbol, timeframe);
         if (cancelled) return;
         if (list && list.length > 0) {
-          const todayBars = list.filter((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) === todayStr);
+          const todayBars = list.filter((c) => new Date(toSec(c.time) * 1000).toISOString().slice(0, 10) === todayStr);
           const incoming = todayBars.length > 0 ? todayBars : list;
           setCandles((prev) => {
             const target = isInitial ? incoming : mergeBars(prev, incoming);
