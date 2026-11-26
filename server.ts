@@ -664,7 +664,7 @@ async function startServer() {
       activeChartFocus.set(channelId, {
         symbol: symKey,
         timeframe: tfKey,
-        expiresAt: Date.now() + 15_000,
+        expiresAt: Date.now() + 30_000,
       });
     }
 
@@ -885,7 +885,7 @@ async function startServer() {
         if (existing.length > 0 && chartCandles.length > 0) {
           const merged = [...existing];
           for (const incoming of chartCandles) {
-            const idx = merged.findIndex((c) => c.time === incoming.time);
+            const inSec = Number(incoming.time ?? 0) > 1e11 ? Math.floor(Number(incoming.time) / 1000) : Number(incoming.time ?? 0); const idx = merged.findIndex((c) => (Number(c.time ?? 0) > 1e11 ? Math.floor(Number(c.time) / 1000) : Number(c.time ?? 0)) === inSec);
             if (idx >= 0) {
               merged[idx] = { ...incoming, index: idx };
             } else {
@@ -918,7 +918,7 @@ async function startServer() {
                     activeChartFocus.set(channelId, {
             symbol: chartSymbol,
             timeframe: chartTf,
-            expiresAt: Date.now() + 15_000,
+            expiresAt: Date.now() + 30_000,
           });
         }
       }

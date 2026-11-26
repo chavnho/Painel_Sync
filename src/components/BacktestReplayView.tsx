@@ -215,15 +215,13 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     const todayStr = new Date().toISOString().slice(0, 10);
     setReplayDate(todayStr);
 
-    const mergeBars = (prev: LiveCandle[], next: LiveCandle[]): LiveCandle[] => {
+    let pollTickCount = 0; const mergeBars = (prev: LiveCandle[], next: LiveCandle[]): LiveCandle[] => {
       const map = new Map<number, LiveCandle>();
       for (const c of prev) {
-        const t = Number(c.time);
-        if (Number.isFinite(t) && t > 0) map.set(t, c);
+        const t = toSec(c.time); if (Number.isFinite(t) && t > 0) map.set(t, { ...c, time: t });
       }
       for (const c of next) {
-        const t = Number(c.time);
-        if (Number.isFinite(t) && t > 0) map.set(t, c);
+        const t = toSec(c.time); if (Number.isFinite(t) && t > 0) map.set(t, { ...c, time: t });
       }
       return Array.from(map.entries()).sort((a, b) => a[0] - b[0]).map(([, c]) => c);
     };
@@ -234,7 +232,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
         setCandleStatus(`Conectando pregão ao vivo de ${resolvedSymbol} (${timeframe})...`);
       }
       try {
-        const list = isInitial
+        pollTickCount += 1; const shouldResyncFull = isInitial || pollTickCount % 10 === 0; const list = shouldResyncFull
           ? await syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, timeframe, { force: true })
           : await fetchCandles(creds.channelId, creds.token, resolvedSymbol, timeframe);
         if (cancelled) return;
