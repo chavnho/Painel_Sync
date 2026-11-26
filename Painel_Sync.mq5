@@ -9,24 +9,24 @@
 #property version   "2.00"
 #property service
 
-input group "=== 1. Conexão e Autenticação ==="
-input string   InpEndpointUrl         = "http://127.0.0.1:3000"; // URL do Servidor Painel Sync
-input string   InpChannelId           = "ps_950f4jzchg";          // ID do Canal da Sessão
-input string   InpToken               = "tk_4r7ay6gleb3jtko69d";    // Token de Autenticação
+input group "=== 1. Conexao e Autenticacao ==="
+input string          InpEndpointUrl         = "http://127.0.0.1:3000"; // URL do Servidor Painel Sync
+input string          InpChannelId           = "ps_950f4jzchg";          // ID do Canal da Sessao
+input string          InpToken               = "tk_4r7ay6gleb3jtko69d";    // Token de Autenticacao
 
-input group "=== 2. Sincronização e Histórico ==="
-input int      InpSyncIntervalSec     = 2;                       // Intervalo de Envio (segundos)
-input int      InpMaxChartBars        = 1000;                    // Máximo de Candles por Gráfico
-input int      InpHistoryBackfillDays = 90;                      // Dias de Histórico Retroativo (0 = desativa)
-input bool     InpIncludeManual       = true;                    // Incluir Operações Manuais (Magic = 0)
-input ENUM_TIMEFRAMES InpDefaultTimeframe = PERIOD_CURRENT;       // Timeframe Padr?o (Service / sem gr?fico)
+input group "=== 2. Sincronizacao e Historico ==="
+input int             InpSyncIntervalSec     = 2;                       // Intervalo de Envio (segundos)
+input int             InpMaxChartBars        = 1000;                    // Maximo de Candles por Grafico
+input int             InpHistoryBackfillDays = 90;                      // Dias de Historico Retroativo (0 = desativa)
+input bool            InpIncludeManual       = true;                    // Incluir Operacoes Manuais (Magic = 0)
+input ENUM_TIMEFRAMES InpDefaultTimeframe    = PERIOD_CURRENT;          // Timeframe Padrao (Service / sem grafico)
 
 input group "=== 3. Logs na Aba Experts ==="
-input bool     InpLogOrders           = true;                    // Logar Abertura/Cancelamento de Ordens
-input bool     InpLogPositions        = true;                    // Logar Abertura/Fechamento de Posições
-input bool     InpLogConnection       = true;                    // Logar Catálogo e Contratos Vigentes
-input bool     InpLogServer           = false;                   // Logar Pedidos de Candles e HTTP
-input bool     InpDebug               = false;                   // Modo Depuração Detalhado
+input bool            InpLogOrders           = true;                    // Logar Abertura/Cancelamento de Ordens
+input bool            InpLogPositions        = true;                    // Logar Abertura/Fechamento de Posicoes
+input bool            InpLogConnection       = true;                    // Logar Catalogo e Contratos Vigentes
+input bool            InpLogServer           = false;                   // Logar Pedidos de Candles e HTTP
+input bool            InpDebug               = false;                   // Modo Depuracao Detalhado
 
 ulong g_prevPosTickets[];
 string g_prevPosDesc[];
