@@ -22,7 +22,9 @@ import {
   Pause,
   Play,
   RotateCcw,
+  Settings2,
   SkipForward,
+  X,
 } from 'lucide-react';
 import { runBacktestSimulation } from '../engine/backtestSimulator';
 import type {
@@ -34,7 +36,7 @@ import type {
   ManagedStrategyType,
   Mt5SyncCredentials,
 } from '../types/trading';
-import { fetchCandles, fetchManagedRobots, syncCandlesWithMt5 } from '../utils/mt5Bridge';
+import { fetchCandles, fetchManagedRobots, syncCandlesWithMt5, updateManagedRobotApi } from '../utils/mt5Bridge';
 
 interface BacktestReplayViewProps {
   creds: Mt5SyncCredentials;
@@ -106,6 +108,9 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
   const [isPlaying, setIsPlaying] = useState(false);
   const [speedMs, setSpeedMs] = useState(600);
   const [isChartMaximized, setIsChartMaximized] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [savingRobot, setSavingRobot] = useState(false);
+  const [editNotice, setEditNotice] = useState('');
 
   const chartWrapRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -321,6 +326,30 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     return () => window.removeEventListener('keydown', onKey);
   }, [isChartMaximized]);
 
+  const handleSaveEditedRobot = async () => {
+    if (!selectedBotId) { setIsEditModalOpen(false); return; }
+    setSavingRobot(true);
+    setEditNotice('');
+    try {
+      const baseParams: ManagedRobotParams = strategyType === 'ema_cross'
+        ? { maType, fastPeriod, slowPeriod }
+        : strategyType === 'rsi_reversal'
+          ? { rsiPeriod, oversold, overbought }
+          : { lookbackBars };
+      const params: ManagedRobotParams = { ...baseParams, onBullishSignal, onBearishSignal };
+      const updated = await updateManagedRobotApi(creds.channelId, creds.token, selectedBotId, {
+        name: botName.trim() || 'Robô Editado', symbol, timeframe, strategyType, params, risk,
+      });
+      setSavedRobots((prev) => prev.map((r) => (r.id === selectedBotId ? { ...r, ...updated } : r)));
+      setIsEditModalOpen(false);
+      setCandleStatus(`Robô "${botName}" atualizado e aplicado ao replay atual.`);
+    } catch (err) {
+      setEditNotice(err instanceof Error ? err.message : 'Falha ao salvar alterações do robô.');
+    } finally {
+      setSavingRobot(false);
+    }
+  };
+
   const formatBrl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   return (
@@ -353,10 +382,15 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
         <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] p-4 grid grid-cols-2 md:grid-cols-6 gap-3 items-end">
           <div className="col-span-2">
             <label className="block text-[10px] text-gray-400 mb-1">Carregar Robô Salvo</label>
-            <select value={selectedBotId} onChange={(e) => handleSelectSavedBot(e.target.value)} className="w-full px-2.5 py-1.5 rounded-lg bg-[#090D12] border border-[#1E2633] text-xs text-gray-100">
-              <option value="">-- Configuração Manual --</option>
-              {savedRobots.map((b) => (<option key={b.id} value={b.id}>{b.name} ({b.symbol} · {b.timeframe})</option>))}
-            </select>
+            <div className="flex items-center gap-1.5">
+              <select value={selectedBotId} onChange={(e) => handleSelectSavedBot(e.target.value)} className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg bg-[#090D12] border border-[#1E2633] text-xs text-gray-100">
+                <option value="">-- Configuração Manual --</option>
+                {savedRobots.map((b) => (<option key={b.id} value={b.id}>{b.name} ({b.symbol} · {b.timeframe})</option>))}
+              </select>
+              <button type="button" onClick={() => { setEditNotice(''); setIsEditModalOpen(true); }} className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-xs text-sky-300 font-medium cursor-pointer">
+                <Settings2 className="w-3.5 h-3.5" /><span>Editar</span>
+              </button>
+            </div>
           </div>
           <div>
             <label className="block text-[10px] text-gray-400 mb-1">Ativo</label>
@@ -522,6 +556,58 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
             </select>
           </div>
         </div>
+      {isEditModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-[#0F141C] border border-[#1E2633] shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[#1E2633]">
+              <div>
+                <h2 className="text-sm font-bold text-gray-100">{selectedBotId ? `Editar Robô: ${botName}` : 'Editar Parâmetros da Simulação'}</h2>
+                <p className="text-[11px] text-gray-400 mt-0.5">As velas carregadas e a posição atual do Replay serão preservadas.</p>
+              </div>
+              <button type="button" onClick={() => setIsEditModalOpen(false)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-[#161C25] cursor-pointer"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2"><label className="block text-[11px] text-gray-400 mb-1">Nome</label><input type="text" value={botName} onChange={(e) => setBotName(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#090D12] border border-[#1E2633] text-gray-100" /></div>
+                <div><label className="block text-[11px] text-gray-400 mb-1">Estratégia</label><select value={strategyType} onChange={(e) => setStrategyType(e.target.value as ManagedStrategyType)} className="w-full px-3 py-2 rounded-lg bg-[#090D12] border border-[#1E2633] text-gray-100"><option value="ema_cross">Cruzamento Médias</option><option value="rsi_reversal">Reversão IFR</option><option value="breakout">Rompimento Máx/Mín</option></select></div>
+              </div>
+              {strategyType === 'ema_cross' && (
+                <div className="grid grid-cols-3 gap-3">
+                  <div><label className="block text-[11px] text-gray-400 mb-1">Média</label><select value={maType} onChange={(e) => setMaType(e.target.value as 'EMA' | 'SMA')} className="w-full px-3 py-2 rounded-lg bg-[#090D12] border border-[#1E2633] text-gray-100"><option value="EMA">EMA</option><option value="SMA">SMA</option></select></div>
+                  <div><label className="block text-[11px] text-gray-400 mb-1">Rápida</label><input type="number" min="2" value={fastPeriod} onChange={(e) => setFastPeriod(Math.max(2, Number(e.target.value) || 9))} className="w-full px-3 py-2 rounded-lg bg-[#090D12] border border-[#1E2633] font-mono text-gray-100" /></div>
+                  <div><label className="block text-[11px] text-gray-400 mb-1">Lenta</label><input type="number" min="3" value={slowPeriod} onChange={(e) => setSlowPeriod(Math.max(3, Number(e.target.value) || 21))} className="w-full px-3 py-2 rounded-lg bg-[#090D12] border border-[#1E2633] font-mono text-gray-100" /></div>
+                </div>
+              )}
+              {strategyType === 'rsi_reversal' && (
+                <div className="grid grid-cols-3 gap-3">
+                  <div><label className="block text-[11px] text-gray-400 mb-1">Período IFR</label><input type="number" min="2" value={rsiPeriod} onChange={(e) => setRsiPeriod(Math.max(2, Number(e.target.value) || 14))} className="w-full px-3 py-2 rounded-lg bg-[#090D12] border border-[#1E2633] font-mono text-gray-100" /></div>
+                  <div><label className="block text-[11px] text-gray-400 mb-1">Sobrevenda</label><input type="number" min="5" max="49" value={oversold} onChange={(e) => setOversold(Number(e.target.value) || 30)} className="w-full px-3 py-2 rounded-lg bg-[#090D12] border border-[#1E2633] font-mono text-gray-100" /></div>
+                  <div><label className="block text-[11px] text-gray-400 mb-1">Sobrecompra</label><input type="number" min="51" max="95" value={overbought} onChange={(e) => setOverbought(Number(e.target.value) || 70)} className="w-full px-3 py-2 rounded-lg bg-[#090D12] border border-[#1E2633] font-mono text-gray-100" /></div>
+                </div>
+              )}
+              {strategyType === 'breakout' && (
+                <div><label className="block text-[11px] text-gray-400 mb-1">Candles de Lookback</label><input type="number" min="2" value={lookbackBars} onChange={(e) => setLookbackBars(Math.max(2, Number(e.target.value) || 10))} className="w-full px-3 py-2 rounded-lg bg-[#090D12] border border-[#1E2633] font-mono text-gray-100" /></div>
+              )}
+              <div className="grid grid-cols-2 gap-3 pt-1 border-t border-[#1E2633]">
+                <div><label className="block text-[11px] text-gray-400 mb-1">Sinal Alta</label><select value={onBullishSignal} onChange={(e) => setOnBullishSignal(e.target.value as SignalAction)} className="w-full px-3 py-2 rounded-lg bg-[#090D12] border border-[#1E2633] text-gray-100"><option value="BUY">Comprar</option><option value="SELL">Vender</option><option value="NONE">Ignorar</option></select></div>
+                <div><label className="block text-[11px] text-gray-400 mb-1">Sinal Baixa</label><select value={onBearishSignal} onChange={(e) => setOnBearishSignal(e.target.value as SignalAction)} className="w-full px-3 py-2 rounded-lg bg-[#090D12] border border-[#1E2633] text-gray-100"><option value="SELL">Vender</option><option value="BUY">Comprar</option><option value="NONE">Ignorar</option></select></div>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1 border-t border-[#1E2633]">
+                <div><label className="block text-[11px] text-gray-400 mb-1">Contratos</label><input type="number" min="1" value={risk.volume} onChange={(e) => setRisk({ ...risk, volume: Math.max(1, Number(e.target.value) || 1) })} className="w-full px-2.5 py-2 rounded-lg bg-[#090D12] border border-[#1E2633] font-mono text-gray-100" /></div>
+                <div><label className="block text-[11px] text-gray-400 mb-1">SL (pts)</label><input type="number" min="0" value={risk.stopPoints} onChange={(e) => setRisk({ ...risk, stopPoints: Math.max(0, Number(e.target.value) || 0) })} className="w-full px-2.5 py-2 rounded-lg bg-[#090D12] border border-[#1E2633] font-mono text-gray-100" /></div>
+                <div><label className="block text-[11px] text-gray-400 mb-1">TP (pts)</label><input type="number" min="0" value={risk.takePoints} onChange={(e) => setRisk({ ...risk, takePoints: Math.max(0, Number(e.target.value) || 0) })} className="w-full px-2.5 py-2 rounded-lg bg-[#090D12] border border-[#1E2633] font-mono text-gray-100" /></div>
+                <div><label className="block text-[11px] text-gray-400 mb-1">Início</label><input type="time" value={risk.startTime} onChange={(e) => setRisk({ ...risk, startTime: e.target.value })} style={{ colorScheme: 'dark' }} className="w-full px-2 py-2 rounded-lg bg-[#090D12] border border-[#1E2633] font-mono text-gray-100" /></div>
+                <div><label className="block text-[11px] text-gray-400 mb-1">Fim</label><input type="time" value={risk.endTime} onChange={(e) => setRisk({ ...risk, endTime: e.target.value })} style={{ colorScheme: 'dark' }} className="w-full px-2 py-2 rounded-lg bg-[#090D12] border border-[#1E2633] font-mono text-gray-100" /></div>
+              </div>
+              {editNotice && <div className="text-xs text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-lg px-3 py-2">{editNotice}</div>}
+            </div>
+            <div className="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-[#1E2633] bg-[#090D12]/60">
+              <button type="button" onClick={() => setIsEditModalOpen(false)} className="px-3.5 py-2 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-xs font-medium text-gray-200 cursor-pointer">Aplicar só no Simulador</button>
+              {selectedBotId && <button type="button" disabled={savingRobot} onClick={handleSaveEditedRobot} className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold text-white cursor-pointer disabled:opacity-50">{savingRobot ? 'Salvando...' : 'Salvar no Robô'}</button>}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
