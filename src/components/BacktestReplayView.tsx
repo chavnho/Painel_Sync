@@ -63,7 +63,7 @@ function generateSampleCandles(symbol: string, count = 350): LiveCandle[] {
   const isWdo = /^(WDO|DOL)/i.test(symbol);
   const step = isWdo ? 0.5 : /^(WIN|IND)/i.test(symbol) ? 5 : 0.01;
   let price = isWdo ? 5800 : /^(WIN|IND)/i.test(symbol) ? 128500 : 38.5;
-  const nowSec = Math.floor(Date.now() / 1000) - 3 * 3600 - count * 300;
+  const nowSec = Math.floor(Date.now() / 1000) - count * 300;
   const out: LiveCandle[] = [];
   for (let i = 0; i < count; i++) {
     const wave = Math.sin(i / 14) * step * 6 + (Math.random() - 0.5) * step * 8;
@@ -72,7 +72,7 @@ function generateSampleCandles(symbol: string, count = 350): LiveCandle[] {
     const high = Number((Math.max(open, close) + Math.abs(Math.random() * step * 5)).toFixed(2));
     const low = Number((Math.min(open, close) - Math.abs(Math.random() * step * 5)).toFixed(2));
     const ts = nowSec + i * 300;
-    const d = new Date((ts + 3 * 3600) * 1000);
+    const d = new Date(ts * 1000);
     const timeLabel = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
     out.push({ index: i, time: ts, timeLabel, open, high, low, close, volume: Math.floor(100 + Math.random() * 900) });
     price = close;
@@ -98,7 +98,8 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
   const [onBearishSignal, setOnBearishSignal] = useState<SignalAction>('SELL');
   const [risk, setRisk] = useState<ManagedRobotRisk>(DEFAULT_RISK);
 
-  const [candles, setCandles] = useState<LiveCandle[]>([]);
+  const [candles, setCandles] = useState<LiveCandle[]>(new Array());
+  const [selectedDay, setSelectedDay] = useState<string>('ALL');
   const [loadingCandles, setLoadingCandles] = useState(false);
   const [candleStatus, setCandleStatus] = useState('Carregue velas do MT5 ou gere uma amostra para simular.');
   const [replayBars, setReplayBars] = useState(0);
@@ -153,7 +154,10 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
       if (!list || list.length === 0) list = await fetchCandles(creds.channelId, creds.token, resolvedSymbol, timeframe);
       if (list && list.length > 0) {
         setCandles(list);
-        setReplayBars(list.length);
+        const lastD = new Date(Number(list.at(-1)?.time || 0) * 1000).toISOString().slice(0, 10);
+        setSelectedDay(lastD);
+        const dayCount = list.filter((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) === lastD).length;
+        setReplayBars(dayCount || list.length);
         setCandleStatus(`${list.length} velas reais carregadas de ${resolvedSymbol} (${timeframe}).`);
       } else {
         setCandleStatus(`Nenhuma vela retornada pelo MT5 para ${resolvedSymbol}. Verifique se o Service está ativo ou use Amostra Sintética.`);
@@ -169,23 +173,41 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     setIsPlaying(false);
     const sample = generateSampleCandles(symbol, 350);
     setCandles(sample);
-    setReplayBars(sample.length);
+    const lastD = new Date(Number(sample.at(-1)?.time || 0) * 1000).toISOString().slice(0, 10);
+    setSelectedDay(lastD);
+    const dayCount = sample.filter((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) === lastD).length;
+    setReplayBars(dayCount || sample.length);
     setCandleStatus(`350 velas sintéticas geradas para ${symbol.toUpperCase()} (${timeframe}).`);
   };
 
+  const availableDays = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of candles) {
+      const sec = Number(c.time || 0);
+      if (sec > 0) set.add(new Date(sec * 1000).toISOString().slice(0, 10));
+    }
+    return Array.from(set).sort((a, b) => b.localeCompare(a));
+  }, [candles]);
+
+  const activeCandles = useMemo(() => {
+    if (selectedDay === 'ALL' || availableDays.length === 0) return candles;
+    const filtered = candles.filter((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) === selectedDay);
+    return filtered.length > 0 ? filtered : candles;
+  }, [candles, selectedDay, availableDays]);
+
   useEffect(() => {
-    if (!isPlaying || candles.length === 0) return;
+    if (!isPlaying || activeCandles.length === 0) return;
     const id = window.setInterval(() => {
       setReplayBars((prev) => {
-        if (prev >= candles.length) { setIsPlaying(false); return candles.length; }
+        if (prev >= activeCandles.length) { setIsPlaying(false); return activeCandles.length; }
         return prev + 1;
       });
     }, speedMs);
     return () => window.clearInterval(id);
-  }, [isPlaying, speedMs, candles.length]);
+  }, [isPlaying, speedMs, activeCandles.length]);
 
   const simResult = useMemo(() => {
-    if (candles.length < 6) return null;
+    if (activeCandles.length < 6) return null;
     const baseParams: ManagedRobotParams = strategyType === 'ema_cross'
       ? { maType, fastPeriod, slowPeriod }
       : strategyType === 'rsi_reversal'
@@ -194,10 +216,10 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     const params: ManagedRobotParams = { ...baseParams, onBullishSignal, onBearishSignal };
     return runBacktestSimulation({
       robot: { name: botName, magicNumber: 9999, symbol: resolvedSymbol, timeframe, enabled: true, strategyType, params: params as Record<string, unknown>, risk },
-      candles,
-      maxBars: replayBars > 0 ? replayBars : candles.length,
+      candles: activeCandles,
+      maxBars: replayBars > 0 ? replayBars : activeCandles.length,
     });
-  }, [candles, replayBars, botName, resolvedSymbol, timeframe, strategyType, maType, fastPeriod, slowPeriod, rsiPeriod, oversold, overbought, lookbackBars, onBullishSignal, onBearishSignal, risk]);
+  }, [activeCandles, replayBars, botName, resolvedSymbol, timeframe, strategyType, maType, fastPeriod, slowPeriod, rsiPeriod, oversold, overbought, lookbackBars, onBullishSignal, onBearishSignal, risk]);
 
   useEffect(() => {
     const el = chartWrapRef.current;
@@ -233,7 +255,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     const chart = chartRef.current;
     const series = candleSeriesRef.current;
     if (!chart || !series) return;
-    const visibleCandles = candles.slice(0, replayBars > 0 ? replayBars : candles.length);
+    const visibleCandles = activeCandles.slice(0, replayBars > 0 ? replayBars : activeCandles.length);
     const baseSec = Math.floor(Date.now() / 1000) - visibleCandles.length * 60;
     const barTimes = visibleCandles.map((c, idx) => toChartTime(c.time, baseSec + idx * 60));
     series.setData(visibleCandles.map((c, idx) => ({
@@ -278,7 +300,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     } else {
       markersPluginRef.current?.setMarkers([]);
     }
-  }, [candles, replayBars, simResult]);
+  }, [activeCandles, replayBars, simResult]);
 
   useEffect(() => {
     if (!isChartMaximized) return;
@@ -364,22 +386,40 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
 
         <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] px-4 py-3 flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button" disabled={candles.length === 0} onClick={() => { if (!isPlaying && replayBars >= candles.length) setReplayBars(Math.min(10, candles.length)); setIsPlaying((p) => !p); }} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold cursor-pointer disabled:opacity-40">
+            <button type="button" disabled={candles.length === 0} onClick={() => { if (!isPlaying && replayBars >= candles.length) setReplayBars(1); setIsPlaying((p) => !p); }} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold cursor-pointer disabled:opacity-40">
               {isPlaying ? <><Pause className="w-3.5 h-3.5" /><span>Pausar</span></> : <><Play className="w-3.5 h-3.5" /><span>Play Replay</span></>}
             </button>
-            <button type="button" disabled={candles.length === 0 || replayBars >= candles.length} onClick={() => { setIsPlaying(false); setReplayBars((p) => Math.min(candles.length, p + 1)); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-gray-200 text-xs cursor-pointer disabled:opacity-40">
+            <button type="button" disabled={activeCandles.length === 0 || replayBars >= activeCandles.length} onClick={() => { setIsPlaying(false); setReplayBars((p) => Math.min(activeCandles.length, p + 1)); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-gray-200 text-xs cursor-pointer disabled:opacity-40">
               <SkipForward className="w-3.5 h-3.5" /><span>+1 Vela</span>
             </button>
-            <button type="button" disabled={candles.length === 0} onClick={() => { setIsPlaying(false); setReplayBars(10); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-gray-200 text-xs cursor-pointer disabled:opacity-40">
+            <button type="button" disabled={candles.length === 0} onClick={() => { setIsPlaying(false); setReplayBars(1); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-gray-200 text-xs cursor-pointer disabled:opacity-40">
               <RotateCcw className="w-3.5 h-3.5" /><span>Zerar</span>
             </button>
-            <button type="button" disabled={candles.length === 0} onClick={() => { setIsPlaying(false); setReplayBars(candles.length); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-emerald-300 text-xs cursor-pointer disabled:opacity-40">
+            <button type="button" disabled={activeCandles.length === 0} onClick={() => { setIsPlaying(false); setReplayBars(activeCandles.length); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-emerald-300 text-xs cursor-pointer disabled:opacity-40">
               <FastForward className="w-3.5 h-3.5" /><span>100%</span>
             </button>
           </div>
           <div className="flex items-center gap-3 text-xs font-mono text-gray-400">
             <span>{candleStatus}</span>
-            {candles.length > 0 && <span className="px-2 py-0.5 rounded bg-[#090D12] border border-[#1E2633] text-gray-200">Vela {replayBars} / {candles.length}</span>}
+            {availableDays.length > 0 && (
+              <select
+                value={selectedDay}
+                onChange={(e) => {
+                  const nextDay = e.target.value;
+                  setIsPlaying(false);
+                  setSelectedDay(nextDay);
+                  const count = nextDay === 'ALL' ? candles.length : candles.filter((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) === nextDay).length;
+                  setReplayBars(count || 1);
+                }}
+                className="px-2 py-1 rounded bg-[#090D12] border border-[#1E2633] text-xs text-sky-300"
+              >
+                {availableDays.map((d) => (
+                  <option key={d} value={d}>Pregão {d.split('-').reverse().join('/')}</option>
+                ))}
+                <option value="ALL">Todos os dias ({candles.length}v)</option>
+              </select>
+            )}
+            {activeCandles.length > 0 && <span className="px-2 py-0.5 rounded bg-[#090D12] border border-[#1E2633] text-gray-200">Vela {replayBars} / {activeCandles.length}</span>}
             <select value={speedMs} onChange={(e) => setSpeedMs(Number(e.target.value))} className="px-2 py-1 rounded bg-[#090D12] border border-[#1E2633] text-xs text-gray-200">
               <option value={1200}>0.5x</option>
               <option value={600}>1x</option>
