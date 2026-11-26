@@ -82,6 +82,7 @@ void OnStart()
          SendSymbolsReport();
       }
    }
+   CleanupTempSymbols("", 0);
    Print("PainelSync Service: Monitoramento encerrado.");
 }
 
@@ -543,8 +544,55 @@ void ExecuteRemoteCommand(const string obj) {
    }
 }
 
-string g_chartTempSym = "";
-int g_chartTempIdle = 0;
+string g_tempSyms[];
+int g_tempSymIdle[];
+
+void TrackTempSymbol(const string sym)
+{
+   if(sym == "") return;
+   int n = ArraySize(g_tempSyms);
+   for(int i = 0; i < n; i++)
+   {
+      if(g_tempSyms[i] == sym)
+      {
+         g_tempSymIdle[i] = 0;
+         return;
+      }
+   }
+   ArrayResize(g_tempSyms, n + 1);
+   ArrayResize(g_tempSymIdle, n + 1);
+   g_tempSyms[n] = sym;
+   g_tempSymIdle[n] = 0;
+}
+
+void CleanupTempSymbols(const string keepSym, const int minIdleCycles)
+{
+   for(int i = ArraySize(g_tempSyms) - 1; i >= 0; i--)
+   {
+      string s = g_tempSyms[i];
+      if(s == keepSym)
+      {
+         g_tempSymIdle[i] = 0;
+         continue;
+      }
+      g_tempSymIdle[i]++;
+      if(g_tempSymIdle[i] >= minIdleCycles)
+      {
+         SymbolSelect(s, false);
+         if(!(bool)SymbolInfoInteger(s, SYMBOL_SELECT))
+         {
+            int last = ArraySize(g_tempSyms) - 1;
+            if(i < last)
+            {
+               g_tempSyms[i] = g_tempSyms[last];
+               g_tempSymIdle[i] = g_tempSymIdle[last];
+            }
+            ArrayResize(g_tempSyms, last);
+            ArrayResize(g_tempSymIdle, last);
+         }
+      }
+   }
+}
 int FindJsonClosingDelim(const string src, const int startIdx, const ushort openCh, const ushort closeCh)
 {
    int len = StringLen(src);
@@ -660,26 +708,15 @@ void FetchPendingRequest()
             if(fSym != "" && fTf != "")
             {
                hasFocus = true;
-               g_chartTempIdle = 0;
-               if(g_chartTempSym != "" && g_chartTempSym != fSym)
-               {
-                  SymbolSelect(g_chartTempSym, false);
-                  g_chartTempSym = "";
-               }
+               CleanupTempSymbols(fSym, 2);
                SendCandlesData(fSym, StringToTimeframe(fTf), "", 50, true);
             }
          }
       }
    }
-   if(!hasFocus && g_chartTempSym != "")
+   if(!hasFocus && ArraySize(g_tempSyms) > 0)
    {
-      g_chartTempIdle++;
-      if(g_chartTempIdle >= 10)
-      {
-         SymbolSelect(g_chartTempSym, false);
-         g_chartTempSym = "";
-         g_chartTempIdle = 0;
-      }
+      CleanupTempSymbols("", 6);
    }
 }
 
@@ -707,9 +744,7 @@ void SendCandlesData(const string symbol, const ENUM_TIMEFRAMES period, const st
    // Se nÃ£o estava na ObservaÃ§Ã£o do Mercado antes, remove para nÃ£o poluir sua lista
    if(!wasSelected)
    {
-      if(g_chartTempSym != "" && g_chartTempSym != symbol) SymbolSelect(g_chartTempSym, false);
-      g_chartTempSym = symbol;
-      g_chartTempIdle = 0;
+      TrackTempSymbol(symbol);
    }
 
    if(total <= 0) return;
