@@ -52,6 +52,27 @@ const DEFAULT_RISK: ManagedRobotRisk = {
   reverseOnOpposite: true,
 };
 
+function describeNoTradingDay(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(Date.UTC(y || 2026, (m || 1) - 1, d || 1, 12, 0, 0));
+  const dow = dt.getUTCDay();
+  const mmdd = dateStr.slice(5);
+  const holidays: Record<string, string> = {
+    '01-01': 'Confraternização Universal',
+    '04-21': 'Tiradentes',
+    '05-01': 'Dia do Trabalho',
+    '09-07': 'Independência do Brasil',
+    '10-12': 'Nossa Senhora Aparecida',
+    '11-02': 'Finados',
+    '11-15': 'Proclamação da República',
+    '11-20': 'Dia da Consciência Negra',
+    '12-25': 'Natal',
+  };
+  if (dow === 0 || dow === 6) return 'fim de semana (B3 fechada)';
+  if (holidays[mmdd]) return `feriado nacional (${holidays[mmdd]})`;
+  return 'feriado ou data sem histórico disponível na corretora';
+}
+
 function toChartTime(raw: unknown, fallbackSec = 0): UTCTimestamp {
   const n = Number(raw);
   if (!Number.isFinite(n) || n <= 0) return Math.floor(fallbackSec) as UTCTimestamp;
