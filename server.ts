@@ -901,6 +901,7 @@ async function startServer() {
           ok: true,
           isChartDelta: true,
           candlesCount: chartCandles.length,
+      }); console.log("[ChartRecv]", chartSymbol, chartTf, "count=" + chartCandles.length, "first=" + (chartCandles.at(0)?.timeLabel ?? chartCandles.at(0)?.time), "last=" + (chartCandles.at(-1)?.timeLabel ?? chartCandles.at(-1)?.time)); void ({
           serverReceivedAt,
         });
         return;
