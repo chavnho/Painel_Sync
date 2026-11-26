@@ -57,30 +57,20 @@ datetime g_lastSymbolsReport = 0;
 void OnStart()
 {
    Print("PainelSync Service v2.0: Iniciando monitoramento em segundo plano no canal ", InpChannelId, "...");
-
    g_lastSymbolsReport = TimeCurrent();
    SendSymbolsReport();
-   if(InpHistoryBackfillDays > 0)
-      SyncHistoricalTrades(InpHistoryBackfillDays);
+   if(InpHistoryBackfillDays > 0) SyncHistoricalTrades(InpHistoryBackfillDays);
    SendAccountAndRobotsTelemetry();
-
    while(!IsStopped())
    {
       int waitMs = MathMax(1, InpSyncIntervalSec) * 1000;
-      for(int elapsed = 0; elapsed < waitMs && !IsStopped(); elapsed += 200)
-         Sleep(200);
+      for(int elapsed = 0; elapsed < waitMs && !IsStopped(); elapsed += 200) Sleep(200);
       if(IsStopped()) break;
-
       if(!g_historySynced && InpHistoryBackfillDays > 0 && TimeCurrent() - g_lastHistoryRetry >= 30) { g_lastHistoryRetry = TimeCurrent(); SyncHistoricalTrades(InpHistoryBackfillDays); }
       LogAccountStateChanges();
       FetchPendingRequest();
       SendAccountAndRobotsTelemetry();
-
-      if(TimeCurrent() - g_lastSymbolsReport >= 60)
-      {
-         g_lastSymbolsReport = TimeCurrent();
-         SendSymbolsReport();
-      }
+      if(TimeCurrent() - g_lastSymbolsReport >= 60) { g_lastSymbolsReport = TimeCurrent(); SendSymbolsReport(); }
    }
    CleanupTempSymbols("", 0);
    Print("PainelSync Service: Monitoramento encerrado.");
@@ -779,9 +769,18 @@ void SendCandlesData(const string symbol, const ENUM_TIMEFRAMES period, const st
 
    int digits = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
    double tickSize = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_SIZE);
+   double volMin = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MIN);
+   double volMax = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MAX);
+   double volStep = SymbolInfoDouble(symbol, SYMBOL_VOLUME_STEP);
    string json = "{";
    json += "\"isChartRequest\":true";
-   if(tickSize > 0) json += ",\"tickSize\":" + DoubleToString(tickSize, 8) + ",\"digits\":" + IntegerToString(digits);
+   if(tickSize > 0)
+   {
+      json += ",\"tickSize\":" + DoubleToString(tickSize, 8) + ",\"digits\":" + IntegerToString(digits);
+      if(volMin > 0) json += ",\"volumeMin\":" + DoubleToString(volMin, 4);
+      if(volMax > 0) json += ",\"volumeMax\":" + DoubleToString(volMax, 4);
+      if(volStep > 0) json += ",\"volumeStep\":" + DoubleToString(volStep, 4);
+   }
    if(isDelta)
       json += ",\"isChartDelta\":true";
    json += ",\"symbol\":\"" + symbol + "\"";
@@ -867,7 +866,14 @@ void SendSymbolsReport()
       if(ts > 0)
       {
          if(specsCount > 0) specsJson += ",";
-         specsJson += "\"" + EscapeJson(name) + "\":{\"tickSize\":" + DoubleToString(ts, 8) + ",\"digits\":" + IntegerToString(dg) + "}";
+         double vMin = SymbolInfoDouble(name, SYMBOL_VOLUME_MIN);
+         double vMax = SymbolInfoDouble(name, SYMBOL_VOLUME_MAX);
+         double vStep = SymbolInfoDouble(name, SYMBOL_VOLUME_STEP);
+         specsJson += "\"" + EscapeJson(name) + "\":{\"tickSize\":" + DoubleToString(ts, 8) + ",\"digits\":" + IntegerToString(dg);
+         if(vMin > 0) specsJson += ",\"volumeMin\":" + DoubleToString(vMin, 4);
+         if(vMax > 0) specsJson += ",\"volumeMax\":" + DoubleToString(vMax, 4);
+         if(vStep > 0) specsJson += ",\"volumeStep\":" + DoubleToString(vStep, 4);
+         specsJson += "}";
          specsCount++;
       }
    }

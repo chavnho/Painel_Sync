@@ -57,7 +57,7 @@ export interface LiveSyncChannel {
   robots: Map<string, any>;
   symbols: string[];
   activeContracts?: Record<string, string>;
-  symbolSpecs?: Record<string, { tickSize: number; digits: number }>;
+  symbolSpecs?: Record<string, { tickSize: number; digits: number; volumeMin?: number; volumeMax?: number; volumeStep?: number }>;
   pairingEvents: PairingAttemptEvent[];
   subscribers: Set<any>;
 }

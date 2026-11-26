@@ -5,7 +5,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { PendingRequest, PairingAttemptEvent, LiveSyncChannel, NormalizedCandle} from "./types";
 import { persistExecutedTrades, loadPersistedTradesForAccount, setRobotHiddenPreference, loadHiddenMagicsForAccount, enqueueCommand, pollAndDispatchPendingCommands, acknowledgeCommand, listRecentCommands, listManagedRobots, createManagedRobot, updateManagedRobot, markManagedRobotSignal, updateManagedRobotDecision, deleteManagedRobot, hasActiveCommandForMagic } from "./src/db/tradesDb";
-import { evaluateManagedRobot, resolveSymbolTickSpec } from "./src/engine/robotEngine";
+import { evaluateManagedRobot, resolveSymbolTickSpec, snapVolumeToLot } from "./src/engine/robotEngine";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1265,7 +1265,7 @@ async function startServer() {
       strategyType,
       params: typeof b.params === "object" && b.params ? b.params : {},
       risk: {
-        volume: Math.max(0.01, Number(b.risk?.volume) || 1),
+        volume: snapVolumeToLot(Math.max(0, Number(b.risk?.volume) || 0), resolveSymbolTickSpec(resolveManagedSymbol(channel, String(b.symbol || 'WIN$')), 0, channel.symbolSpecs?.[resolveManagedSymbol(channel, String(b.symbol || 'WIN$'))])),
         stopPoints: Math.max(0, Number(b.risk?.stopPoints) || 0),
         takePoints: Math.max(0, Number(b.risk?.takePoints) || 0),
         startTime: String(b.risk?.startTime || "09:05"),

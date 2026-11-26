@@ -20,16 +20,47 @@ interface RobotBuilderViewProps {
 }
 
 
-function inferLocalTickInfo(sym: string): { tickSize: number; digits: number; isTickCountUnit: boolean } {
-  const u = String(sym || '').trim().toUpperCase();
-  if (/^(WIN|IND)/.test(u)) return { tickSize: 5, digits: 0, isTickCountUnit: false };
-  if (/^(WDO|DOL)/.test(u)) return { tickSize: 0.5, digits: 1, isTickCountUnit: false };
-  if (/^BIT/.test(u)) return { tickSize: 20, digits: 0, isTickCountUnit: false };
-  if (/^(BGI|ICF)/.test(u)) return { tickSize: 0.05, digits: 2, isTickCountUnit: true };
-  return { tickSize: 0.01, digits: 2, isTickCountUnit: true };
+interface LocalAssetSpec {
+  tickSize: number;
+  digits: number;
+  isTickCountUnit: boolean;
+  volumeMin: number;
+  volumeMax: number;
+  volumeStep: number;
 }
 
-function snapRiskValue(val: number, spec: { tickSize: number; digits: number; isTickCountUnit: boolean }): number {
+function inferLocalTickInfo(sym: string): LocalAssetSpec {
+  const u = String(sym || '').trim().toUpperCase();
+  const lot = /^(IND|DOL)/.test(u)
+    ? { volumeMin: 5, volumeMax: 10000, volumeStep: 5 }
+    : /^(WIN|WDO|BIT|CCM|BGI|ICF)/.test(u)
+      ? { volumeMin: 1, volumeMax: 10000, volumeStep: 1 }
+      : /^[A-Z]{4}(3|4|5|6|11)F$/.test(u)
+        ? { volumeMin: 1, volumeMax: 99, volumeStep: 1 }
+        : /^[A-Z]{4}(3|4|5|6|11)$/.test(u)
+          ? { volumeMin: 100, volumeMax: 1000000, volumeStep: 100 }
+          : { volumeMin: 1, volumeMax: 100000, volumeStep: 1 };
+
+  if (/^(WIN|IND)/.test(u)) return { tickSize: 5, digits: 0, isTickCountUnit: false, ...lot };
+  if (/^(WDO|DOL)/.test(u)) return { tickSize: 0.5, digits: 1, isTickCountUnit: false, ...lot };
+  if (/^BIT/.test(u)) return { tickSize: 20, digits: 0, isTickCountUnit: false, ...lot };
+  if (/^(BGI|ICF)/.test(u)) return { tickSize: 0.05, digits: 2, isTickCountUnit: true, ...lot };
+  return { tickSize: 0.01, digits: 2, isTickCountUnit: true, ...lot };
+}
+
+function snapVolumeValue(val: number, spec: Pick<LocalAssetSpec, 'volumeMin' | 'volumeMax' | 'volumeStep'>): number {
+  const step = spec.volumeStep > 0 ? spec.volumeStep : 1;
+  const min = spec.volumeMin > 0 ? spec.volumeMin : step;
+  const max = spec.volumeMax >= min ? spec.volumeMax : 1000000;
+  const n = Number(val);
+  if (!Number.isFinite(n) || n <= 0) return min;
+  const steps = Math.max(0, Math.round((n - min) / step));
+  const snapped = Math.min(max, Math.max(min, min + steps * step));
+  const dec = step < 1 ? Math.max(1, String(step).split('.').at(1)?.length || 2) : 0;
+  return Number(snapped.toFixed(dec));
+}
+
+function snapRiskValue(val: number, spec: LocalAssetSpec): number {
   const n = Number(val);
   if (!Number.isFinite(n) || n <= 0) return 0;
   if (spec.isTickCountUnit) return Math.max(1, Math.round(n));
@@ -70,16 +101,26 @@ export function RobotBuilderView({ creds }: RobotBuilderViewProps) {
   const [lookbackBars, setLookbackBars] = useState(10);
 
   const [risk, setRisk] = useState<ManagedRobotRisk>(DEFAULT_RISK);
-  const [tickSpec, setTickSpec] = useState<{ tickSize: number; digits: number; isTickCountUnit: boolean }>(() => inferLocalTickInfo('WIN' + '$'));
+  const [tickSpec, setTickSpec] = useState<LocalAssetSpec>(() => inferLocalTickInfo('WIN' + '$'));
 
   useEffect(() => {
     const local = inferLocalTickInfo(symbol);
     setTickSpec(local);
+    setRisk((r) => ({ ...r, volume: snapVolumeValue(r.volume, local) }));
     let cancelled = false;
     const t = window.setTimeout(async () => {
       const remote = await fetchSymbolTickSpec(creds.channelId, creds.token, symbol);
       if (!cancelled && remote && remote.tickSize > 0) {
-        setTickSpec({ tickSize: remote.tickSize, digits: remote.digits, isTickCountUnit: remote.isTickCountUnit });
+        const nextSpec: LocalAssetSpec = {
+          tickSize: remote.tickSize,
+          digits: remote.digits,
+          isTickCountUnit: remote.isTickCountUnit,
+          volumeMin: remote.volumeMin || local.volumeMin,
+          volumeMax: remote.volumeMax || local.volumeMax,
+          volumeStep: remote.volumeStep || local.volumeStep,
+        };
+        setTickSpec(nextSpec);
+        setRisk((r) => ({ ...r, volume: snapVolumeValue(r.volume, nextSpec) }));
       }
     }, 250);
     return () => { cancelled = true; window.clearTimeout(t); };
@@ -141,6 +182,7 @@ export function RobotBuilderView({ creds }: RobotBuilderViewProps) {
     try {
       const normalizedRisk: ManagedRobotRisk = {
         ...risk,
+        volume: snapVolumeValue(risk.volume, tickSpec),
         stopPoints: snapRiskValue(risk.stopPoints, tickSpec),
         takePoints: snapRiskValue(risk.takePoints, tickSpec),
       };
@@ -323,8 +365,17 @@ export function RobotBuilderView({ creds }: RobotBuilderViewProps) {
                 </div>
                 <div className="grid grid-cols-3 gap-2.5">
                   <div>
-                    <label className="block text-[10px] text-gray-400 mb-1">Volume</label>
-                    <input type="number" step="0.01" min="0.01" value={risk.volume} onChange={(e) => setRisk({ ...risk, volume: Number(e.target.value) })} className="w-full px-2.5 py-1.5 rounded bg-[#090D12] border border-[#1E2633] text-xs font-mono text-gray-100" />
+                    <label className="block text-[10px] text-gray-400 mb-1">Volume (lote {tickSpec.volumeStep})</label>
+                    <input
+                      type="number"
+                      step={tickSpec.volumeStep}
+                      min={tickSpec.volumeMin}
+                      max={tickSpec.volumeMax}
+                      value={risk.volume}
+                      onChange={(e) => setRisk({ ...risk, volume: Math.max(0, Number(e.target.value) || 0) })}
+                      onBlur={() => setRisk((r) => ({ ...r, volume: snapVolumeValue(r.volume, tickSpec) }))}
+                      className="w-full px-2.5 py-1.5 rounded bg-[#090D12] border border-[#1E2633] text-xs font-mono text-gray-100"
+                    />
                   </div>
                   <div>
                     <label className="block text-[10px] text-gray-400 mb-1">
@@ -335,7 +386,7 @@ export function RobotBuilderView({ creds }: RobotBuilderViewProps) {
                       min="0"
                       step={tickSpec.isTickCountUnit ? 1 : tickSpec.tickSize}
                       value={risk.stopPoints}
-                      onChange={(e) => setRisk({ ...risk, stopPoints: Number(e.target.value) })}
+                      onChange={(e) => setRisk({ ...risk, stopPoints: Math.max(0, Number(e.target.value) || 0) })}
                       onBlur={() => setRisk((r) => ({ ...r, stopPoints: snapRiskValue(r.stopPoints, tickSpec) }))}
                       className="w-full px-2.5 py-1.5 rounded bg-[#090D12] border border-[#1E2633] text-xs font-mono text-gray-100"
                     />
@@ -349,7 +400,7 @@ export function RobotBuilderView({ creds }: RobotBuilderViewProps) {
                       min="0"
                       step={tickSpec.isTickCountUnit ? 1 : tickSpec.tickSize}
                       value={risk.takePoints}
-                      onChange={(e) => setRisk({ ...risk, takePoints: Number(e.target.value) })}
+                      onChange={(e) => setRisk({ ...risk, takePoints: Math.max(0, Number(e.target.value) || 0) })}
                       onBlur={() => setRisk((r) => ({ ...r, takePoints: snapRiskValue(r.takePoints, tickSpec) }))}
                       className="w-full px-2.5 py-1.5 rounded bg-[#090D12] border border-[#1E2633] text-xs font-mono text-gray-100"
                     />

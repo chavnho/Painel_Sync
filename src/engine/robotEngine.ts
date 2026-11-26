@@ -96,29 +96,55 @@ export interface SymbolTickSpec {
   tickSize: number;
   digits: number;
   isTickCountUnit: boolean;
+  volumeMin: number;
+  volumeMax: number;
+  volumeStep: number;
+}
+
+function inferDefaultLotSpec(u: string): { volumeMin: number; volumeMax: number; volumeStep: number } {
+  if (/^(IND|DOL)/.test(u)) return { volumeMin: 5, volumeMax: 10000, volumeStep: 5 };
+  if (/^(WIN|WDO|BIT|CCM|BGI|ICF)/.test(u)) return { volumeMin: 1, volumeMax: 10000, volumeStep: 1 };
+  if (/^[A-Z]{4}(3|4|5|6|11)F$/.test(u)) return { volumeMin: 1, volumeMax: 99, volumeStep: 1 };
+  if (/^[A-Z]{4}(3|4|5|6|11)$/.test(u)) return { volumeMin: 100, volumeMax: 1000000, volumeStep: 100 };
+  return { volumeMin: 1, volumeMax: 100000, volumeStep: 1 };
 }
 
 export function resolveSymbolTickSpec(
   symbol: string,
   refPrice = 0,
-  brokerSpec?: { tickSize?: number; digits?: number } | null
+  brokerSpec?: { tickSize?: number; digits?: number; volumeMin?: number; volumeMax?: number; volumeStep?: number } | null
 ): SymbolTickSpec {
   const u = String(symbol || "").trim().toUpperCase();
+  const defLot = inferDefaultLotSpec(u);
+  const volumeMin = brokerSpec && Number(brokerSpec.volumeMin) > 0 ? Number(brokerSpec.volumeMin) : defLot.volumeMin;
+  const volumeMax = brokerSpec && Number(brokerSpec.volumeMax) > 0 ? Number(brokerSpec.volumeMax) : defLot.volumeMax;
+  const volumeStep = brokerSpec && Number(brokerSpec.volumeStep) > 0 ? Number(brokerSpec.volumeStep) : defLot.volumeStep;
+
   if (brokerSpec && Number(brokerSpec.tickSize) > 0) {
     const tickSize = Number(brokerSpec.tickSize);
     const digits = Number.isInteger(brokerSpec.digits) && Number(brokerSpec.digits) >= 0
       ? Number(brokerSpec.digits)
       : tickSize >= 1 ? 0 : tickSize >= 0.1 ? 1 : 2;
-    return { tickSize, digits, isTickCountUnit: tickSize < 0.5 };
+    return { tickSize, digits, isTickCountUnit: tickSize < 0.5, volumeMin, volumeMax, volumeStep };
   }
-  if (/^(WIN|IND)/.test(u)) return { tickSize: 5, digits: 0, isTickCountUnit: false };
-  if (/^(WDO|DOL)/.test(u)) return { tickSize: 0.5, digits: 1, isTickCountUnit: false };
-  if (/^BIT/.test(u)) return { tickSize: 20, digits: 0, isTickCountUnit: false };
-  if (/^CCM/.test(u)) return { tickSize: 0.01, digits: 2, isTickCountUnit: true };
-  if (/^BGI/.test(u)) return { tickSize: 0.05, digits: 2, isTickCountUnit: true };
-  if (/^ICF/.test(u)) return { tickSize: 0.05, digits: 2, isTickCountUnit: true };
-  if (refPrice > 0 && refPrice < 500) return { tickSize: 0.01, digits: 2, isTickCountUnit: true };
-  return { tickSize: 0.01, digits: 2, isTickCountUnit: true };
+  if (/^(WIN|IND)/.test(u)) return { tickSize: 5, digits: 0, isTickCountUnit: false, volumeMin, volumeMax, volumeStep };
+  if (/^(WDO|DOL)/.test(u)) return { tickSize: 0.5, digits: 1, isTickCountUnit: false, volumeMin, volumeMax, volumeStep };
+  if (/^BIT/.test(u)) return { tickSize: 20, digits: 0, isTickCountUnit: false, volumeMin, volumeMax, volumeStep };
+  if (/^CCM/.test(u)) return { tickSize: 0.01, digits: 2, isTickCountUnit: true, volumeMin, volumeMax, volumeStep };
+  if (/^(BGI|ICF)/.test(u)) return { tickSize: 0.05, digits: 2, isTickCountUnit: true, volumeMin, volumeMax, volumeStep };
+  if (refPrice > 0 && refPrice < 500) return { tickSize: 0.01, digits: 2, isTickCountUnit: true, volumeMin, volumeMax, volumeStep };
+  return { tickSize: 0.01, digits: 2, isTickCountUnit: true, volumeMin, volumeMax, volumeStep };
+}
+
+export function snapVolumeToLot(rawVolume: number, spec: Pick<SymbolTickSpec, "volumeMin" | "volumeMax" | "volumeStep">): number {
+  const step = spec.volumeStep > 0 ? spec.volumeStep : 1;
+  const min = spec.volumeMin > 0 ? spec.volumeMin : step;
+  const max = spec.volumeMax >= min ? spec.volumeMax : 1000000;
+  const v = Number.isFinite(rawVolume) && rawVolume > 0 ? rawVolume : min;
+  const steps = Math.max(1, Math.round((v - min) / step));
+  const snapped = Math.min(max, Math.max(min, min + steps * step));
+  const decimals = step < 1 ? Math.max(1, String(step).split(".")[1]?.length || 2) : 0;
+  return Number(snapped.toFixed(decimals));
 }
 
 export function snapPriceToTick(rawPrice: number, tickSize: number, digits: number): number {
@@ -160,7 +186,7 @@ export function evaluateManagedRobot(input: {
   openPosition: EngineOpenPosition | null;
   dailyPnlBrl: number;
   hasPendingCommand: boolean;
-  brokerSpec?: { tickSize?: number; digits?: number } | null;
+  brokerSpec?: { tickSize?: number; digits?: number; volumeMin?: number; volumeMax?: number; volumeStep?: number } | null;
   now?: Date;
 }): EngineEvaluationResult {
   const { robot, candles, resolvedSymbol, openPosition, dailyPnlBrl, hasPendingCommand } = input;
@@ -256,10 +282,12 @@ export function evaluateManagedRobot(input: {
     return { decision: `[${hhmm}] Sinal ${rawSignal} ignorado (ja posicionado em ${openPosition.side})`, directive: null, overlays };
   }
 
+  const spec = resolveSymbolTickSpec(resolvedSymbol, refPrice, input.brokerSpec);
+  const safeVolume = snapVolumeToLot(Number(robot.risk.volume) || spec.volumeMin, spec);
   const { sl, tp } = buildSlTp(resolvedSymbol, rawSignal, refPrice, robot.risk.stopPoints, robot.risk.takePoints, input.brokerSpec);
   return {
     decision: `[${hhmm}] ORDEM ${rawSignal}: ${signalDetail}`,
     overlays,
-    directive: { type: "OPEN_ORDER", symbol: resolvedSymbol, magicNumber: robot.magicNumber, side: rawSignal, volume: Math.max(0.01, Number(robot.risk.volume) || 1), sl, tp, barTime: lastBarTime, reason: signalDetail },
+    directive: { type: "OPEN_ORDER", symbol: resolvedSymbol, magicNumber: robot.magicNumber, side: rawSignal, volume: safeVolume, sl, tp, barTime: lastBarTime, reason: signalDetail },
   };
 }
