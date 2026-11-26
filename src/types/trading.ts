@@ -227,7 +227,11 @@ export interface RemoteCommand {
 
 export type ManagedStrategyType = 'ema_cross' | 'rsi_reversal' | 'breakout';
 
+export type SignalAction = 'BUY' | 'SELL' | 'NONE';
+
 export interface ManagedRobotParams {
+  onBullishSignal?: SignalAction;
+  onBearishSignal?: SignalAction;
   maType?: 'EMA' | 'SMA';
   fastPeriod?: number;
   slowPeriod?: number;

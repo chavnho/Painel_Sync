@@ -3,6 +3,7 @@ import { Bot, CheckCircle2, Pause, Pencil, Play, Plus, ShieldAlert, Trash2, X } 
 import type {
   ManagedRobot,
   ManagedRobotParams,
+  SignalAction,
   ManagedRobotRisk,
   ManagedStrategyType,
   Mt5SyncCredentials,
@@ -99,6 +100,8 @@ export function RobotBuilderView({ creds }: RobotBuilderViewProps) {
   const [oversold, setOversold] = useState(30);
   const [overbought, setOverbought] = useState(70);
   const [lookbackBars, setLookbackBars] = useState(10);
+  const [onBullishSignal, setOnBullishSignal] = useState<SignalAction>('BUY');
+  const [onBearishSignal, setOnBearishSignal] = useState<SignalAction>('SELL');
 
   const [risk, setRisk] = useState<ManagedRobotRisk>(DEFAULT_RISK);
   const [tickSpec, setTickSpec] = useState<LocalAssetSpec>(() => inferLocalTickInfo('WIN' + '$'));
@@ -154,6 +157,8 @@ export function RobotBuilderView({ creds }: RobotBuilderViewProps) {
     setOversold(30);
     setOverbought(70);
     setLookbackBars(10);
+    setOnBullishSignal('BUY');
+    setOnBearishSignal('SELL');
     setRisk(DEFAULT_RISK);
     setErrorMsg(null);
   };
@@ -171,6 +176,8 @@ export function RobotBuilderView({ creds }: RobotBuilderViewProps) {
     setOversold(Number(bot.params.oversold) || 30);
     setOverbought(Number(bot.params.overbought) || 70);
     setLookbackBars(Number(bot.params.lookbackBars) || 10);
+    setOnBullishSignal((bot.params.onBullishSignal as SignalAction) || 'BUY');
+    setOnBearishSignal((bot.params.onBearishSignal as SignalAction) || 'SELL');
     setRisk(bot.risk);
     setErrorMsg(null);
   };
@@ -187,12 +194,13 @@ export function RobotBuilderView({ creds }: RobotBuilderViewProps) {
         takePoints: snapRiskValue(risk.takePoints, tickSpec),
       };
       setRisk(normalizedRisk);
-      const params: ManagedRobotParams =
+      const baseParams: ManagedRobotParams =
         strategyType === 'ema_cross'
           ? { maType, fastPeriod, slowPeriod }
           : strategyType === 'rsi_reversal'
             ? { rsiPeriod, oversold, overbought }
             : { lookbackBars };
+      const params: ManagedRobotParams = { ...baseParams, onBullishSignal, onBearishSignal };
 
       if (editingId) {
         await updateManagedRobotApi(creds.channelId, creds.token, editingId, {
@@ -353,6 +361,30 @@ export function RobotBuilderView({ creds }: RobotBuilderViewProps) {
                   <input type="number" min={2} max={200} value={lookbackBars} onChange={(e) => setLookbackBars(Number(e.target.value))} className="w-full px-2.5 py-1.5 rounded bg-[#0F141C] border border-[#1E2633] text-xs font-mono text-gray-100" />
                 </div>
               )}
+
+
+              <div className="grid grid-cols-2 gap-2.5 p-3 rounded-lg bg-[#090D12] border border-[#1E2633]">
+                <div>
+                  <label className="block text-[10px] text-gray-400 mb-1">
+                    {strategyType === 'ema_cross' ? 'Cruza para Cima' : strategyType === 'rsi_reversal' ? 'Sai de Sobrevenda' : 'Rompe Máxima'}
+                  </label>
+                  <select value={onBullishSignal} onChange={(e) => setOnBullishSignal(e.target.value as SignalAction)} className="w-full px-2 py-1.5 rounded bg-[#0F141C] border border-[#1E2633] text-xs text-gray-100">
+                    <option value="BUY">Comprar</option>
+                    <option value="SELL">Vender (Reversão)</option>
+                    <option value="NONE">Ignorar</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] text-gray-400 mb-1">
+                    {strategyType === 'ema_cross' ? 'Cruza para Baixo' : strategyType === 'rsi_reversal' ? 'Sai de Sobrecompra' : 'Rompe Mínima'}
+                  </label>
+                  <select value={onBearishSignal} onChange={(e) => setOnBearishSignal(e.target.value as SignalAction)} className="w-full px-2 py-1.5 rounded bg-[#0F141C] border border-[#1E2633] text-xs text-gray-100">
+                    <option value="SELL">Vender</option>
+                    <option value="BUY">Comprar (Reversão)</option>
+                    <option value="NONE">Ignorar</option>
+                  </select>
+                </div>
+              </div>
 
               <div className="pt-2 border-t border-[#1E2633] space-y-2.5">
                 <div className="flex items-center justify-between gap-2">

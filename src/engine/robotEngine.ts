@@ -204,7 +204,7 @@ export function evaluateManagedRobot(input: {
   const refPrice = formingCandle.close || lastClosed.close;
 
   const overlays: EngineOverlayLine[] = [];
-  let rawSignal: "COMPRA" | "VENDA" | null = null;
+  let rawTrigger: "BULLISH" | "BEARISH" | null = null;
   let signalDetail = "";
 
   if (robot.strategyType === "ema_cross") {
@@ -223,8 +223,8 @@ export function evaluateManagedRobot(input: {
     const fLast = fastSeries.at(closed.length - 1);
     const sLast = slowSeries.at(closed.length - 1);
     if (fPrev != null && sPrev != null && fLast != null && sLast != null) {
-      if (fPrev <= sPrev && fLast > sLast) { rawSignal = "COMPRA"; signalDetail = `Cruzamento alta ${maType}(${fastP}=${fLast.toFixed(1)}) > ${maType}(${slowP}=${sLast.toFixed(1)})`; }
-      else if (fPrev >= sPrev && fLast < sLast) { rawSignal = "VENDA"; signalDetail = `Cruzamento baixa ${maType}(${fastP}=${fLast.toFixed(1)}) < ${maType}(${slowP}=${sLast.toFixed(1)})`; }
+      if (fPrev <= sPrev && fLast > sLast) { rawTrigger = "BULLISH"; signalDetail = `Cruzamento alta ${maType}(${fastP}=${fLast.toFixed(1)}) > ${maType}(${slowP}=${sLast.toFixed(1)})`; }
+      else if (fPrev >= sPrev && fLast < sLast) { rawTrigger = "BEARISH"; signalDetail = `Cruzamento baixa ${maType}(${fastP}=${fLast.toFixed(1)}) < ${maType}(${slowP}=${sLast.toFixed(1)})`; }
       else { signalDetail = `Sem cruzamento (${maType}${fastP}=${fLast.toFixed(1)} | ${maType}${slowP}=${sLast.toFixed(1)})`; }
     } else {
       signalDetail = `Calculando medias (${closed.length}/${slowP} velas)`;
@@ -237,8 +237,8 @@ export function evaluateManagedRobot(input: {
     const rPrev = rsiSeries.at(closed.length - 2);
     const rLast = rsiSeries.at(closed.length - 1);
     if (rPrev != null && rLast != null) {
-      if (rPrev < oversold && rLast >= oversold) { rawSignal = "COMPRA"; signalDetail = `IFR(${rsiP}) saiu de sobrevenda (${rPrev.toFixed(1)} -> ${rLast.toFixed(1)})`; }
-      else if (rPrev > overbought && rLast <= overbought) { rawSignal = "VENDA"; signalDetail = `IFR(${rsiP}) saiu de sobrecompra (${rPrev.toFixed(1)} -> ${rLast.toFixed(1)})`; }
+      if (rPrev < oversold && rLast >= oversold) { rawTrigger = "BULLISH"; signalDetail = `IFR(${rsiP}) saiu de sobrevenda (${rPrev.toFixed(1)} -> ${rLast.toFixed(1)})`; }
+      else if (rPrev > overbought && rLast <= overbought) { rawTrigger = "BEARISH"; signalDetail = `IFR(${rsiP}) saiu de sobrecompra (${rPrev.toFixed(1)} -> ${rLast.toFixed(1)})`; }
       else { signalDetail = `IFR(${rsiP}) neutro em ${rLast.toFixed(1)} (faixa ${oversold}-${overbought})`; }
     } else {
       signalDetail = `Calculando IFR(${rsiP})`;
@@ -249,15 +249,15 @@ export function evaluateManagedRobot(input: {
       const win = closed.slice(-(lookback + 1), -1);
       const highest = Math.max(...win.map((b) => b.high));
       const lowest = Math.min(...win.map((b) => b.low));
-      if (prevClosed.close <= highest && lastClosed.close > highest) { rawSignal = "COMPRA"; signalDetail = `Rompimento maxima ${lookback} velas (${lastClosed.close} > ${highest})`; }
-      else if (prevClosed.close >= lowest && lastClosed.close < lowest) { rawSignal = "VENDA"; signalDetail = `Rompimento minima ${lookback} velas (${lastClosed.close} < ${lowest})`; }
+      if (prevClosed.close <= highest && lastClosed.close > highest) { rawTrigger = "BULLISH"; signalDetail = `Rompimento maxima ${lookback} velas (${lastClosed.close} > ${highest})`; }
+      else if (prevClosed.close >= lowest && lastClosed.close < lowest) { rawTrigger = "BEARISH"; signalDetail = `Rompimento minima ${lookback} velas (${lastClosed.close} < ${lowest})`; }
       else { signalDetail = `Dentro do canal ${lookback}v [${lowest} .. ${highest}]`; }
     } else {
       signalDetail = `Aguardando ${lookback + 2} velas para canal`;
     }
   }
 
-  if (hasPendingCommand) return { decision: "Comando em execucao no MT5 ? aguardando ACK", directive: null, overlays };
+  if (hasPendingCommand) return { decision: "Comando em execucao no MT5 · aguardando ACK", directive: null, overlays };
 
   if (robot.risk.closeTime && hhmm >= robot.risk.closeTime && openPosition) {
     return { decision: `Zeragem por horario (${hhmm} >= ${robot.risk.closeTime})`, overlays, directive: { type: "CLOSE_MAGIC", symbol: resolvedSymbol, magicNumber: robot.magicNumber, barTime: lastBarTime, reason: `Zeragem compulsoria ${robot.risk.closeTime}` } };
@@ -271,9 +271,25 @@ export function evaluateManagedRobot(input: {
   if (robot.risk.maxDailyLossBrl > 0 && dailyPnlBrl <= -Math.abs(robot.risk.maxDailyLossBrl)) {
     return { decision: `Bloqueado: limite de perda diaria atingido (R$ ${dailyPnlBrl.toFixed(2)})`, directive: null, overlays };
   }
+  const mapAction = (act: unknown, def: "BUY" | "SELL"): "COMPRA" | "VENDA" | null => {
+    const v = String(act || def).toUpperCase();
+    if (v === "BUY" || v === "COMPRA") return "COMPRA";
+    if (v === "SELL" || v === "VENDA") return "VENDA";
+    return null;
+  };
+  const rawSignal: "COMPRA" | "VENDA" | null =
+    rawTrigger === "BULLISH"
+      ? mapAction(robot.params.onBullishSignal, "BUY")
+      : rawTrigger === "BEARISH"
+        ? mapAction(robot.params.onBearishSignal, "SELL")
+        : null;
+
+  if (rawTrigger && !rawSignal) {
+    return { decision: `[${hhmm}] ${signalDetail} (gatilho configurado como Ignorar)`, directive: null, overlays };
+  }
   if (!rawSignal) return { decision: `[${hhmm}] ${signalDetail}`, directive: null, overlays };
   if (lastBarTime > 0 && robot.lastSignalBar === lastBarTime) return { decision: `[${hhmm}] Sinal ${rawSignal} ja executado neste candle`, directive: null, overlays };
-  if (openPosition && openPosition.side === rawSignal) return { decision: `[${hhmm}] Posicionado em ${rawSignal} ? mantendo`, directive: null, overlays };
+  if (openPosition && openPosition.side === rawSignal) return { decision: `[${hhmm}] Posicionado em ${rawSignal} · mantendo`, directive: null, overlays };
 
   if (openPosition && openPosition.side !== rawSignal) {
     if (robot.risk.reverseOnOpposite) {

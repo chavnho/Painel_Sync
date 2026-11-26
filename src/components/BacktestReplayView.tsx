@@ -30,6 +30,7 @@ import type {
   LiveCandle,
   ManagedRobot,
   ManagedRobotParams,
+  SignalAction,
   ManagedRobotRisk,
   ManagedStrategyType,
   Mt5SyncCredentials,
@@ -93,6 +94,8 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
   const [oversold, setOversold] = useState(30);
   const [overbought, setOverbought] = useState(70);
   const [lookbackBars, setLookbackBars] = useState(10);
+  const [onBullishSignal, setOnBullishSignal] = useState<SignalAction>('BUY');
+  const [onBearishSignal, setOnBearishSignal] = useState<SignalAction>('SELL');
   const [risk, setRisk] = useState<ManagedRobotRisk>(DEFAULT_RISK);
 
   const [candles, setCandles] = useState<LiveCandle[]>([]);
@@ -129,6 +132,8 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     setOversold(Number(found.params.oversold) || 30);
     setOverbought(Number(found.params.overbought) || 70);
     setLookbackBars(Number(found.params.lookbackBars) || 10);
+    setOnBullishSignal((found.params.onBullishSignal as SignalAction) || 'BUY');
+    setOnBearishSignal((found.params.onBearishSignal as SignalAction) || 'SELL');
     setRisk(found.risk);
   };
 
@@ -181,17 +186,18 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
 
   const simResult = useMemo(() => {
     if (candles.length < 6) return null;
-    const params: ManagedRobotParams = strategyType === 'ema_cross'
+    const baseParams: ManagedRobotParams = strategyType === 'ema_cross'
       ? { maType, fastPeriod, slowPeriod }
       : strategyType === 'rsi_reversal'
         ? { rsiPeriod, oversold, overbought }
         : { lookbackBars };
+    const params: ManagedRobotParams = { ...baseParams, onBullishSignal, onBearishSignal };
     return runBacktestSimulation({
       robot: { name: botName, magicNumber: 9999, symbol: resolvedSymbol, timeframe, enabled: true, strategyType, params: params as Record<string, unknown>, risk },
       candles,
       maxBars: replayBars > 0 ? replayBars : candles.length,
     });
-  }, [candles, replayBars, botName, resolvedSymbol, timeframe, strategyType, maType, fastPeriod, slowPeriod, rsiPeriod, oversold, overbought, lookbackBars, risk]);
+  }, [candles, replayBars, botName, resolvedSymbol, timeframe, strategyType, maType, fastPeriod, slowPeriod, rsiPeriod, oversold, overbought, lookbackBars, onBullishSignal, onBearishSignal, risk]);
 
   useEffect(() => {
     const el = chartWrapRef.current;
@@ -336,6 +342,23 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
               <label className="block text-[10px] text-gray-400 mb-1">TP (pts)</label>
               <input type="number" min="0" value={risk.takePoints} onChange={(e) => setRisk({ ...risk, takePoints: Math.max(0, Number(e.target.value) || 0) })} className="w-full px-2 py-1.5 rounded-lg bg-[#090D12] border border-[#1E2633] text-xs font-mono text-gray-100" />
             </div>
+          </div>
+        </div>
+
+
+        <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] px-4 py-2.5 flex flex-wrap items-center gap-4 text-xs">
+          <span className="text-[11px] font-semibold text-gray-300">Regra de Disparo:</span>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-gray-400">{strategyType === 'ema_cross' ? 'Cruza p/ Cima:' : strategyType === 'rsi_reversal' ? 'Sobrevenda:' : 'Rompe Máxima:'}</span>
+            <select value={onBullishSignal} onChange={(e) => setOnBullishSignal(e.target.value as SignalAction)} className="px-2 py-1 rounded bg-[#090D12] border border-[#1E2633] text-xs text-gray-100">
+              <option value="BUY">Comprar</option><option value="SELL">Vender</option><option value="NONE">Ignorar</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-gray-400">{strategyType === 'ema_cross' ? 'Cruza p/ Baixo:' : strategyType === 'rsi_reversal' ? 'Sobrecompra:' : 'Rompe Mínima:'}</span>
+            <select value={onBearishSignal} onChange={(e) => setOnBearishSignal(e.target.value as SignalAction)} className="px-2 py-1 rounded bg-[#090D12] border border-[#1E2633] text-xs text-gray-100">
+              <option value="SELL">Vender</option><option value="BUY">Comprar</option><option value="NONE">Ignorar</option>
+            </select>
           </div>
         </div>
 
