@@ -336,8 +336,8 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
             entryPrice: tr.entryPrice,
             exitTime: exitT,
             exitPrice: tr.exitPrice,
-            color: tradeColor,
-            dotColor: isBuy ? '#10B981' : '#EF4444',
+            color: isWin ? '#A855F7' : '#7E22CE',
+            dotColor: '#C084FC',
           });
         }
       }

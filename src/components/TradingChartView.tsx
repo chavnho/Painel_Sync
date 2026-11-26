@@ -939,7 +939,7 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
           });
 
           if (tr.entryPrice > 0 && tr.exitPrice > 0) {
-            const lineHex = isWin ? '#34D399' : '#F87171';
+            const lineHex = isWin ? '#A855F7' : '#7E22CE';
             nextSegments.push({
               entryTime: entryCandle.utcTime,
               entryPrice: tr.entryPrice,

@@ -227,6 +227,24 @@ export function runBacktestSimulation(input: {
           sl: calcSl,
           tp: calcTp,
         };
+        const bullishBar = curBar.close >= curBar.open;
+        if (pos.side === "COMPRA") {
+          if (bullishBar) {
+            if (pos.sl > 0 && curBar.low <= pos.sl) closePos(pos.sl, barTs, fmt.label, "Stop Loss");
+            else if (pos.tp > 0 && curBar.high >= pos.tp) closePos(pos.tp, barTs, fmt.label, "Take Profit");
+          } else {
+            if (pos.tp > 0 && curBar.high >= pos.tp) closePos(pos.tp, barTs, fmt.label, "Take Profit");
+            else if (pos.sl > 0 && curBar.low <= pos.sl) closePos(pos.sl, barTs, fmt.label, "Stop Loss");
+          }
+        } else {
+          if (bullishBar) {
+            if (pos.tp > 0 && curBar.low <= pos.tp) closePos(pos.tp, barTs, fmt.label, "Take Profit");
+            else if (pos.sl > 0 && curBar.high >= pos.sl) closePos(pos.sl, barTs, fmt.label, "Stop Loss");
+          } else {
+            if (pos.sl > 0 && curBar.high >= pos.sl) closePos(pos.sl, barTs, fmt.label, "Stop Loss");
+            else if (pos.tp > 0 && curBar.low <= pos.tp) closePos(pos.tp, barTs, fmt.label, "Take Profit");
+          }
+        }
       }
     }
 

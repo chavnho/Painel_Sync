@@ -50,8 +50,16 @@ class TradeLinesRenderer implements IPrimitivePaneRenderer {
         const y2 = item.y2 * vpr;
 
         ctx.beginPath();
+        ctx.strokeStyle = '#090D12';
+        ctx.lineWidth = 4.2 * hpr;
+        ctx.setLineDash([5 * hpr, 4 * hpr]);
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+
+        ctx.beginPath();
         ctx.strokeStyle = item.color;
-        ctx.lineWidth = 2 * hpr;
+        ctx.lineWidth = 2.4 * hpr;
         ctx.setLineDash([5 * hpr, 4 * hpr]);
         ctx.moveTo(x1, y1);
         ctx.lineTo(x2, y2);
