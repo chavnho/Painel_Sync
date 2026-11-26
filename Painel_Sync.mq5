@@ -57,20 +57,30 @@ datetime g_lastSymbolsReport = 0;
 void OnStart()
 {
    Print("PainelSync Service v2.0: Iniciando monitoramento em segundo plano no canal ", InpChannelId, "...");
+
    g_lastSymbolsReport = TimeCurrent();
    SendSymbolsReport();
-   if(InpHistoryBackfillDays > 0) SyncHistoricalTrades(InpHistoryBackfillDays);
+   if(InpHistoryBackfillDays > 0)
+      SyncHistoricalTrades(InpHistoryBackfillDays);
    SendAccountAndRobotsTelemetry();
+
    while(!IsStopped())
    {
       int waitMs = MathMax(1, InpSyncIntervalSec) * 1000;
-      for(int elapsed = 0; elapsed < waitMs && !IsStopped(); elapsed += 200) Sleep(200);
+      for(int elapsed = 0; elapsed < waitMs && !IsStopped(); elapsed += 200)
+         Sleep(200);
       if(IsStopped()) break;
+
       if(!g_historySynced && InpHistoryBackfillDays > 0 && TimeCurrent() - g_lastHistoryRetry >= 30) { g_lastHistoryRetry = TimeCurrent(); SyncHistoricalTrades(InpHistoryBackfillDays); }
       LogAccountStateChanges();
       FetchPendingRequest();
       SendAccountAndRobotsTelemetry();
-      if(TimeCurrent() - g_lastSymbolsReport >= 60) { g_lastSymbolsReport = TimeCurrent(); SendSymbolsReport(); }
+
+      if(TimeCurrent() - g_lastSymbolsReport >= 60)
+      {
+         g_lastSymbolsReport = TimeCurrent();
+         SendSymbolsReport();
+      }
    }
    CleanupTempSymbols("", 0);
    Print("PainelSync Service: Monitoramento encerrado.");
@@ -672,7 +682,8 @@ void FetchPendingRequest()
             if(reqSymbol != "")
             {
                ENUM_TIMEFRAMES tf = StringToTimeframe(reqTimeframe);
-               SendCandlesData(reqSymbol, tf, requestId, InpMaxChartBars, false);
+               string reqDate = ExtractJsonString(obj, "date");
+               SendCandlesData(reqSymbol, tf, requestId, InpMaxChartBars, false, reqDate);
             }
             pos = objEnd + 1;
          }
@@ -738,7 +749,166 @@ void FetchPendingRequest()
    }
 }
 
-void SendCandlesData(const string symbol, const ENUM_TIMEFRAMES period, const string requestId, const int barsCount, const bool isDelta = false)
+void FillGapsFromRealTicks(const string symbol, const ENUM_TIMEFRAMES period, MqlRates &rates[], int &total)
+{
+   int stepSec = PeriodSeconds(period);
+   if(stepSec <= 0 || total < 2) return;
+   bool hasGap = false;
+   for(int i = 1; i < total; i++)
+   {
+      long diff = (long)(rates[i].time - rates[i - 1].time);
+      if(diff > stepSec && diff < 36000) { hasGap = true; break; }
+   }
+   if(!hasGap) return;
+   MqlRates rebuilt[];
+   ArrayResize(rebuilt, 0, total + 128);
+   int addedTotal = 0;
+   for(int i = 0; i < total; i++)
+   {
+      if(i > 0)
+      {
+         long diff = (long)(rates[i].time - rates[i - 1].time);
+         if(diff > stepSec && diff < 36000)
+         {
+            datetime fromSec = rates[i - 1].time + stepSec;
+            datetime toSec = rates[i].time - 1;
+            MqlTick ticks[];
+            int tCount = CopyTicksRange(symbol, ticks, COPY_TICKS_TRADE, (ulong)fromSec * 1000, (ulong)toSec * 1000 + 999);
+            if(tCount <= 0) { Sleep(200); tCount = CopyTicksRange(symbol, ticks, COPY_TICKS_TRADE, (ulong)fromSec * 1000, (ulong)toSec * 1000 + 999); }
+            if(tCount <= 0) { Sleep(200); tCount = CopyTicksRange(symbol, ticks, COPY_TICKS_TRADE, (ulong)fromSec * 1000, (ulong)toSec * 1000 + 999); }
+            if(tCount > 0)
+            {
+               datetime curBarTime = 0;
+               MqlRates bar;
+               ZeroMemory(bar);
+               bool hasBar = false;
+               for(int t = 0; t < tCount; t++)
+               {
+                  double px = ticks[t].last;
+                  if(px <= 0.0) continue;
+                  datetime bTime = (datetime)(ticks[t].time - (ticks[t].time % stepSec));
+                  if(bTime < fromSec || bTime > toSec) continue;
+                  if(!hasBar || bTime != curBarTime)
+                  {
+                     if(hasBar)
+                     {
+                        int n = ArraySize(rebuilt);
+                        ArrayResize(rebuilt, n + 1, 64);
+                        rebuilt[n] = bar;
+                        addedTotal++;
+                     }
+                     curBarTime = bTime;
+                     ZeroMemory(bar);
+                     bar.time = bTime;
+                     bar.open = px;
+                     bar.high = px;
+                     bar.low = px;
+                     bar.close = px;
+                     bar.tick_volume = 1;
+                     bar.real_volume = (long)ticks[t].volume;
+                     hasBar = true;
+                  }
+                  else
+                  {
+                     if(px > bar.high) bar.high = px;
+                     if(px < bar.low) bar.low = px;
+                     bar.close = px;
+                     bar.tick_volume += 1;
+                     bar.real_volume += (long)ticks[t].volume;
+                  }
+               }
+               if(hasBar)
+               {
+                  int n = ArraySize(rebuilt);
+                  ArrayResize(rebuilt, n + 1, 64);
+                  rebuilt[n] = bar;
+                  addedTotal++;
+               }
+            }
+         }
+      }
+      int idx = ArraySize(rebuilt);
+      ArrayResize(rebuilt, idx + 1, 64);
+      rebuilt[idx] = rates[i];
+   }
+   if(addedTotal > 0)
+   {
+      ArrayCopy(rates, rebuilt);
+      total = ArraySize(rates);
+   }
+}
+int CopyAndRepairRates(const string symbol, const ENUM_TIMEFRAMES period, const int barsCount, const string targetDate, MqlRates &outRates[])
+{
+   int stepSec = PeriodSeconds(period);
+   bool canBuildFromM1 = (period > PERIOD_M1 && stepSec > 60 && stepSec <= 14400 && (stepSec % 60) == 0);
+   int mult = canBuildFromM1 ? (stepSec / 60) : 1;
+   ENUM_TIMEFRAMES fetchTf = canBuildFromM1 ? PERIOD_M1 : period;
+   int fetchCount = canBuildFromM1 ? MathMin(15000, barsCount * mult + mult) : barsCount;
+   MqlRates raw[]; ArraySetAsSeries(raw, false);
+   int total = 0;
+   if(targetDate != "")
+   {
+      datetime dStart = StringToTime(targetDate + " 00:00:00");
+      datetime dEnd   = StringToTime(targetDate + " 23:59:59");
+      if(dStart > 0 && dEnd >= dStart) total = CopyRates(symbol, fetchTf, dStart, dEnd, raw);
+   }
+   else total = CopyRates(symbol, fetchTf, 0, fetchCount, raw);
+   if(total <= 0) return 0;
+   FillGapsFromRealTicks(symbol, fetchTf, raw, total);
+   if(!canBuildFromM1)
+   {
+      ArrayFree(outRates); ArrayCopy(outRates, raw);
+      return total;
+   }
+   ArrayResize(outRates, 0, (total / mult) + 16);
+   datetime curBucket = 0;
+   MqlRates agg; ZeroMemory(agg); bool hasAgg = false;
+   for(int i = 0; i < total; i++)
+   {
+      datetime bucket = (datetime)(raw[i].time - (raw[i].time % stepSec));
+      if(!hasAgg || bucket != curBucket)
+      {
+         if(hasAgg)
+         {
+            int n = ArraySize(outRates); ArrayResize(outRates, n + 1, 64);
+            outRates[n] = agg;
+         }
+         curBucket = bucket;
+         ZeroMemory(agg);
+         agg.time = bucket;
+         agg.open = raw[i].open;
+         agg.high = raw[i].high;
+         agg.low  = raw[i].low;
+         agg.close = raw[i].close;
+         agg.tick_volume = raw[i].tick_volume;
+         agg.real_volume = raw[i].real_volume;
+         hasAgg = true;
+      }
+      else
+      {
+         if(raw[i].high > agg.high) agg.high = raw[i].high;
+         if(raw[i].low < agg.low) agg.low = raw[i].low;
+         agg.close = raw[i].close;
+         agg.tick_volume += raw[i].tick_volume;
+         agg.real_volume += raw[i].real_volume;
+      }
+   }
+   if(hasAgg)
+   {
+      int n = ArraySize(outRates); ArrayResize(outRates, n + 1, 64);
+      outRates[n] = agg;
+   }
+   int aggTotal = ArraySize(outRates);
+   if(targetDate == "" && aggTotal > barsCount)
+   {
+      MqlRates sliced[];
+      ArrayCopy(sliced, outRates, 0, aggTotal - barsCount, barsCount);
+      ArrayFree(outRates); ArrayCopy(outRates, sliced);
+      aggTotal = barsCount;
+   }
+   return aggTotal;
+}
+void SendCandlesData(const string symbol, const ENUM_TIMEFRAMES period, const string requestId, const int barsCount, const bool isDelta = false, const string targetDate = "")
 {
    // Verifica se o ativo jÃ¡ estava visÃ­vel na ObservaÃ§Ã£o do Mercado antes
    bool wasSelected = (bool)SymbolInfoInteger(symbol, SYMBOL_SELECT);
@@ -750,22 +920,27 @@ void SendCandlesData(const string symbol, const ENUM_TIMEFRAMES period, const st
 
    MqlRates rates[];
    ArraySetAsSeries(rates, false);
-   int total = CopyRates(symbol, period, 0, MathMax(2, barsCount), rates);
-
-   // Se acabou de ser adicionado agora, dÃ¡ 250ms para a corretora entregar o histÃ³rico
-   if(total <= 0 && !wasSelected)
-   {
-      Sleep(500);
-      total = CopyRates(symbol, period, 0, MathMax(2, barsCount), rates);
-   }
-
-   // Se nÃ£o estava na ObservaÃ§Ã£o do Mercado antes, remove para nÃ£o poluir sua lista
-   if(!wasSelected)
-   {
-      TrackTempSymbol(symbol);
-   }
-
+   int total = 0;
+   datetime dStart = 0;
+   datetime dEnd = 0;
+   total = CopyAndRepairRates(symbol, period, barsCount, targetDate, rates);
    if(total <= 0) return;
+   {
+      int stepSec = PeriodSeconds(period);
+      string gapsLog = "";
+      int gapCount = 0;
+      for(int g = 1; g < total; g++)
+      {
+         long diff = (long)(rates[g].time - rates[g - 1].time);
+         if(stepSec > 0 && diff > stepSec && diff < 36000)
+         {
+            gapCount++;
+            if(gapsLog != "") gapsLog += " | ";
+            gapsLog += TimeToString(rates[g - 1].time, TIME_DATE|TIME_MINUTES) + "->" + TimeToString(rates[g].time, TIME_DATE|TIME_MINUTES) + "(" + IntegerToString(diff) + "s)";
+         }
+      }
+   }
+
 
    int digits = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
    double tickSize = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_SIZE);
@@ -825,7 +1000,7 @@ bool IsRelevantSymbol(const string name)
       StringFind(name, "ICF") == 0 || StringFind(name, "DI1") == 0)
       return true;
 
-   // AÃ§Ãµes Ã  vista, FIIs, ETFs e BDRs padrÃ£o B3 (ex: PETR4, VALE3, BOVA11, MXRF11, AAPL34)
+   // AÃ§Ãµes Ã  vista, FIIs, ETFs e BDRs padrÃ£o B3 (ex: PETR4, VALE3, BOVA11, MXRF11, AAPL34)
    if(len == 5 || len == 6)
    {
       string suffix = StringSubstr(name, 4);

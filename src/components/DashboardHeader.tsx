@@ -10,6 +10,7 @@ interface DashboardHeaderProps {
   account: AccountSnapshot | null;
   streamStatus: 'connecting' | 'listening' | 'error';
   lastSyncAt: string | null;
+  serverStartedAt?: string | null;
 }
 
 const NAV_ITEMS: Array<{ id: DashboardView; label: string }> = [
@@ -29,6 +30,7 @@ export function DashboardHeader({
   account,
   streamStatus,
   lastSyncAt,
+  serverStartedAt,
 }: DashboardHeaderProps) {
   const isConnectActive = activeView === 'connect';
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
@@ -106,6 +108,7 @@ export function DashboardHeader({
               ? `${account.broker ? account.broker.split(' ')[0] : account.server || 'MT5'} · ${account.mode}`
               : 'Canal pronto'}
             {lastSyncAt ? ` • ${new Date(lastSyncAt).toLocaleTimeString('pt-BR')}` : ''}
+            {serverStartedAt ? ` • Srv ${new Date(serverStartedAt).toLocaleTimeString('pt-BR')}` : ''}
           </span>
         </div>
 

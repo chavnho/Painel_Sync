@@ -49,9 +49,8 @@ export default function App() {
   const [creds, setCreds] = useState<Mt5SyncCredentials>(() =>
     loadOrCreateMt5SyncCredentials()
   );
-  const [streamStatus, setStreamStatus] = useState<'connecting' | 'listening' | 'error'>(
-    'connecting'
-  );
+  const [streamStatus, setStreamStatus] = useState<'connecting' | 'listening' | 'error'>('connecting');
+  const [serverStartedAt, setServerStartedAt] = useState<string | null>(null);
   const [telemetry, setTelemetry] = useState<DashboardTelemetry | null>(null);
   const [pairingEvents, setPairingEvents] = useState<PairingAttemptEvent[]>([]);
   const [lastCommandUpdate, setLastCommandUpdate] = useState<RemoteCommand | null>(null);
@@ -107,11 +106,13 @@ export default function App() {
       try {
         const data = JSON.parse((evt as MessageEvent).data) as {
           pairingEvents?: PairingAttemptEvent[];
+          serverStartedAt?: string;
           robots?: any[];
           account?: any;
           serverReceivedAt?: string;
         };
         //console.log('Ready data:', data);
+        if (typeof data.serverStartedAt === 'string') setServerStartedAt(data.serverStartedAt);
         if (Array.isArray(data.pairingEvents)) {
           setPairingEvents(data.pairingEvents);
         }
@@ -134,6 +135,7 @@ export default function App() {
         const data = JSON.parse((evt as MessageEvent).data) as DashboardTelemetry;
         //console.log('Telemetry data:', data);
         setTelemetry(data);
+        if (typeof data.serverStartedAt === 'string') setServerStartedAt(data.serverStartedAt);
         if (Array.isArray(data.pairingEvents)) {
           setPairingEvents(data.pairingEvents);
         }
@@ -260,6 +262,7 @@ export default function App() {
   return (
     <div className="h-screen w-screen flex flex-col bg-[#090D12] text-gray-100 overflow-hidden">
       <DashboardHeader
+        serverStartedAt={serverStartedAt}
         activeView={activeView}
         onViewChange={setActiveView}
         robotsCount={robots.length}

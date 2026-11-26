@@ -84,7 +84,8 @@ interface NormalizedRobot {
 const mt5Channels = new Map<string, LiveSyncChannel>();
 
 const requestQueue: PendingRequest[] = [];
-const MAX_CHART_CANDLES = 1000;
+const MAX_CHART_CANDLES = 1500;
+const SERVER_STARTED_AT = new Date().toISOString();
 const chartCandlesCache = new Map<string, NormalizedCandle[]>();
 const requestDateMap = new Map<string, string>();
 const activeChartFocus = new Map<string, { symbol: string; timeframe: string; expiresAt: number }>();
@@ -884,8 +885,8 @@ async function startServer() {
         const existing = chartCandlesCache.get(`${channelId}:${chartSymbol}:${chartTf}`) || [];
         if (existing.length > 0 && chartCandles.length > 0) {
           const merged = [...existing];
-          for (const incoming of chartCandles) {
-            const inSec = Number(incoming.time ?? 0) > 1e11 ? Math.floor(Number(incoming.time) / 1000) : Number(incoming.time ?? 0); const idx = merged.findIndex((c) => (Number(c.time ?? 0) > 1e11 ? Math.floor(Number(c.time) / 1000) : Number(c.time ?? 0)) === inSec);
+          for (const incoming of chartCandles.slice(-2)) {
+            const idx = merged.findIndex((c) => c.time === incoming.time);
             if (idx >= 0) {
               merged[idx] = { ...incoming, index: idx };
             } else {
@@ -1096,6 +1097,7 @@ async function startServer() {
       `event: ready\ndata: ${JSON.stringify({
         channelId,
         connected: true,
+        serverStartedAt: SERVER_STARTED_AT,
         pairingEvents: channel.pairingEvents,
       })}\n\n`
     );
