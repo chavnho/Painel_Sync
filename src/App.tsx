@@ -5,7 +5,6 @@ import { DashboardHeader } from './components/DashboardHeader';
 import { ROBOT_COLORS, getDefaultMagicColorIndex, loadMagicColorMap, saveMagicColorMap } from './utils/themeTokens';
 import { Mt5BridgeView } from './components/Mt5BridgeView';
 import { OverviewView } from './components/OverviewView';
-import { RobotSidebar } from './components/RobotSidebar';
 import { TradesLedgerView } from './components/TradesLedgerView';
 import { TradingChartView } from './components/TradingChartView';
 import { WeeklyMonthlyReportView } from './components/WeeklyMonthlyReportView';
@@ -272,22 +271,6 @@ export default function App() {
       />
 
       <div className="flex-1 flex min-h-0">
-        <RobotSidebar
-          robots={robots}
-          selectedRobotId={selectedRobotId}
-          onSelectRobot={setSelectedRobotId}
-          onRenameMagic={handleRenameMagic}
-          onToggleHideMagic={handleToggleHideMagic}
-          magicColors={magicColors}
-          onCycleMagicColor={handleCycleMagicColor}
-          account={telemetry?.account ?? null}
-          streamStatus={streamStatus}
-          lastSyncAt={telemetry?.serverReceivedAt ?? null}
-          activeView={activeView}
-          onViewChange={setActiveView}
-          lastCommandUpdate={lastCommandUpdate}
-        />
-
         <main className="flex-1 flex flex-col min-w-0 h-full bg-[#090D12] overflow-hidden">
           {activeView === 'overview' && (
             <OverviewView
@@ -301,6 +284,8 @@ export default function App() {
               pairingEvents={pairingEvents}
               lastSyncAt={telemetry?.serverReceivedAt ?? null}
               onClearPairingLog={handleClearPairingLog}
+              onRenameMagic={handleRenameMagic}
+              onToggleHideMagic={handleToggleHideMagic}
             />
           )}
 

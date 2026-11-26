@@ -10,8 +10,12 @@ import {
   Award,
   CandlestickChart,
   CheckCircle2,
+  Check,
   Eye,
   EyeOff,
+  Pencil,
+  X,
+  XCircle,
   Layers,
   ShieldAlert,
   TrendingDown,
@@ -33,6 +37,7 @@ import {
   formatPrice,
 } from '../utils/tradingMath';
 import { LivePairingMonitor } from './LivePairingMonitor';
+import { sendRemoteCommand } from '../utils/mt5Bridge';
 
 interface OverviewViewProps {
   robots: RobotStream[];
@@ -45,6 +50,8 @@ interface OverviewViewProps {
   pairingEvents: PairingAttemptEvent[];
   lastSyncAt: string | null;
   onClearPairingLog: () => void;
+  onRenameMagic?: (magicNumber: number, nextName: string) => void;
+  onToggleHideMagic?: (magicNumber: number, nextHidden: boolean) => void;
 }
 
 export function OverviewView({
@@ -58,8 +65,15 @@ export function OverviewView({
   pairingEvents,
   lastSyncAt,
   onClearPairingLog,
+  onRenameMagic,
+  onToggleHideMagic,
 }: OverviewViewProps) {
   const [hoverEqIdx, setHoverEqIdx] = useState<number | null>(null);
+  const [editingMagic, setEditingMagic] = useState<number | null>(null);
+  const [draftName, setDraftName] = useState('');
+  const [confirmCloseKey, setConfirmCloseKey] = useState<string | null>(null);
+  const [cmdMsg, setCmdMsg] = useState<string | null>(null);
+  const handleQuickCmd = async (action: 'CLOSE_MAGIC' | 'CLOSE_ALL', magicNumber?: number, symbol?: string) => { setConfirmCloseKey(null); try { await sendRemoteCommand(creds.channelId, creds.token, { action, magicNumber, symbol, ttlSeconds: 15 }); setCmdMsg('Comando enviado ao MT5...'); } catch { setCmdMsg('Falha ao enviar comando'); } finally { window.setTimeout(() => setCmdMsg(null), 4000); } };
   const [includeHidden, setIncludeHidden] = useState(false);
   const [sortKey, setSortKey] = useState<'dailyPnl' | 'winRate'>('dailyPnl');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -257,40 +271,7 @@ export function OverviewView({
             </div>
           </div>
           <EquityBaselineChart todayTrades={allTrades} historyTrades={scopedHistoryTrades} floatingPnlBrl={metrics.floatingPnlBrl} />
-          <div className={`${UI_THEME.surfaces.card} overflow-hidden`}>
-            <table className="w-full text-left border-collapse text-xs">
-              <thead className="bg-[#161D27]/60 text-[11px] uppercase tracking-wider text-slate-400 border-b border-[#1E293B]">
-                <tr><th className="px-4 py-2.5 font-medium">Robô</th><th className="px-4 py-2.5 font-medium">Ativo</th><th className="px-4 py-2.5 font-medium">Posição</th><th className="px-4 py-2.5 font-medium text-right">Resultado Hoje</th><th className="px-4 py-2.5 font-medium text-right w-16">Gráfico</th></tr>
-              </thead>
-              <tbody className="divide-y divide-[#1E293B]/60">
-                {sortedRobots.map((bot) => {
-                  const isSel = selectedRobotId === bot.robotId;
-                  return (
-                    <tr key={bot.robotId} onClick={() => onSelectRobot(isSel ? 'ALL' : bot.robotId)} className={`transition-colors cursor-pointer ${isSel ? 'bg-blue-500/10' : 'hover:bg-[#161D27]/80'}`}>
-                      <td className="px-4 py-2.5 font-semibold text-slate-100">{bot.name}</td>
-                      <td className="px-4 py-2.5 font-mono text-slate-300">{bot.symbol} <span className="text-slate-500">• {bot.timeframe || 'M5'}</span></td>
-                      <td className="px-4 py-2.5 font-mono tabular-nums">{bot.position ? <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold ${bot.position.side === 'COMPRA' ? 'bg-emerald-500/15 text-emerald-300' : 'bg-rose-500/15 text-rose-300'}`}>{bot.position.side} {bot.position.volume}x ({formatBrl(bot.floatingPnlBrl)})</span> : <span className="text-slate-500">Zerado</span>}</td>
-                      <td className={`px-4 py-2.5 text-right font-mono font-bold tabular-nums ${bot.dailyPnlBrl > 0 ? 'text-emerald-400' : bot.dailyPnlBrl < 0 ? 'text-rose-400' : 'text-slate-300'}`}>{formatBrl(bot.dailyPnlBrl)}</td>
-                      <td className="px-4 py-2.5 text-right"><button type="button" onClick={(e) => { e.stopPropagation(); onSelectRobot(bot.robotId); onNavigate('charts'); }} className="inline-flex items-center p-1.5 rounded bg-[#161D27] hover:bg-[#1E293B] text-slate-300 hover:text-emerald-400 cursor-pointer"><CandlestickChart className="w-3.5 h-3.5" /></button></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          {allTrades.length > 0 && (
-            <div className={`${UI_THEME.surfaces.card} overflow-hidden`}>
-              <div className="px-4 py-2.5 border-b border-[#1E293B] flex items-center justify-between"><span className="text-xs font-medium text-slate-200">Execuções Hoje ({allTrades.length})</span><button type="button" onClick={() => onNavigate('operations')} className="text-[11px] text-blue-400 hover:text-blue-300 cursor-pointer">Ver todas →</button></div>
-              <div className="divide-y divide-[#1E293B]/60">
-                {allTrades.slice(0, 5).map((tr) => (
-                  <div key={tr.id} className="px-4 py-2 flex items-center justify-between gap-4 text-xs">
-                    <div className="flex items-center gap-2.5 min-w-0">{tr.side === 'COMPRA' ? <TrendingUp className="w-3.5 h-3.5 text-emerald-400 shrink-0" /> : <TrendingDown className="w-3.5 h-3.5 text-rose-400 shrink-0" />}<span className="text-slate-200 truncate">{tr.side} {tr.volume}x {tr.symbol}</span><span className="text-slate-500 truncate">• {tr.robotName}</span><span className="text-[11px] font-mono text-slate-500 hidden sm:inline">{tr.entryTime} → {tr.exitTime}</span></div>
-                    <span className={`font-mono font-bold tabular-nums shrink-0 ${tr.pnlBrl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{formatBrl(tr.pnlBrl)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          {(() => { const appBots = sortedRobots.filter((b) => b.magicNumber >= 9001); const mt5Bots = sortedRobots.filter((b) => b.magicNumber < 9001); const renderCard = (bot: RobotStream, isApp: boolean) => { const isSel = selectedRobotId === bot.robotId; const cKey = "m_" + bot.magicNumber; return (<div key={bot.robotId} onClick={() => onSelectRobot(isSel ? "ALL" : bot.robotId)} className={`rounded-xl bg-[#0F141C] border p-4 flex flex-col justify-between gap-3 transition-colors cursor-pointer ${isSel ? "border-sky-400/70 bg-sky-950/15" : isApp ? "border-emerald-500/25 hover:border-emerald-500/50" : "border-[#1E293B] hover:border-slate-600"}`}><div className="space-y-2"><div className="flex items-start justify-between gap-2">{editingMagic === bot.magicNumber ? (<div className="flex items-center gap-1 flex-1" onClick={(e) => e.stopPropagation()}><input type="text" value={draftName} onChange={(e) => setDraftName(e.target.value)} className="flex-1 min-w-0 px-2 py-1 rounded bg-[#090D12] border border-[#1E2633] text-xs text-gray-100" /><button type="button" onClick={() => { onRenameMagic?.(bot.magicNumber, draftName.trim() || bot.name); setEditingMagic(null); }} className="p-1 text-emerald-400 cursor-pointer"><Check className="w-3.5 h-3.5" /></button><button type="button" onClick={() => setEditingMagic(null)} className="p-1 text-gray-400 cursor-pointer"><X className="w-3.5 h-3.5" /></button></div>) : (<div className="text-sm font-semibold text-slate-100 truncate">{bot.name}</div>)}<span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${isApp ? "bg-emerald-950/70 text-emerald-300 border border-emerald-500/40" : "bg-amber-950/60 text-amber-300 border border-amber-500/35"}`}>{isApp ? "APP" : "MT5"}</span></div><div className="flex items-center justify-between text-[11px] font-mono text-slate-400"><span>#{bot.magicNumber} • {bot.symbol} • {bot.timeframe || "M5"}</span><span className={`font-bold ${bot.dailyPnlBrl > 0 ? "text-emerald-400" : bot.dailyPnlBrl < 0 ? "text-rose-400" : "text-slate-300"}`}>{formatBrl(bot.dailyPnlBrl)}</span></div><div>{bot.position ? (<span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono font-semibold ${bot.position.side === "COMPRA" ? "bg-emerald-500/15 text-emerald-300" : "bg-rose-500/15 text-rose-300"}`}>{bot.position.side} {bot.position.volume}x ({formatBrl(bot.floatingPnlBrl)})</span>) : (<span className="text-[11px] font-mono text-slate-500">Zerado</span>)}</div></div><div className="flex items-center justify-between gap-1.5 pt-2 border-t border-[#1E293B]" onClick={(e) => e.stopPropagation()}><button type="button" onClick={() => { onSelectRobot(bot.robotId); onNavigate("charts"); }} className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-[#161D27] hover:bg-[#1E293B] text-[11px] text-slate-200 cursor-pointer"><CandlestickChart className="w-3.5 h-3.5 text-emerald-400" /><span>Gráfico</span></button><div className="flex items-center gap-1">{bot.position && (confirmCloseKey === cKey ? (<button type="button" onClick={() => handleQuickCmd("CLOSE_MAGIC", bot.magicNumber, bot.symbol)} className="px-2 py-1 rounded bg-rose-600 text-white text-[10px] font-bold cursor-pointer">Confirmar</button>) : (<button type="button" onClick={() => setConfirmCloseKey(cKey)} title="Zerar posição" className="p-1.5 rounded bg-[#161D27] text-rose-400 hover:bg-rose-950/40 cursor-pointer"><XCircle className="w-3.5 h-3.5" /></button>))}<button type="button" onClick={() => { setEditingMagic(bot.magicNumber); setDraftName(bot.name); }} title="Renomear" className="p-1.5 rounded bg-[#161D27] text-slate-400 hover:text-slate-200 cursor-pointer"><Pencil className="w-3.5 h-3.5" /></button><button type="button" onClick={() => onToggleHideMagic?.(bot.magicNumber, !bot.hidden)} title={bot.hidden ? "Exibir" : "Ocultar"} className="p-1.5 rounded bg-[#161D27] text-slate-400 hover:text-slate-200 cursor-pointer">{bot.hidden ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}</button></div></div></div>); }; return (<div className="space-y-5">{cmdMsg && <div className="px-3 py-2 rounded-lg bg-sky-950/40 border border-sky-500/30 text-xs text-sky-300 font-mono">{cmdMsg}</div>}<div className="space-y-2.5"><div className="flex items-center justify-between"><div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-400" /><h3 className="text-xs font-bold uppercase tracking-wider text-slate-200">Robôs do App ({appBots.length})</h3></div><button type="button" onClick={() => onNavigate("robots")} className="text-[11px] text-emerald-400 hover:text-emerald-300 cursor-pointer">Gerenciar Robôs →</button></div>{appBots.length === 0 ? (<div className="rounded-xl bg-[#0F141C]/60 border border-dashed border-[#1E293B] p-4 text-center text-xs text-slate-500">Nenhum robô do App ativo no pregão hoje.</div>) : (<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">{appBots.map((b) => renderCard(b, true))}</div>)}</div><div className="space-y-2.5"><div className="flex items-center justify-between"><div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-amber-400" /><h3 className="text-xs font-bold uppercase tracking-wider text-slate-200">Robôs do MT5 Externos ({mt5Bots.length})</h3></div>{openPositions.length > 0 && (confirmCloseKey === "ALL" ? (<button type="button" onClick={() => handleQuickCmd("CLOSE_ALL")} className="px-2.5 py-1 rounded bg-rose-600 text-white text-[11px] font-bold cursor-pointer">Confirmar Zerar Tudo</button>) : (<button type="button" onClick={() => setConfirmCloseKey("ALL")} className="px-2.5 py-1 rounded bg-rose-950/40 border border-rose-500/40 text-rose-300 text-[11px] font-semibold cursor-pointer">Zerar Tudo (MT5)</button>))}</div>{mt5Bots.length === 0 ? (<div className="rounded-xl bg-[#0F141C]/60 border border-dashed border-[#1E293B] p-4 text-center text-xs text-slate-500">Nenhum EA externo do MT5 conectado no momento.</div>) : (<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">{mt5Bots.map((b) => renderCard(b, false))}</div>)}</div></div>); })()}
         </section>
       </div>
     </div>
