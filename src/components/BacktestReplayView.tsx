@@ -610,7 +610,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
           </div>
         )}
 
-        <div className={isChartMaximized ? 'fixed top-0 inset-x-0 bottom-[40px] z-50 bg-[#090D12] px-4 pt-3 pb-0 flex flex-col gap-2' : 'rounded-xl bg-[#0F141C] border border-[#1E2633] p-3 flex flex-col gap-2'}>
+        <div className={isChartMaximized ? 'fixed top-0 inset-x-0 bottom-[38px] z-50 bg-[#090D12] px-4 pt-3 pb-0 flex flex-col gap-2' : 'rounded-xl bg-[#0F141C] border border-[#1E2633] p-3 flex flex-col gap-2'}>
           <div className="relative z-20 shrink-0 flex items-center justify-between px-1">
             <span className="text-[11px] font-mono text-gray-400">{resolvedSymbol} · {timeframe} · {botName}</span>
             <button type="button" onClick={() => setIsChartMaximized((p) => !p)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-xs font-medium text-gray-100 cursor-pointer">
