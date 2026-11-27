@@ -35,13 +35,13 @@
     - Se a 1a vela fechar sem executar 1A: **1B assume** a partir da 2a vela de M5.
   - **1B (Rompimento):** **VENDA** quando Preco >= Maxima OU Preco <= Minima da vela anterior de M5.
 - **Z2 (Somente Venda):**
-  - **2A (Indicadores):** Pendente
+  - **2A (Rompimento das bordas do Canal Superior na 1a vela M5):** Durante a 1a vela de M5, **VENDE a mercado** se Preco >= (Maxima_D1 + 1 tick) OU Preco <= (Maxima_D1 - 7 - 1 tick). Se fechar a 1a vela sem romper, **2B assume** a partir da 2a vela de M5.
   - **2B (Rompimento):** **VENDA** quando Preco >= Maxima OU Preco <= Minima da vela anterior de M5.
 - **Z3 (Compra ou Venda - Reversao nas extremidades):**
-  - **3A (Indicadores):** Pendente
+  - **3A (EMAs / Indicadores):** Pendente
   - **3B (Rompimento):** **COMPRA** quando Preco <= Minima da vela anterior de M5 OU **VENDA** quando Preco >= Maxima da vela anterior de M5.
 - **Z4 (Somente Compra):**
-  - **4A (Indicadores):** Pendente
+  - **4A (Rompimento das bordas do Canal Inferior na 1a vela M5):** Durante a 1a vela de M5, **COMPRA a mercado** se Preco >= (Minima_D1 + 7 + 1 tick) OU Preco <= (Minima_D1 - 1 tick). Se fechar a 1a vela sem romper, **4B assume** a partir da 2a vela de M5.
   - **4B (Rompimento):** **COMPRA** quando Preco >= Maxima OU Preco <= Minima da vela anterior de M5.
 - **Z5 (Somente Compra):**
   - **5A (IFR 7 na 1a vela M5):**
