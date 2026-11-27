@@ -15,6 +15,8 @@ import {
   type UTCTimestamp,
 } from 'lightweight-charts';
 import {
+  ChevronLeft,
+  ChevronRight,
   Download,
   FastForward,
   Maximize2,
@@ -110,6 +112,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
 
   const [candles, setCandles] = useState<LiveCandle[]>(new Array());
   const [replayDate, setReplayDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [loadUntilToday, setLoadUntilToday] = useState(false);
   const [selectedDay, setSelectedDay] = useState<string>('ALL');
   const [loadingCandles, setLoadingCandles] = useState(false);
   const [candleStatus, setCandleStatus] = useState('Clique em Carregar Replay para carregar o hist\u00f3rico real.');
@@ -123,6 +126,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
   const [tickCursor, setTickCursor] = useState(0);
   const [jumpTime, setJumpTime] = useState('10:00');
   const [isChartMaximized, setIsChartMaximized] = useState(false);
+  const [isTradesDrawerOpen, setIsTradesDrawerOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [savingRobot, setSavingRobot] = useState(false);
   const [editNotice, setEditNotice] = useState('');
@@ -138,7 +142,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
   const lastRenderedSeriesRef = useRef<LiveCandle[] | null>(null);
 
   useEffect(() => {
-    fetchManagedRobots(creds.channelId, creds.token).then(setSavedRobots).catch(() => {});
+    fetchManagedRobots(creds.channelId, creds.token).then((list) => { setSavedRobots(list); if (list.length > 0) { const x = list.at(0)!; setSelectedBotId((p) => { if (p && list.some((b: ManagedRobot) => b.id === p)) return p; setBotName(x.name); setSymbol(x.symbol); setTimeframe(x.timeframe); setStrategyType(x.strategyType); setRisk(x.risk); return x.id; }); } }).catch(() => {});
   }, [creds.channelId, creds.token]);
 
   const handleSelectSavedBot = (id: string) => {
@@ -175,10 +179,10 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     setCandleStatus(`Carregando pregão ${replayDate.split('-').reverse().join('/')} de ${resolvedSymbol} (${timeframe}) no MT5...`);
     try {
       const isWdoZones = strategyType === 'wdo_opening_zones';
-      const [list, h1List, d1List] = await Promise.all([
-        syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, timeframe, isWdoZones ? { force: true, isManualRequest: true } : { force: true, isManualRequest: true, date: replayDate }),
-        isWdoZones ? syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, 'H1', { force: true }).catch(() => new Array<LiveCandle>()) : Promise.resolve(new Array<LiveCandle>()),
-        isWdoZones ? syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, 'D1', { force: true }).catch(() => new Array<LiveCandle>()) : Promise.resolve(new Array<LiveCandle>()),
+      const dObj = new Date(`${replayDate}T12:00:00Z`); dObj.setUTCDate(dObj.getUTCDate() - 4); const fStart = Number.isNaN(dObj.getTime()) ? replayDate : dObj.toISOString().slice(0, 10); const dParam = loadUntilToday ? `from:${fStart}` : replayDate; const [list, h1List, d1List] = await Promise.all([
+        syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, timeframe, isWdoZones && !loadUntilToday ? { force: true, isManualRequest: true } : { force: true, isManualRequest: true, date: dParam }),
+        isWdoZones ? syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, 'H1', loadUntilToday ? { force: true, isManualRequest: true, date: dParam } : { force: true }).catch(() => new Array<LiveCandle>()) : Promise.resolve(new Array<LiveCandle>()),
+        isWdoZones ? syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, 'D1', loadUntilToday ? { force: true, isManualRequest: true, date: dParam } : { force: true }).catch(() => new Array<LiveCandle>()) : Promise.resolve(new Array<LiveCandle>()),
       ]);
       if (isWdoZones) {
         setReplayMtfCandles({
@@ -187,7 +191,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
         });
       }
       if (list && list.length > 0) {
-        setCandles(list);
+        setCandles(list); if (loadUntilToday) { setSelectedDay('ALL'); const si = list.findIndex((x) => new Date(Number(x.time || 0) * 1000).toISOString().slice(0, 10) >= replayDate); setReplayBars(si > 0 ? si : 10); setCandleStatus('Multi-pregao pronto. Clique em 100% ou Play.'); return; }
         const dayMatches = list.filter((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) === replayDate);
         if (dayMatches.length > 0) {
           setSelectedDay(replayDate);
@@ -220,7 +224,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     setCandleStatus(`Carregando hist\u00f3rico completo desde ${yearStart.split('-').reverse().join('/')} de ${resolvedSymbol} (${timeframe}) no MT5...`);
     try {
       const isWdoZones = strategyType === 'wdo_opening_zones';
-      const [list, h1List, d1List] = await Promise.all([
+      const dObj = new Date(`${replayDate}T12:00:00Z`); dObj.setUTCDate(dObj.getUTCDate() - 4); const fStart = Number.isNaN(dObj.getTime()) ? replayDate : dObj.toISOString().slice(0, 10); const dParam = loadUntilToday ? `from:${fStart}` : replayDate; const [list, h1List, d1List] = await Promise.all([
         syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, timeframe, { force: true, isManualRequest: true, date: `from:${yearStart}` }),
         isWdoZones ? syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, 'H1', { force: true, isManualRequest: true, date: `from:${yearStart}` }).catch(() => new Array<LiveCandle>()) : Promise.resolve(new Array<LiveCandle>()),
         isWdoZones ? syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, 'D1', { force: true, isManualRequest: true, date: `from:${yearStart}` }).catch(() => new Array<LiveCandle>()) : Promise.resolve(new Array<LiveCandle>()),
@@ -232,7 +236,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
         });
       }
       if (list && list.length > 0) {
-        setCandles(list);
+        setCandles(list); if (loadUntilToday) { setSelectedDay('ALL'); const si = list.findIndex((x) => new Date(Number(x.time || 0) * 1000).toISOString().slice(0, 10) >= replayDate); setReplayBars(si > 0 ? si : 10); setCandleStatus('Multi-pregao pronto. Clique em 100% ou Play.'); return; }
         setSelectedDay('ALL');
         const firstDayStr = new Date(Number(list.at(0)?.time || 0) * 1000).toISOString().slice(0, 10);
         const secondDayIdx = list.findIndex((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) > firstDayStr);
