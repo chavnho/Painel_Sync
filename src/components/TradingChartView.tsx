@@ -451,11 +451,15 @@ export function TradingChartView({
               channelId,
               token,
               activeSymbol,
-              mt5Tf
+              mt5Tf,
+              controller.signal,
+              undefined,
+              needFullTail ? undefined : 10
             );
 
         if (!controller.signal.aborted) {
           if (result && result.length > 0) {
+            needFullTail = false;
             setManualCandles((prev) => {
               if (
                 prev &&
@@ -468,7 +472,19 @@ export function TradingChartView({
               ) {
                 return prev;
               }
-              return result;
+              if (isFirstLoad || !prev || prev.length === 0 || result.length > 50) {
+                return result;
+              }
+              const lastPrev = prev.at(-1);
+              const firstIncoming = result.at(0);
+              const tfSec = selectedTf === 'M1' ? 60 : selectedTf === 'M5' ? 300 : selectedTf === 'M15' ? 900 : selectedTf === 'H1' ? 3600 : 300;
+              if (lastPrev && firstIncoming && Number(firstIncoming.time) - Number(lastPrev.time) > tfSec * 2) {
+                needFullTail = true;
+              }
+              const byTime = new Map<number, LiveCandle>();
+              for (const b of prev) byTime.set(Number(b.time), b);
+              for (const b of result) byTime.set(Number(b.time), b);
+              return Array.from(byTime.entries()).sort(([tA], [tB]) => tA - tB).map(([, bar], idx) => ({ ...bar, index: idx }));
             });
             setManualError(null);
           } else if (isFirstLoad) {
@@ -481,17 +497,25 @@ export function TradingChartView({
           setManualError('Erro ao solicitar velas ao MT5');
         }
       } finally {
+        inFlight = false;
         if (!controller.signal.aborted && isFirstLoad) {
           setIsLoading(false);
         }
       }
     };
 
-    loadLiveCandles(true);
+    let inFlight = false;
+    let needFullTail = true;
+    const tickLive = (first: boolean) => {
+      if (inFlight) return;
+      inFlight = true;
+      void loadLiveCandles(first);
+    };
+    tickLive(true);
     forceRefreshRef.current = false;
     const interval = setInterval(() => {
-      loadLiveCandles(false);
-    }, 2000);
+      tickLive(false);
+    }, 250);
 
     return () => {
       controller.abort();

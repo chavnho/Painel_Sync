@@ -774,12 +774,14 @@ async function startServer() {
       });
     }
 
+    const tailRaw = req.query.tail ? Number(req.query.tail) : 0;
+    const tailCount = Number.isFinite(tailRaw) && tailRaw > 0 ? Math.min(500, Math.floor(tailRaw)) : 0;
     const cachedChart = chartCandlesCache.get(`${channelId}:${symKey}:${tfKey}`);
 
     if (cachedChart && cachedChart.length > 0) {
       res.json({
         ok: true,
-        candles: cachedChart,
+        candles: tailCount > 0 ? cachedChart.slice(-tailCount) : cachedChart,
       });
       return;
     }
@@ -990,7 +992,7 @@ async function startServer() {
         const existing = chartCandlesCache.get(`${channelId}:${chartSymbol}:${chartTf}`) || [];
         if (existing.length > 0 && chartCandles.length > 0) {
           const merged = [...existing];
-          for (const incoming of chartCandles.slice(-2)) {
+          for (const incoming of chartCandles.slice(-3)) {
             const idx = merged.findIndex((c) => c.time === incoming.time);
             if (idx >= 0) {
               merged[idx] = { ...incoming, index: idx };

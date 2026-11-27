@@ -309,7 +309,11 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
       return Array.from(map.entries()).sort((a, b) => a[0] - b[0]).map(([, c]) => c);
     };
 
+    let liveInFlight = false;
+    let forceFullTailNext = false;
     const pollLive = async (isInitial: boolean) => {
+      if (!isInitial && liveInFlight) return;
+      liveInFlight = true;
       if (isInitial) {
         setLoadingCandles(true);
         setCandleStatus(`Conectando pregão ao vivo de ${resolvedSymbol} (${timeframe})...`);
@@ -321,7 +325,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
         const [list, h1List, d1List] = await Promise.all([
           shouldResyncFull
             ? syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, timeframe, { force: true, isManualRequest: isInitial })
-            : fetchCandles(creds.channelId, creds.token, resolvedSymbol, timeframe),
+            : fetchCandles(creds.channelId, creds.token, resolvedSymbol, timeframe, undefined, undefined, (isInitial || forceFullTailNext) ? undefined : 10),
           isWdoZones && (isInitial || replayMtfCandles.h1.length === 0)
             ? syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, 'H1', { force: true }).catch(() => new Array<LiveCandle>())
             : Promise.resolve(null),
@@ -337,12 +341,19 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
           }));
         }
         if (list && list.length > 0) {
+          forceFullTailNext = false;
           const uniqueDays = Array.from(new Set(list.map((c) => new Date(toSec(c.time) * 1000).toISOString().slice(0, 10)))).sort();
           const keepDays = new Set(uniqueDays.slice(-2));
           const recentWithPrevDay = list.filter((c) => keepDays.has(new Date(toSec(c.time) * 1000).toISOString().slice(0, 10)));
           const todayBars = list.filter((c) => new Date(toSec(c.time) * 1000).toISOString().slice(0, 10) === todayStr);
           const incoming = recentWithPrevDay.length > 0 ? recentWithPrevDay : list;
           setCandles((prev) => {
+            const prevLast = prev.at(-1);
+            const incFirst = incoming.at(0);
+            const tfSec = timeframe === 'M1' ? 60 : timeframe === 'M5' ? 300 : timeframe === 'M15' ? 900 : timeframe === 'H1' ? 3600 : 300;
+            if (!isInitial && prevLast && incFirst && toSec(incFirst.time) - toSec(prevLast.time) > tfSec * 2) {
+              forceFullTailNext = true;
+            }
             const target = isInitial ? incoming : mergeBars(prev, incoming);
             const lastPrev = prev.at(-1);
             const lastNext = target.at(-1);
@@ -367,12 +378,13 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
           setCandleStatus('Falha ao conectar ao vivo no MT5. Verifique se o Serviço está ativo.');
         }
       } finally {
+        liveInFlight = false;
         if (!cancelled && isInitial) setLoadingCandles(false);
       }
     };
 
     pollLive(true);
-    const id = window.setInterval(() => { pollLive(false); }, 2500);
+    const id = window.setInterval(() => { pollLive(false); }, 250);
     return () => {
       cancelled = true;
       window.clearInterval(id);

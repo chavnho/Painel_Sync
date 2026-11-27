@@ -6,7 +6,7 @@
 //|                               Copyright (c) 2026, Painel Sync    |
 //+------------------------------------------------------------------+
 #property copyright "Painel Sync"
-#property version   "2.02"
+#property version   "2.03"
 #property service
 
 input group "=== 1. Conexao e Autenticacao ==="
@@ -16,6 +16,7 @@ input string          InpToken               = "tk_4r7ay6gleb3jtko69d";    // To
 
 input group "=== 2. Sincronizacao e Historico ==="
 input int             InpSyncIntervalSec     = 2;                       // Intervalo de Envio (segundos)
+input int             InpFastFeedMs          = 200;                     // Pulso Rapido do Grafico em Foco (ms, 0 = off)
 input int             InpMaxChartBars        = 1000;                    // Maximo de Candles por Grafico
 input int             InpHistoryBackfillDays = 90;                      // Dias de Historico Retroativo (0 = desativa)
 input bool            InpIncludeManual       = true;                    // Incluir Operacoes Manuais (Magic = 0)
@@ -54,10 +55,57 @@ struct RobotSummary
 };
 
 datetime g_lastSymbolsReport = 0;
+string   g_focusSymbol = "";
+string   g_focusTimeframe = "";
+string   g_lastFastSig = "";
+
+void SendFastFocusDelta(const string symbol, const string tfStr)
+{
+   if(symbol == "" || tfStr == "") return;
+   ENUM_TIMEFRAMES period = StringToTimeframe(tfStr);
+   MqlRates rates;
+   ArraySetAsSeries(rates, false);
+   int copied = CopyRates(symbol, period, 0, 3, rates);
+   if(copied <= 0) return;
+
+   int digits = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
+   MqlRates lastBar = rates[copied - 1];
+   string sig = symbol + "|" + tfStr + "|" + IntegerToString((long)lastBar.time) + "|"
+              + DoubleToString(lastBar.open, digits) + "|" + DoubleToString(lastBar.high, digits) + "|"
+              + DoubleToString(lastBar.low, digits) + "|" + DoubleToString(lastBar.close, digits) + "|"
+              + IntegerToString((long)lastBar.tick_volume);
+   if(sig == g_lastFastSig) return;
+   g_lastFastSig = sig;
+
+   string json = "{\"isChartRequest\":true,\"isChartDelta\":true,\"symbol\":\"" + symbol + "\",\"timeframe\":\"" + tfStr + "\",\"candles\":[";
+   for(int i = 0; i < copied; i++)
+   {
+      if(i > 0) json += ",";
+      long vol = (rates[i].real_volume > 0) ? (long)rates[i].real_volume : (long)rates[i].tick_volume;
+      json += "{\"time\":" + IntegerToString((long)rates[i].time)
+            + ",\"timeLabel\":\"" + TimeToString(rates[i].time, TIME_DATE|TIME_MINUTES) + "\""
+            + ",\"open\":" + DoubleToString(rates[i].open, digits)
+            + ",\"high\":" + DoubleToString(rates[i].high, digits)
+            + ",\"low\":" + DoubleToString(rates[i].low, digits)
+            + ",\"close\":" + DoubleToString(rates[i].close, digits)
+            + ",\"volume\":" + IntegerToString(vol)
+            + "}";
+   }
+   json += "]}";
+
+   string url = InpEndpointUrl + "/api/mt5-sync/" + InpChannelId;
+   string headers = "Content-Type: application/json\r\nX-Sync-Token: " + InpToken + "\r\n";
+   char data;
+   int len = StringToCharArray(json, data, 0, WHOLE_ARRAY, CP_UTF8);
+   if(len > 0) ArrayResize(data, len - 1);
+   char result;
+   string resultHeaders = "";
+   WebRequest("POST", url, headers, 150, data, result, resultHeaders);
+}
 
 void OnStart()
 {
-   Print("PainelSync Service v2.02: Iniciando monitoramento em segundo plano no canal ", InpChannelId, "...");
+   Print("PainelSync Service v2.03: Iniciando monitoramento em segundo plano no canal ", InpChannelId, "...");
 
    g_lastSymbolsReport = TimeCurrent();
    SendSymbolsReport();
@@ -68,8 +116,14 @@ void OnStart()
    while(!IsStopped())
    {
       int waitMs = MathMax(1, InpSyncIntervalSec) * 1000;
-      for(int elapsed = 0; elapsed < waitMs && !IsStopped(); elapsed += 200)
-         Sleep(200);
+      int fastStep = (InpFastFeedMs > 0) ? MathMax(100, InpFastFeedMs) : 200;
+      for(int elapsed = 0; elapsed < waitMs && !IsStopped(); elapsed += fastStep)
+      {
+         Sleep(fastStep);
+         if(IsStopped()) break;
+         if(InpFastFeedMs > 0 && g_focusSymbol != "" && g_focusTimeframe != "")
+            SendFastFocusDelta(g_focusSymbol, g_focusTimeframe);
+      }
       if(IsStopped()) break;
 
       if(!g_historySynced && InpHistoryBackfillDays > 0 && TimeCurrent() - g_lastHistoryRetry >= 30) { g_lastHistoryRetry = TimeCurrent(); SyncHistoricalTrades(InpHistoryBackfillDays); }
@@ -720,8 +774,14 @@ void FetchPendingRequest()
             if(fSym != "" && fTf != "")
             {
                hasFocus = true;
+               if(g_focusSymbol != fSym || g_focusTimeframe != fTf)
+               {
+                  g_focusSymbol = fSym;
+                  g_focusTimeframe = fTf;
+                  g_lastFastSig = "";
+               }
                CleanupTempSymbols(fSym, 2);
-               SendCandlesData(fSym, StringToTimeframe(fTf), "", 50, true);
+               SendCandlesData(fSym, StringToTimeframe(fTf), "", 10, true);
             }
          }
       }
@@ -754,9 +814,13 @@ void FetchPendingRequest()
       }
    }
 
-   if(!hasFocus && ArraySize(g_tempSyms) > 0)
+   if(!hasFocus)
    {
-      CleanupTempSymbols("", 6);
+      g_focusSymbol = "";
+      g_focusTimeframe = "";
+      g_lastFastSig = "";
+      if(ArraySize(g_tempSyms) > 0)
+         CleanupTempSymbols("", 6);
    }
 }
 
