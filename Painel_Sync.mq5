@@ -856,6 +856,18 @@ int CopyAndRepairRates(const string symbol, const ENUM_TIMEFRAMES period, const 
    int fetchCount = canBuildFromM1 ? MathMin(15000, barsCount * mult + mult) : barsCount;
    MqlRates raw[]; ArraySetAsSeries(raw, false);
    int total = 0;
+   if(StringFind(targetDate, "from:") == 0)
+   {
+      string fromStr = StringSubstr(targetDate, 5);
+      datetime dStart = StringToTime(fromStr + " 00:00:00");
+      datetime dEnd   = TimeCurrent();
+      if(dStart > 0 && dEnd >= dStart)
+      {
+         int yTotal = CopyRates(symbol, period, dStart, dEnd, outRates);
+         return yTotal > 0 ? yTotal : 0;
+      }
+      return 0;
+   }
    if(targetDate != "")
    {
       datetime dStart = StringToTime(targetDate + " 00:00:00");

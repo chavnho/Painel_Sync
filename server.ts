@@ -85,7 +85,7 @@ interface NormalizedRobot {
 const mt5Channels = new Map<string, LiveSyncChannel>();
 
 const requestQueue: PendingRequest[] = [];
-const MAX_CHART_CANDLES = 1500;
+const MAX_CHART_CANDLES = 35000;
 const SERVER_STARTED_AT = new Date().toISOString();
 const chartCandlesCache = new Map<string, NormalizedCandle[]>();
 const requestDateMap = new Map<string, string>();
@@ -1275,7 +1275,7 @@ async function startServer() {
     }
 
     const { symbol, timeframe, date } = req.body;
-    const cleanDate = typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date.trim()) ? date.trim() : undefined;
+    const cleanDate = typeof date === "string" && /^(from:)?\d{4}-\d{2}-\d{2}$/.test(date.trim()) ? date.trim() : undefined;
     if (!symbol || !timeframe) {
       res.status(400).json({ error: "Parâmetros 'symbol' e 'timeframe' são obrigatórios." });
       return;

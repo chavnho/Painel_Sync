@@ -211,6 +211,44 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     }
   };
 
+  const handleLoadYearCandles = async () => {
+    const yearStart = `${new Date().getFullYear()}-01-01`;
+    setIsLiveMode(false);
+    setIsPlaying(false);
+    setIsTickMode(false);
+    setLoadingCandles(true);
+    setCandleStatus(`Carregando hist\u00f3rico completo desde ${yearStart.split('-').reverse().join('/')} de ${resolvedSymbol} (${timeframe}) no MT5...`);
+    try {
+      const isWdoZones = strategyType === 'wdo_opening_zones';
+      const [list, h1List, d1List] = await Promise.all([
+        syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, timeframe, { force: true, isManualRequest: true, date: `from:${yearStart}` }),
+        isWdoZones ? syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, 'H1', { force: true, isManualRequest: true, date: `from:${yearStart}` }).catch(() => new Array<LiveCandle>()) : Promise.resolve(new Array<LiveCandle>()),
+        isWdoZones ? syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, 'D1', { force: true, isManualRequest: true, date: `from:${yearStart}` }).catch(() => new Array<LiveCandle>()) : Promise.resolve(new Array<LiveCandle>()),
+      ]);
+      if (isWdoZones) {
+        setReplayMtfCandles({
+          h1: Array.isArray(h1List) ? h1List : new Array<LiveCandle>(),
+          d1: Array.isArray(d1List) ? d1List : new Array<LiveCandle>(),
+        });
+      }
+      if (list && list.length > 0) {
+        setCandles(list);
+        setSelectedDay('ALL');
+        const firstDayStr = new Date(Number(list.at(0)?.time || 0) * 1000).toISOString().slice(0, 10);
+        const secondDayIdx = list.findIndex((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) > firstDayStr);
+        setReplayBars(secondDayIdx > 0 ? secondDayIdx : Math.min(list.length, 10));
+        const daysCount = new Set(list.map((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10))).size;
+        setCandleStatus(`Ano carregado: ${list.length} velas (${daysCount} preg\u00f5es). Clique em 100% ou Play para simular.`);
+      } else {
+        setCandleStatus(`Nenhum candle retornado desde ${yearStart.split('-').reverse().join('/')}. Verifique o hist\u00f3rico do ativo no MT5.`);
+      }
+    } catch {
+      setCandleStatus('Falha ao carregar hist\u00f3rico anual no MT5. Verifique se o Servi\u00e7o do MT5 est\u00e1 conectado.');
+    } finally {
+      setLoadingCandles(false);
+    }
+  };
+
   const availableDays = useMemo(() => {
     const set = new Set<string>();
     for (const c of candles) {
@@ -765,6 +803,15 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
             <button type="button" onClick={handleLoadMt5Candles} disabled={loadingCandles && !isLiveMode} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold cursor-pointer disabled:opacity-60">
               <Download className="w-3.5 h-3.5" /><span>{loadingCandles && !isLiveMode ? 'Carregando...' : 'Carregar Replay'}</span>
             </button>
+          <button
+            type="button"
+            disabled={loadingCandles}
+            onClick={handleLoadYearCandles}
+            title="Carregar todos os preg\u00f5es desde 01/01 deste ano para backtest cont\u00ednuo"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-sky-500/40 text-sky-300 text-xs font-medium cursor-pointer disabled:opacity-40"
+          >
+            <span>Ano (Jan)</span>
+          </button>
             <button
               type="button"
               onClick={() => { setIsPlaying(false); setIsLiveMode((prev) => !prev); }}
@@ -1014,6 +1061,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
                 }}
                 className="px-2 py-1 rounded bg-[#090D12] border border-[#1E2633] text-xs text-sky-300"
               >
+                <option value="ALL">Todos (Multi-Preg\u00e3o)</option>
                 {availableDays.map((d) => (
                   <option key={d} value={d}>Pregão {d.split('-').reverse().join('/')}</option>
                 ))}
