@@ -384,7 +384,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
       robot: { name: botName, magicNumber: 9999, symbol: resolvedSymbol, timeframe, enabled: true, strategyType, params: params as Record<string, unknown>, risk },
       candles: effectiveCandles,
       maxBars: effectiveReplayBars > 0 ? effectiveReplayBars : effectiveCandles.length,
-      startFromBar: strategyType === 'wdo_opening_zones' && selectedDay !== 'ALL' ? Math.max(4, replayInitialBar - 1) : undefined,
+      startFromBar: strategyType === 'wdo_opening_zones' && selectedDay !== 'ALL' ? Math.max(4, replayInitialBar) : undefined,
     });
   }, [effectiveCandles, effectiveReplayBars, replayInitialBar, selectedDay, botName, resolvedSymbol, timeframe, strategyType, maType, fastPeriod, slowPeriod, rsiPeriod, oversold, overbought, lookbackBars, onBullishSignal, onBearishSignal, risk]);
 
@@ -916,7 +916,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
             <button type="button" disabled={candles.length === 0} onClick={() => { setIsPlaying(false); if (isTickMode) { setTickCursor(0); } else { setReplayBars(replayInitialBar); } }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-gray-200 text-xs cursor-pointer disabled:opacity-40">
               <RotateCcw className="w-3.5 h-3.5" /><span>Zerar</span>
             </button>
-            <button type="button" disabled={activeCandles.length === 0} onClick={() => { setIsPlaying(false); setReplayBars(activeCandles.length); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-emerald-300 text-xs cursor-pointer disabled:opacity-40">
+            <button type="button" disabled={activeCandles.length === 0} onClick={() => { setIsPlaying(false); if (isTickMode) { setTickCursor(dayTicks.length); } else { setReplayBars(activeCandles.length); } }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-emerald-300 text-xs cursor-pointer disabled:opacity-40">
               <FastForward className="w-3.5 h-3.5" /><span>100%</span>
             </button>
           </div>
