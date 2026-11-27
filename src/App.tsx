@@ -327,7 +327,7 @@ export default function App() {
             />
           )}
 
-          {activeView === 'robots' && <RobotBuilderView creds={creds} mt5Robots={robots} onRenameMagic={handleRenameMagic} onToggleHideMagic={handleToggleHideMagic} onSelectRobot={setSelectedRobotId} onNavigate={setActiveView} />}
+          {activeView === 'robots' && <RobotBuilderView creds={creds} mt5Robots={robots} magicColors={magicColors} onCycleMagicColor={handleCycleMagicColor} onSetMagicColor={(magic, idx) => { setMagicColors((prev) => { const next = { ...prev, [magic]: idx }; saveMagicColorMap(next); return next; }); }} onRenameMagic={handleRenameMagic} onToggleHideMagic={handleToggleHideMagic} onSelectRobot={setSelectedRobotId} onNavigate={setActiveView} />}
           {activeView === 'simulator' && <BacktestReplayView creds={creds} activeContracts={telemetry?.activeContracts} />}
 
           {activeView === 'connect' && (
