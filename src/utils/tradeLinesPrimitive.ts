@@ -109,7 +109,7 @@ class TradeLinesRenderer implements IPrimitivePaneRenderer {
         ctx.beginPath();
         ctx.strokeStyle = lvl.color;
         ctx.lineWidth = 2 * hpr;
-        ctx.setLineDash([3 * hpr, 3 * hpr]);
+        
         ctx.moveTo(x1, y);
         ctx.lineTo(x2, y);
         ctx.stroke();
@@ -122,7 +122,7 @@ class TradeLinesRenderer implements IPrimitivePaneRenderer {
           ctx.fillText(lvl.label, x2 + 4 * hpr, y);
         }
       }
-      for (const lvl of this.levels) { const x1 = lvl.x1 * hpr; const x2 = lvl.x2 * hpr; const y = lvl.y * vpr; ctx.beginPath(); ctx.strokeStyle = lvl.color; ctx.lineWidth = 2 * hpr; ctx.setLineDash([3 * hpr, 3 * hpr]); ctx.moveTo(x1, y); ctx.lineTo(x2, y); ctx.stroke(); ctx.setLineDash(new Array<number>()); if (lvl.label) { ctx.font = '600 ' + Math.round(10 * hpr) + 'px monospace'; ctx.fillStyle = lvl.color; ctx.textBaseline = 'middle'; ctx.fillText(lvl.label, x2 + 4 * hpr, y); } }
+      for (const lvl of this.levels) { const x1 = lvl.x1 * hpr; const x2 = lvl.x2 * hpr; const y = lvl.y * vpr; ctx.beginPath(); ctx.strokeStyle = lvl.color; ctx.lineWidth = 2 * hpr; ctx.moveTo(x1, y); ctx.lineTo(x2, y); ctx.stroke(); ctx.setLineDash(new Array<number>()); if (lvl.label) { ctx.font = '600 ' + Math.round(10 * hpr) + 'px monospace'; ctx.fillStyle = lvl.color; ctx.textBaseline = 'middle'; ctx.fillText(lvl.label, x2 + 4 * hpr, y); } }
       ctx.restore();
     });
   }
