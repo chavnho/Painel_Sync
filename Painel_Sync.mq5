@@ -6,7 +6,7 @@
 //|                               Copyright (c) 2026, Painel Sync    |
 //+------------------------------------------------------------------+
 #property copyright "Painel Sync"
-#property version   "2.00"
+#property version   "2.02"
 #property service
 
 input group "=== 1. Conexao e Autenticacao ==="
@@ -25,7 +25,8 @@ input group "=== 3. Logs na Aba Experts ==="
 input bool            InpLogOrders           = true;                    // Logar Abertura/Cancelamento de Ordens
 input bool            InpLogPositions        = true;                    // Logar Abertura/Fechamento de Posicoes
 input bool            InpLogConnection       = true;                    // Logar Catalogo e Contratos Vigentes
-input bool            InpLogServer           = true;                    // Logar Pedidos de Candles e HTTP
+input bool            InpLogCandleRequests   = true;                    // Logar Pedidos de Candles e Ticks
+input bool            InpLogServer           = false;                   // Logar Heartbeat HTTP a cada 2s (Verboso)
 input bool            InpDebug               = false;                   // Modo Depuracao Detalhado
 
 ulong g_prevPosTickets[];
@@ -56,7 +57,7 @@ datetime g_lastSymbolsReport = 0;
 
 void OnStart()
 {
-   Print("PainelSync Service v2.1-TICKS: Iniciando monitoramento em segundo plano no canal ", InpChannelId, "...");
+   Print("PainelSync Service v2.02: Iniciando monitoramento em segundo plano no canal ", InpChannelId, "...");
 
    g_lastSymbolsReport = TimeCurrent();
    SendSymbolsReport();
@@ -686,7 +687,7 @@ void FetchPendingRequest()
                {
                   string reqFromH = ExtractJsonString(obj, "fromHour");
                   string reqToH   = ExtractJsonString(obj, "toHour");
-                  Print("PainelSync [TICKS REQ] Pedido recebido -> symbol=", reqSymbol, " | date=", reqDate, " | janela=", (reqFromH != "" ? reqFromH : "ALL"), "-", (reqToH != "" ? reqToH : "ALL"), " | reqId=", requestId);
+                  if(InpLogCandleRequests || InpDebug) Print("PainelSync [TICKS REQ] Pedido recebido -> symbol=", reqSymbol, " | date=", reqDate, " | janela=", (reqFromH != "" ? reqFromH : "ALL"), "-", (reqToH != "" ? reqToH : "ALL"), " | reqId=", requestId);
                   SendTicksData(reqSymbol, requestId, reqDate, reqFromH, reqToH);
                }
                else
@@ -1004,7 +1005,7 @@ int SendToTicksEndpoint(const string jsonPayload)
    if(len > 0 && post[len - 1] == 0) ArrayResize(post, len - 1);
    int code = WebRequest("POST", url, headers, 15000, post, result, resHeaders);
    string respPreview = (ArraySize(result) > 0) ? StringSubstr(CharArrayToString(result, 0, -1, CP_UTF8), 0, 140) : "(vazio)";
-   Print("PainelSync [TICKS POST] URL=", url, " | bytes=", ArraySize(post), " | HTTP=", code, " | err=", GetLastError(), " | resp=", respPreview);
+   if(InpLogCandleRequests || InpDebug) Print("PainelSync [TICKS POST] URL=", url, " | bytes=", ArraySize(post), " | HTTP=", code, " | err=", GetLastError(), " | resp=", respPreview);
    return code;
 }
 
@@ -1012,7 +1013,7 @@ void SendCandlesData(const string symbol, const ENUM_TIMEFRAMES period, const st
 {
    uint t0 = GetTickCount();
    string tfStr = TimeframeToShortString(period);
-   if(requestId != "" && (InpLogServer || InpDebug))
+   if(requestId != "" && (InpLogCandleRequests || InpDebug))
       Print("PainelSync [CANDLES REQ] Pedido recebido -> symbol=", symbol, " | tf=", tfStr, " | bars=", barsCount, " | date=", (targetDate != "" ? targetDate : "LATEST"), " | reqId=", requestId);
 
    // Verifica se o ativo ja estava visivel na Observacao do Mercado antes
@@ -1090,7 +1091,7 @@ void SendCandlesData(const string symbol, const ENUM_TIMEFRAMES period, const st
             + "}";
    }
    json += "]}";
-   if((requestId != "" && (InpLogServer || InpDebug)) || InpDebug)
+   if((requestId != "" && (InpLogCandleRequests || InpDebug)) || InpDebug)
       Print("PainelSync [CANDLES POST] ", symbol, " ", tfStr, " -> ", total, " velas (", TimeToString(rates[0].time, TIME_DATE|TIME_MINUTES), " .. ", TimeToString(rates[total-1].time, TIME_DATE|TIME_MINUTES), ") | bytes=", StringLen(json), " | copyMs=", (GetTickCount() - t0), " | reqId=", requestId);
    SendToServer(json);
 }
