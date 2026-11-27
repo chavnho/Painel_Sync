@@ -370,10 +370,10 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     overlays.forEach((ov, ovIdx) => {
       let line = overlaySeriesRef.current[ovIdx];
       if (!line) {
-        line = chart.addSeries(LineSeries, { color: ov.color, lineWidth: 2, lineStyle: ov.dashed ? 2 : 0, priceLineVisible: false, lastValueVisible: false });
+        line = chart.addSeries(LineSeries, { color: ov.color, lineWidth: ov.lineWidth ?? 2, lineStyle: ov.dotted ? 1 : ov.dashed ? 2 : 0, priceLineVisible: false, lastValueVisible: false });
         overlaySeriesRef.current[ovIdx] = line;
       } else {
-        line.applyOptions({ color: ov.color, lineStyle: ov.dashed ? 2 : 0 });
+        line.applyOptions({ color: ov.color, lineWidth: ov.lineWidth ?? 2, lineStyle: ov.dotted ? 1 : ov.dashed ? 2 : 0 });
       }
       const pts: Array<{ time: UTCTimestamp; value: number }> = [];
       visibleCandles.forEach((_, idx) => {

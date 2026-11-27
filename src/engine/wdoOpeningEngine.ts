@@ -85,10 +85,10 @@ export function evaluateWdoOpeningZones(input: {
   const startIdx = todayBars.at(0)!.idx;
 
   const overlays = Array.of<EngineOverlayLine>(
-    { id: `${robot.id}_max`, label: `Max D-1 (${prevHigh})`, color: "#F43F5E", dashed: true, values: candles.map((_, i) => (i >= startIdx ? prevHigh : null)) },
-    { id: `${robot.id}_max7`, label: `Max-${chPts} (${upLow})`, color: "#FB923C", dashed: true, values: candles.map((_, i) => (i >= startIdx ? upLow : null)) },
-    { id: `${robot.id}_min7`, label: `Min+${chPts} (${dnHigh})`, color: "#38BDF8", dashed: true, values: candles.map((_, i) => (i >= startIdx ? dnHigh : null)) },
-    { id: `${robot.id}_min`, label: `Min D-1 (${prevLow})`, color: "#10B981", dashed: true, values: candles.map((_, i) => (i >= startIdx ? prevLow : null)) }
+    { id: `${robot.id}_max`, label: `Max D-1 (${prevHigh})`, color: "#F43F5E", dashed: false, lineWidth: 1, values: candles.map((_, i) => (i >= startIdx ? prevHigh : null)) },
+    { id: `${robot.id}_max7`, label: `Max-${chPts} (${upLow})`, color: "#FB923C", dotted: true, lineWidth: 1, values: candles.map((_, i) => (i >= startIdx ? upLow : null)) },
+    { id: `${robot.id}_min7`, label: `Min+${chPts} (${dnHigh})`, color: "#38BDF8", dotted: true, lineWidth: 1, values: candles.map((_, i) => (i >= startIdx ? dnHigh : null)) },
+    { id: `${robot.id}_min`, label: `Min D-1 (${prevLow})`, color: "#10B981", dashed: false, lineWidth: 1, values: candles.map((_, i) => (i >= startIdx ? prevLow : null)) }
   );
 
   const closeTime = robot.risk.closeTime || "17:50";
