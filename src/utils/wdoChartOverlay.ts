@@ -4,15 +4,15 @@ import type { LiveCandle } from '../types/trading';
 export interface WdoOverlayLineItem { price: number; color: string; lineStyle: LineStyle; lineWidth: 1 | 2 | 3 | 4; title: string; }
 export interface WdoHudState { rsiPeriod: number; rsiVal: number | null; zoneLabel: string; zoneSide: string; h1Emas: Array<WdoOverlayLineItem>; d1Emas: Array<WdoOverlayLineItem>; prevDayFormatted: string; todayDayFormatted: string; }
 
-export function resolveWdoSessionKeys(days: Array<string>, isReplay = false) {
+export function resolveWdoSessionKeys(days: Array<string>, isReplay = false, targetDay?: string) {
   const lastCandleDayKey = days.at(days.length - 1)!;
-  if (isReplay) return { d1Key: days.at(days.length - 2)!, todayKey: lastCandleDayKey, hasTodaySession: true };
+  if (isReplay) { const tKey = targetDay && targetDay !== 'ALL' ? targetDay : lastCandleDayKey; const prevCandidates = days.filter((d) => d < tKey); const d1 = prevCandidates.length > 0 ? prevCandidates.at(prevCandidates.length - 1)! : days.at(days.length - 2)!; return { d1Key: d1, todayKey: tKey, hasTodaySession: lastCandleDayKey >= tKey }; }
   const nowBrtKey = new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
   const hasTodaySession = lastCandleDayKey >= nowBrtKey;
   return { d1Key: hasTodaySession ? days.at(days.length - 2)! : lastCandleDayKey, todayKey: hasTodaySession ? lastCandleDayKey : nowBrtKey, hasTodaySession };
 }
 
-export function computeWdoOpeningOverlayLines(candles: Array<LiveCandle>, chPts = 7, h1Candles: Array<LiveCandle> = new Array<LiveCandle>(), d1Candles: Array<LiveCandle> = new Array<LiveCandle>(), isReplay = false): Array<WdoOverlayLineItem> {
+export function computeWdoOpeningOverlayLines(candles: Array<LiveCandle>, chPts = 7, h1Candles: Array<LiveCandle> = new Array<LiveCandle>(), d1Candles: Array<LiveCandle> = new Array<LiveCandle>(), isReplay = false, targetDay?: string): Array<WdoOverlayLineItem> {
   const empty = new Array<WdoOverlayLineItem>();
   if (!Array.isArray(candles) || candles.length < 10) return empty;
   const daysMap = new Map<string, Array<LiveCandle>>();
@@ -24,7 +24,7 @@ export function computeWdoOpeningOverlayLines(candles: Array<LiveCandle>, chPts 
   }
   const days = Array.from(daysMap.keys()).sort();
   if (days.length < 2) return empty;
-  const { d1Key, todayKey } = resolveWdoSessionKeys(days, isReplay);
+  const { d1Key, todayKey } = resolveWdoSessionKeys(days, isReplay, targetDay);
   const todayBars = daysMap.get(todayKey) ?? new Array<LiveCandle>();
   const prevBars = daysMap.get(d1Key)!;
   const prevHigh = Math.max(...prevBars.map((b) => b.high));
@@ -63,7 +63,7 @@ export function computeWdoOpeningOverlayLines(candles: Array<LiveCandle>, chPts 
   return lines;
 }
 
-export function computeWdoHudState(candles: Array<LiveCandle>, chPts = 7, rsiPeriod = 7, h1Candles: Array<LiveCandle> = new Array<LiveCandle>(), d1Candles: Array<LiveCandle> = new Array<LiveCandle>(), isReplay = false): WdoHudState | null {
+export function computeWdoHudState(candles: Array<LiveCandle>, chPts = 7, rsiPeriod = 7, h1Candles: Array<LiveCandle> = new Array<LiveCandle>(), d1Candles: Array<LiveCandle> = new Array<LiveCandle>(), isReplay = false, targetDay?: string): WdoHudState | null {
   if (!Array.isArray(candles) || candles.length < 10) return null;
   const closes = candles.map((c) => c.close);
   let rsiVal: number | null = null;
@@ -84,7 +84,7 @@ export function computeWdoHudState(candles: Array<LiveCandle>, chPts = 7, rsiPer
   const days = Array.from(daysMap.keys()).sort();
   let zoneLabel = '', zoneSide = '', prevDayFormatted = '', todayDayFormatted = '';
   if (days.length >= 2) {
-    const { d1Key, todayKey } = resolveWdoSessionKeys(days, isReplay);
+    const { d1Key, todayKey } = resolveWdoSessionKeys(days, isReplay, targetDay);
     todayDayFormatted = todayKey.split('-').reverse().join('/'); prevDayFormatted = d1Key.split('-').reverse().join('/');
     const todayBars = daysMap.get(todayKey); const prevBars = daysMap.get(d1Key)!;
     const prevHigh = Math.max(...prevBars.map((b) => b.high)); const prevLow = Math.min(...prevBars.map((b) => b.low));
@@ -97,6 +97,6 @@ export function computeWdoHudState(candles: Array<LiveCandle>, chPts = 7, rsiPer
       else { zoneLabel = 'Z5'; zoneSide = 'Compra'; }
     } else { zoneLabel = 'Pré-abertura'; zoneSide = 'Aguardando 09:00'; }
   }
-  const emaLines = computeWdoOpeningOverlayLines(candles, chPts, h1Candles, d1Candles, isReplay).filter((l) => l.title.startsWith('EMA'));
+  const emaLines = computeWdoOpeningOverlayLines(candles, chPts, h1Candles, d1Candles, isReplay, targetDay).filter((l) => l.title.startsWith('EMA'));
   return { rsiPeriod, rsiVal, zoneLabel, zoneSide, h1Emas: emaLines.filter((l) => l.title.endsWith('H1')), d1Emas: emaLines.filter((l) => l.title.endsWith('D1')), prevDayFormatted, todayDayFormatted };
 }

@@ -346,8 +346,8 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     const vis = activeCandles.slice(0, targetCount);
     const chPts = Math.max(1, Number(7) || 7);
     const rsiPer = Math.max(2, Number(rsiPeriod) || 7);
-    return computeWdoHudState(vis, chPts, rsiPer, replayMtfCandles.h1, replayMtfCandles.d1, true);
-  }, [strategyType, activeCandles, replayBars, rsiPeriod, replayMtfCandles]);
+    return computeWdoHudState(vis, chPts, rsiPer, replayMtfCandles.h1, replayMtfCandles.d1, true, selectedDay);
+  }, [strategyType, activeCandles, replayBars, rsiPeriod, replayMtfCandles, selectedDay]);
 
   useEffect(() => {
     const el = chartWrapRef.current;
@@ -411,7 +411,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     const nextLocalLevels = new Array<LocalLevelItem>();
     if (strategyType === 'wdo_opening_zones' && visibleCandles.length >= 10) {
       const chPts = Math.max(1, Number(7) || 7);
-      const wdoLines = computeWdoOpeningOverlayLines(visibleCandles, chPts, replayMtfCandles.h1, replayMtfCandles.d1, true);
+      const wdoLines = computeWdoOpeningOverlayLines(visibleCandles, chPts, replayMtfCandles.h1, replayMtfCandles.d1, true, selectedDay);
       const leftT = barTimes.at(Math.max(0, barTimes.length - 6));
       const rightT = barTimes.at(barTimes.length - 1);
       for (const wl of wdoLines) {
@@ -523,7 +523,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
       tradeLinesPrimitiveRef.current?.setSegments([]);
       markersPluginRef.current?.setMarkers([]);
     }
-  }, [activeCandles, replayBars, simResult, strategyType, replayMtfCandles]);
+  }, [activeCandles, replayBars, simResult, strategyType, replayMtfCandles, selectedDay]);
 
   useEffect(() => {
     if (!isChartMaximized) return;
