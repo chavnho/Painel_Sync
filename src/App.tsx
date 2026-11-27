@@ -295,6 +295,7 @@ export default function App() {
               activeContracts={telemetry?.activeContracts}
               magicColors={magicColors}
               selectedRobotId={selectedRobotId}
+              onSelectRobot={setSelectedRobotId}
               onNavigate={setActiveView}
             />
           )}
