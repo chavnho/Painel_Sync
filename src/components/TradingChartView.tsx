@@ -1549,7 +1549,7 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
           <div className="flex-1 min-h-0 bg-[#090D12] relative">
             <div ref={containerRef} className="w-full h-full" />
               {wdoHudStatus && (
-                <div className="absolute top-3 left-3 z-20 pointer-events-none flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-[#090D12]/85 backdrop-blur border border-[#1E2633] text-[11px] font-mono shadow-lg">
+                <div className="absolute bottom-8 right-20 z-20 pointer-events-none flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-[#090D12]/85 backdrop-blur border border-[#1E2633] text-[11px] font-mono shadow-lg">
                   {wdoHudStatus.zoneLabel && (
                     <span className="inline-flex items-center gap-1 text-sky-300 font-semibold">
                       <span>{wdoHudStatus.zoneLabel}</span>
