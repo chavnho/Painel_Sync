@@ -226,7 +226,7 @@ export interface RemoteCommand {
   updatedAt: string;
 }
 
-export type ManagedStrategyType = 'ema_cross' | 'rsi_reversal' | 'breakout';
+export type ManagedStrategyType = 'ema_cross' | 'rsi_reversal' | 'breakout' | 'wdo_opening_zones';
 
 export type SignalAction = 'BUY' | 'SELL' | 'NONE';
 
@@ -239,7 +239,7 @@ export interface ManagedRobotParams {
   rsiPeriod?: number;
   oversold?: number;
   overbought?: number;
-  lookbackBars?: number;
+  lookbackBars?: number; channelPoints?: number; z1RsiMin?: number; z1RsiMax?: number; z5RsiMin?: number; z5RsiMax?: number;
 }
 
 export interface ManagedRobotRisk {

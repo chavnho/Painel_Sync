@@ -294,7 +294,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
       ? { maType, fastPeriod, slowPeriod }
       : strategyType === 'rsi_reversal'
         ? { rsiPeriod, oversold, overbought }
-        : { lookbackBars };
+        : strategyType === 'wdo_opening_zones' ? { channelPoints: 7, rsiPeriod: 7, z1RsiMin: 86, z1RsiMax: 90, z5RsiMin: 10, z5RsiMax: 16 } : { lookbackBars };
     const params: ManagedRobotParams = { ...baseParams, onBullishSignal, onBearishSignal };
     return runBacktestSimulation({
       robot: { name: botName, magicNumber: 9999, symbol: resolvedSymbol, timeframe, enabled: true, strategyType, params: params as Record<string, unknown>, risk },
@@ -463,7 +463,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
         ? { maType, fastPeriod, slowPeriod }
         : strategyType === 'rsi_reversal'
           ? { rsiPeriod, oversold, overbought }
-          : { lookbackBars };
+          : strategyType === 'wdo_opening_zones' ? { channelPoints: 7, rsiPeriod: 7, z1RsiMin: 86, z1RsiMax: 90, z5RsiMin: 10, z5RsiMax: 16 } : { lookbackBars };
       const params: ManagedRobotParams = { ...baseParams, onBullishSignal, onBearishSignal };
       const updated = await updateManagedRobotApi(creds.channelId, creds.token, selectedBotId, {
         name: botName.trim() || 'Robô Editado', symbol, timeframe, strategyType, params, risk,
@@ -545,7 +545,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
             <select value={strategyType} onChange={(e) => setStrategyType(e.target.value as ManagedStrategyType)} className="w-full px-2.5 py-1.5 rounded-lg bg-[#090D12] border border-[#1E2633] text-xs text-gray-100">
               <option value="ema_cross">Médias ({fastPeriod}x{slowPeriod})</option>
               <option value="rsi_reversal">IFR ({rsiPeriod})</option>
-              <option value="breakout">Rompimento ({lookbackBars}v)</option>
+              <option value="breakout">Rompimento ({lookbackBars}v)</option><option value="wdo_opening_zones">Abertura WDO (5 Zonas)</option>
             </select>
           </div>
           <div className="grid grid-cols-2 gap-2">
@@ -564,7 +564,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
         {!selectedBotId && (
         <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] px-4 py-2.5 flex flex-wrap items-center gap-4 text-xs">
           <span className="text-[11px] font-semibold text-gray-300">Regra de Disparo:</span>
-          <div className="flex items-center gap-2">
+{strategyType === 'wdo_opening_zones' ? (<div className='flex flex-wrap items-center gap-2 text-[11px] text-emerald-300 font-medium'><span className='px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/30'>5 Zonas (Z1..Z5) • Gatilhos A/B</span><span className='text-gray-400'>Canais D-1 (±7 pts) • IFR(7) • EMAs 13/17/21 (H1/D1) • 1 op/dia</span></div>) : (<>          <div className="flex items-center gap-2">
             <span className="text-[11px] text-gray-400">{strategyType === 'ema_cross' ? 'Cruza p/ Cima:' : strategyType === 'rsi_reversal' ? 'Sobrevenda:' : 'Rompe Máxima:'}</span>
             <select value={onBullishSignal} onChange={(e) => setOnBullishSignal(e.target.value as SignalAction)} className="px-2 py-1 rounded bg-[#090D12] border border-[#1E2633] text-xs text-gray-100">
               <option value="BUY">Comprar</option><option value="SELL">Vender</option><option value="NONE">Ignorar</option>
@@ -575,7 +575,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
             <select value={onBearishSignal} onChange={(e) => setOnBearishSignal(e.target.value as SignalAction)} className="px-2 py-1 rounded bg-[#090D12] border border-[#1E2633] text-xs text-gray-100">
               <option value="SELL">Vender</option><option value="BUY">Comprar</option><option value="NONE">Ignorar</option>
             </select>
-          </div>
+          </div></>)}
         </div>
         )}
 
@@ -707,7 +707,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
             <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="sm:col-span-2"><label className="block text-[11px] text-gray-400 mb-1">Nome</label><input type="text" value={botName} onChange={(e) => setBotName(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-[#090D12] border border-[#1E2633] text-gray-100" /></div>
-                <div><label className="block text-[11px] text-gray-400 mb-1">Estratégia</label><select value={strategyType} onChange={(e) => setStrategyType(e.target.value as ManagedStrategyType)} className="w-full px-3 py-2 rounded-lg bg-[#090D12] border border-[#1E2633] text-gray-100"><option value="ema_cross">Cruzamento Médias</option><option value="rsi_reversal">Reversão IFR</option><option value="breakout">Rompimento Máx/Mín</option></select></div>
+                <div><label className="block text-[11px] text-gray-400 mb-1">Estratégia</label><select value={strategyType} onChange={(e) => setStrategyType(e.target.value as ManagedStrategyType)} className="w-full px-3 py-2 rounded-lg bg-[#090D12] border border-[#1E2633] text-gray-100"><option value="ema_cross">Cruzamento Médias</option><option value="rsi_reversal">Reversão IFR</option><option value="breakout">Rompimento Máx/Mín</option><option value="wdo_opening_zones">Abertura WDO (5 Zonas)</option></select></div>
               </div>
               {strategyType === 'ema_cross' && (
                 <div className="grid grid-cols-3 gap-3">
