@@ -681,9 +681,19 @@ void FetchPendingRequest()
 
             if(reqSymbol != "")
             {
-               ENUM_TIMEFRAMES tf = StringToTimeframe(reqTimeframe);
                string reqDate = ExtractJsonString(obj, "date");
-               SendCandlesData(reqSymbol, tf, requestId, InpMaxChartBars, false, reqDate);
+               if(reqTimeframe == "TICKS")
+               {
+                  string reqFromH = ExtractJsonString(obj, "fromHour");
+                  string reqToH   = ExtractJsonString(obj, "toHour");
+                  Print("PainelSync [TICKS REQ] Pedido recebido -> symbol=", reqSymbol, " | date=", reqDate, " | janela=", (reqFromH != "" ? reqFromH : "ALL"), "-", (reqToH != "" ? reqToH : "ALL"), " | reqId=", requestId);
+                  SendTicksData(reqSymbol, requestId, reqDate, reqFromH, reqToH);
+               }
+               else
+               {
+                  ENUM_TIMEFRAMES tf = StringToTimeframe(reqTimeframe);
+                  SendCandlesData(reqSymbol, tf, requestId, InpMaxChartBars, false, reqDate);
+               }
             }
             pos = objEnd + 1;
          }
