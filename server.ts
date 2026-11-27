@@ -171,6 +171,7 @@ function getWatchSymbolsForChannel(channelId: string, channel: LiveSyncChannel):
     const tf = bot.timeframe.toUpperCase();
     const key = `${sym}:${tf}`;
     if (!seen.has(key)) { seen.add(key); list.push({ symbol: sym, timeframe: tf }); }
+    if (bot.strategyType === "wdo_opening_zones" && !seen.has(`WDO@N:${tf}`)) { seen.add(`WDO@N:${tf}`); list.push({ symbol: "WDO@N", timeframe: tf }); }
   }
   return list;
 }
@@ -181,7 +182,8 @@ function runManagedRobotsCycle(channelId: string, channel: LiveSyncChannel) {
   for (const bot of activeBots) {
     const resolvedSymbol = resolveManagedSymbol(channel, bot.symbol);
     const tf = bot.timeframe.toUpperCase();
-    const candles = chartCandlesCache.get(`${channelId}:${resolvedSymbol}:${tf}`) || [];
+    const analysisSym = bot.strategyType === "wdo_opening_zones" ? "WDO@N" : resolvedSymbol;
+    const candles = chartCandlesCache.get(`${channelId}:${analysisSym}:${tf}`) || chartCandlesCache.get(`${channelId}:${resolvedSymbol}:${tf}`) || [];
     let openPosition: { side: "COMPRA" | "VENDA"; volume: number; entryPrice: number; currentPrice: number; sl: number; tp: number; floatingPnlBrl: number } | null = null;
     let dailyPnlBrl = 0;
     for (const r of channel.robots.values()) {
