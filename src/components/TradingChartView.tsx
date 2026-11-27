@@ -299,11 +299,15 @@ export const TradingChartView = memo(function TradingChartView({
       const isNewBotOrSymbol = lastFollowedBotKeyRef.current !== botKey;
 
       if (nextSym && nextSym !== previousSymbolRef.current) {
+        const prevSym = previousSymbolRef.current;
+        const sameRoot = Boolean(prevSym && isSameUnderlyingSymbol(prevSym, nextSym));
         setSelectedSymbol(nextSym);
         previousSymbolRef.current = nextSym;
-        setManualCandles(null);
+        if (!sameRoot) {
+          setManualCandles(null);
+          initialFitDoneRef.current = false;
+        }
         setManualError(null);
-        initialFitDoneRef.current = false;
       }
 
       if (isNewBotOrSymbol) {
