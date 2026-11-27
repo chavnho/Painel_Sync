@@ -1,4 +1,4 @@
-import { TradeLinesPrimitive, type TradeSegmentItem } from '../utils/tradeLinesPrimitive';
+import { TradeLinesPrimitive, type TradeSegmentItem, type LocalLevelItem } from '../utils/tradeLinesPrimitive';
 import { INITIAL_CHART_VIEW_BARS, MAX_CHART_CANDLES, getRobotColorTheme } from '../utils/themeTokens';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
