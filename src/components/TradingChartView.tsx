@@ -293,7 +293,7 @@ function computeWdoOpeningOverlayLines(
 
   for (const p of Array.of(13, 17, 21)) {
     const eh = calcEmaVal(h1PriorCloses, p);
-    if (eh != null) lines.push({ price: eh, color: '#7C3AED', lineStyle: LineStyle.Dotted, lineWidth: 2, title: 'EMA' + p + ' H1' });
+    if (eh != null) lines.push({ price: eh, color: '#C084FC', lineStyle: LineStyle.Dotted, lineWidth: 2, title: 'EMA' + p + ' H1' });
     const ed = calcEmaVal(d1PriorCloses, p);
     if (ed != null) lines.push({ price: ed, color: '#4ADE80', lineStyle: LineStyle.Dotted, lineWidth: 2, title: 'EMA' + p + ' D1' });
   }
@@ -1604,7 +1604,7 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
                       </div>
                       <div className="flex flex-col gap-0.5 text-right">
                         {[...wdoHudStatus.h1Emas].reverse().map((e) => (
-                          <div key={e.title} className="text-violet-400 whitespace-nowrap">
+                          <div key={e.title} className="text-purple-400 whitespace-nowrap">
                             H{e.title.replace('EMA', '').replace(' H1', '')} - <span className="text-gray-200">{e.price.toFixed(1)}</span>
                           </div>
                         ))}
