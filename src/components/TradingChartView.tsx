@@ -219,21 +219,28 @@ function writeCachedSymbols(channelId: string, symbols: string[]) {
   }
 }
 
-function computeWdoOpeningOverlayLines(candles: LiveCandle[], chPts = 7) {
-  if (!Array.isArray(candles) || candles.length < 10) return [];
-  const daysMap = new Map<string, LiveCandle[]>();
+function computeWdoOpeningOverlayLines(
+  candles: Array<LiveCandle>,
+  chPts = 7,
+  h1Candles: Array<LiveCandle> = new Array<LiveCandle>(),
+  d1Candles: Array<LiveCandle> = new Array<LiveCandle>()
+): Array<{ price: number; color: string; lineStyle: LineStyle; title: string }> {
+  const empty = new Array<{ price: number; color: string; lineStyle: LineStyle; title: string }>();
+  if (!Array.isArray(candles) || candles.length < 10) return empty;
+  const daysMap = new Map<string, Array<LiveCandle>>();
   for (let i = 0; i < candles.length; i++) {
-    const c = candles[i];
+    const c = candles.at(i)!;
     const ts = Number(c.time) > 1e11 ? Math.floor(Number(c.time) / 1000) : Math.floor(Number(c.time) || i * 300);
     const dk = new Date(ts * 1000).toISOString().slice(0, 10);
-    const arr = daysMap.get(dk) ?? [];
+    const arr = daysMap.get(dk) ?? new Array<LiveCandle>();
     arr.push(c);
     daysMap.set(dk, arr);
   }
   const days = Array.from(daysMap.keys()).sort();
-  if (days.length < 2) return [];
-  const todayBars = daysMap.get(days[days.length - 1])!;
-  const prevBars = daysMap.get(days[days.length - 2])!;
+  if (days.length < 2) return empty;
+  const todayKey = days.at(days.length - 1)!;
+  const todayBars = daysMap.get(todayKey)!;
+  const prevBars = daysMap.get(days.at(days.length - 2)!)!;
   const prevHigh = Math.max(...prevBars.map((b) => b.high));
   const prevLow = Math.min(...prevBars.map((b) => b.low));
   const upLow = Number((prevHigh - chPts).toFixed(2));
@@ -246,34 +253,45 @@ function computeWdoOpeningOverlayLines(candles: LiveCandle[], chPts = 7) {
     { price: prevLow, color: '#38BDF8', lineStyle: LineStyle.Dashed, title: 'Min D-1' },
   ];
 
-  const firstTodayTs = Number(todayBars[0]?.time || 0);
+  const firstTodayTs = Number(todayBars.at(0)?.time || 0);
   const prior = firstTodayTs > 0 ? candles.filter((c) => Number(c.time || 0) < firstTodayTs) : candles.slice(0, Math.max(0, candles.length - todayBars.length));
-  const aggCloses = (sec: number) => {
-    const out: number[] = [];
+  const aggCloses = (sec: number): Array<number> => {
+    const out = new Array<number>();
     let cur = -1;
     for (let i = 0; i < prior.length; i++) {
-      const c = prior[i];
+      const c = prior.at(i)!;
       const t = Number(c.time) > 1e11 ? Math.floor(Number(c.time) / 1000) : Math.floor(Number(c.time) || i * 300);
       const b = Math.floor(t / sec);
       if (b !== cur || out.length === 0) { cur = b; out.push(c.close); }
-      else { out[out.length - 1] = c.close; }
+      else { out.splice(out.length - 1, 1, c.close); }
     }
     return out;
   };
-  const calcEmaVal = (closes: number[], period: number) => {
+  const calcEmaVal = (closes: Array<number>, period: number): number | null => {
     if (closes.length < period) return null;
     const k = 2 / (period + 1);
     let ema = closes.slice(0, period).reduce((a, b) => a + b, 0) / period;
-    for (let i = period; i < closes.length; i++) ema = closes[i] * k + ema * (1 - k);
+    for (let i = period; i < closes.length; i++) ema = closes.at(i)! * k + ema * (1 - k);
     return Number(ema.toFixed(2));
   };
-  const h1C = aggCloses(3600);
-  const d1C = aggCloses(86400);
+
+  const h1PriorCloses = h1Candles.length > 0
+    ? h1Candles.filter((c) => firstTodayTs <= 0 || Number(c.time || 0) < firstTodayTs).map((c) => c.close)
+    : aggCloses(3600);
+
+  const d1PriorCloses = d1Candles.length > 0
+    ? d1Candles.filter((c) => {
+        const ts = Number(c.time) > 1e11 ? Math.floor(Number(c.time) / 1000) : Math.floor(Number(c.time) || 0);
+        const dk = new Date(ts * 1000).toISOString().slice(0, 10);
+        return dk < todayKey;
+      }).map((c) => c.close)
+    : aggCloses(86400);
+
   for (const p of Array.of(13, 17, 21)) {
-    const eh = calcEmaVal(h1C, p);
-    if (eh != null) lines.push({ price: eh, color: '#A78BFA', lineStyle: LineStyle.Dashed, title: 'EMA' + p + ' H1' });
-    const ed = calcEmaVal(d1C, p);
-    if (ed != null) lines.push({ price: ed, color: '#C084FC', lineStyle: LineStyle.Dashed, title: 'EMA' + p + ' D1' });
+    const eh = calcEmaVal(h1PriorCloses, p);
+    if (eh != null) lines.push({ price: eh, color: '#FBBF24', lineStyle: LineStyle.Dotted, title: 'EMA' + p + ' H1' });
+    const ed = calcEmaVal(d1PriorCloses, p);
+    if (ed != null) lines.push({ price: ed, color: '#34D399', lineStyle: LineStyle.Dotted, title: 'EMA' + p + ' D1' });
   }
   return lines;
 }
@@ -301,7 +319,8 @@ export function TradingChartView({
   const [showMarkers, setShowMarkers] = useState(true);
   const [hoveredTime, setHoveredTime] = useState<number | null>(null);
   const [isScrolledAway, setIsScrolledAway] = useState(false);
-  const [subPaneMode, setSubPaneMode] = useState<'volume' | 'rsi' | 'pnl'>('volume');
+    const [subPaneMode, setSubPaneMode] = useState<'volume' | 'rsi' | 'pnl'>('volume');
+  const [wdoMtfCandles, setWdoMtfCandles] = useState<{ h1: Array<LiveCandle>; d1: Array<LiveCandle> }>({ h1: new Array<LiveCandle>(), d1: new Array<LiveCandle>() });
   const previousSymbolRef = useRef<string>('');
   const lastFollowedBotKeyRef = useRef<string>('');
 
@@ -448,6 +467,31 @@ export function TradingChartView({
 
   
  
+    const isSelectedWdoZones = useMemo(() => {
+    if (!targetRobot) return false;
+    const m = managedRobots.find((b) => b.magicNumber === targetRobot.magicNumber);
+    return m?.strategyType === 'wdo_opening_zones';
+  }, [targetRobot, managedRobots]);
+
+  useEffect(() => {
+    if (!isSelectedWdoZones || !activeSymbol) {
+      setWdoMtfCandles({ h1: new Array<LiveCandle>(), d1: new Array<LiveCandle>() });
+      return;
+    }
+    let active = true;
+    const { channelId, token } = loadOrCreateMt5SyncCredentials();
+    Promise.all([
+      syncCandlesWithMt5(channelId, token, activeSymbol, 'H1', { force: false, timeoutMs: 12000 }).catch(() => new Array<LiveCandle>()),
+      syncCandlesWithMt5(channelId, token, activeSymbol, 'D1', { force: false, timeoutMs: 12000 }).catch(() => new Array<LiveCandle>()),
+    ]).then(([h1, d1]) => {
+      if (!active) return;
+      setWdoMtfCandles({
+        h1: Array.isArray(h1) ? h1 : new Array<LiveCandle>(),
+        d1: Array.isArray(d1) ? d1 : new Array<LiveCandle>(),
+      });
+    });
+    return () => { active = false; };
+  }, [isSelectedWdoZones, activeSymbol, reloadToken]);
   const symbolRobotsRef = useRef(symbolRobots);
   symbolRobotsRef.current = symbolRobots;
 
@@ -1158,7 +1202,7 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
           const selectedAppBot = targetRobot ? managedRobots.find((m) => m.magicNumber === targetRobot.magicNumber) : null;
       if (selectedAppBot && selectedAppBot.strategyType === 'wdo_opening_zones') {
         const chPts = Math.max(1, Number(selectedAppBot.params?.channelPoints) || 7);
-        const wdoLines = computeWdoOpeningOverlayLines(timedCandles.map((tc) => tc.candle), chPts);
+        const wdoLines = computeWdoOpeningOverlayLines(timedCandles.map((tc) => tc.candle), chPts, wdoMtfCandles.h1, wdoMtfCandles.d1);
         for (const wl of wdoLines) {
           nextPriceLines.push(
             candleSeries.createPriceLine({
