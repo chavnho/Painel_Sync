@@ -56,7 +56,7 @@ datetime g_lastSymbolsReport = 0;
 
 void OnStart()
 {
-   Print("PainelSync Service v2.0: Iniciando monitoramento em segundo plano no canal ", InpChannelId, "...");
+   Print("PainelSync Service v2.1-TICKS: Iniciando monitoramento em segundo plano no canal ", InpChannelId, "...");
 
    g_lastSymbolsReport = TimeCurrent();
    SendSymbolsReport();
