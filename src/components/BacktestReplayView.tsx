@@ -316,7 +316,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
       }
       try {
         pollTickCount += 1;
-        const shouldResyncFull = isInitial || pollTickCount % 10 === 0;
+        const shouldResyncFull = isInitial;
         const isWdoZones = strategyType === 'wdo_opening_zones';
         const [list, h1List, d1List] = await Promise.all([
           shouldResyncFull
