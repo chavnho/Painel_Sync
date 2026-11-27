@@ -979,6 +979,26 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
             <button type="button" disabled={activeCandles.length === 0} onClick={() => { setIsPlaying(false); if (isTickMode) { setTickCursor(dayTicks.length); } else { setReplayBars(activeCandles.length); } }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-emerald-300 text-xs cursor-pointer disabled:opacity-40">
               <FastForward className="w-3.5 h-3.5" /><span>100%</span>
             </button>
+            <div className="inline-flex items-center rounded-lg bg-[#090D12] border border-[#2E3A4B] overflow-hidden">
+              <input
+                type="time"
+                value={jumpTime}
+                disabled={activeCandles.length === 0}
+                onChange={(e) => setJumpTime(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleJumpToTime(); } }}
+                title="Pular direto para um hor\u00e1rio do preg\u00e3o (HH:MM)"
+                className="px-1.5 py-1 bg-transparent text-xs font-mono text-gray-200 focus:outline-none disabled:opacity-40 [color-scheme:dark]"
+              />
+              <button
+                type="button"
+                disabled={activeCandles.length === 0}
+                onClick={handleJumpToTime}
+                title="Ir para o hor\u00e1rio informado"
+                className="px-2 py-1.5 bg-[#161C25] hover:bg-[#1E2633] border-l border-[#2E3A4B] text-sky-300 text-xs font-semibold cursor-pointer disabled:opacity-40"
+              >
+                Ir
+              </button>
+            </div>
           </div>
           <div className="min-w-0 flex-1 flex items-center justify-end gap-2 text-xs font-mono text-gray-400">
             <span className="truncate min-w-0" title={candleStatus}>{candleStatus}</span>
