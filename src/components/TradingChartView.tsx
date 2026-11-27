@@ -1200,24 +1200,38 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
       }
     }
           const selectedAppBot = targetRobot ? managedRobots.find((m) => m.magicNumber === targetRobot.magicNumber) : null;
+      const nextLocalLevels = new Array<LocalLevelItem>();
       if (selectedAppBot && selectedAppBot.strategyType === 'wdo_opening_zones') {
         const chPts = Math.max(1, Number(selectedAppBot.params?.channelPoints) || 7);
         const wdoLines = computeWdoOpeningOverlayLines(timedCandles.map((tc) => tc.candle), chPts, wdoMtfCandles.h1, wdoMtfCandles.d1);
+        const leftTc = timedCandles.at(Math.max(0, timedCandles.length - 6));
+        const rightTc = timedCandles.at(timedCandles.length - 1);
         for (const wl of wdoLines) {
-          nextPriceLines.push(
-            candleSeries.createPriceLine({
+          if (wl.title.startsWith('EMA') && leftTc && rightTc) {
+            nextLocalLevels.push({
+              anchorLeftTime: leftTc.utcTime,
+              anchorRightTime: rightTc.utcTime,
               price: wl.price,
               color: wl.color,
-              lineWidth: (wl.lineWidth ?? 1) as 1 | 2 | 3 | 4,
-              lineStyle: wl.lineStyle,
-              axisLabelVisible: true,
-              axisLabelColor: '#18181B',
-              axisLabelTextColor: wl.color,
-              title: wl.title,
-            })
-          );
+              label: wl.title,
+            });
+          } else {
+            nextPriceLines.push(
+              candleSeries.createPriceLine({
+                price: wl.price,
+                color: wl.color,
+                lineWidth: (wl.lineWidth ?? 1) as 1 | 2 | 3 | 4,
+                lineStyle: wl.lineStyle,
+                axisLabelVisible: true,
+                axisLabelColor: '#18181B',
+                axisLabelTextColor: wl.color,
+                title: wl.title,
+              })
+            );
+          }
         }
       }
+      tradeLinesPrimitiveRef.current?.setLocalLevels(nextLocalLevels);
       priceLinesRef.current = nextPriceLines;
 
     // Na primeira carga do ativo/timeframe, mostra os últimos ~70 candles confortavelmente
