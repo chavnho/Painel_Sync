@@ -190,7 +190,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
           const fallbackDay = new Date(Number(list.at(-1)?.time || 0) * 1000).toISOString().slice(0, 10);
           setSelectedDay(fallbackDay);
         }
-        if (strategyType === 'wdo_opening_zones') { const td = dayMatches.length > 0 ? replayDate : new Date(Number(list.at(-1)?.time || 0) * 1000).toISOString().slice(0, 10); const upTo = list.filter((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) <= td); const fIdx = upTo.findIndex((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) === td); setReplayBars(fIdx >= 0 ? fIdx + 1 : 1); } else { setReplayBars(replayInitialBar); }
+        if (strategyType === 'wdo_opening_zones') { const td = dayMatches.length > 0 ? replayDate : new Date(Number(list.at(-1)?.time || 0) * 1000).toISOString().slice(0, 10); const upTo = list.filter((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) <= td); const fIdx = upTo.findIndex((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) === td); setReplayBars(fIdx > 0 ? fIdx : 1); } else { setReplayBars(replayInitialBar); }
         setCandleStatus(`Cache pronto (${dayMatches.length || list.length} velas). Clique em Play Replay ou 100%.`);
       } else {
         const brDate = replayDate.split('-').reverse().join('/');
@@ -242,7 +242,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
   const replayInitialBar = useMemo(() => {
     if (strategyType !== 'wdo_opening_zones' || selectedDay === 'ALL' || activeCandles.length === 0) return 1;
     const firstIdx = activeCandles.findIndex((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) === selectedDay);
-    return firstIdx >= 0 ? firstIdx + 1 : 1;
+    return firstIdx > 0 ? firstIdx : 1;
   }, [strategyType, selectedDay, activeCandles]);
 
   useEffect(() => {
