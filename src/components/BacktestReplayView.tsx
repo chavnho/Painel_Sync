@@ -15,6 +15,8 @@ import {
   type UTCTimestamp,
 } from 'lightweight-charts';
 import {
+  ChevronLeft,
+  ChevronRight,
   Download,
   FastForward,
   Maximize2,
@@ -110,6 +112,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
 
   const [candles, setCandles] = useState<LiveCandle[]>(new Array());
   const [replayDate, setReplayDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [loadUntilToday, setLoadUntilToday] = useState(false);
   const [selectedDay, setSelectedDay] = useState<string>('ALL');
   const [loadingCandles, setLoadingCandles] = useState(false);
   const [candleStatus, setCandleStatus] = useState('Clique em Carregar Replay para carregar o hist\u00f3rico real.');
@@ -123,6 +126,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
   const [tickCursor, setTickCursor] = useState(0);
   const [jumpTime, setJumpTime] = useState('10:00');
   const [isChartMaximized, setIsChartMaximized] = useState(false);
+  const [isTradesDrawerOpen, setIsTradesDrawerOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [savingRobot, setSavingRobot] = useState(false);
   const [editNotice, setEditNotice] = useState('');
@@ -138,7 +142,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
   const lastRenderedSeriesRef = useRef<LiveCandle[] | null>(null);
 
   useEffect(() => {
-    fetchManagedRobots(creds.channelId, creds.token).then(setSavedRobots).catch(() => {});
+    fetchManagedRobots(creds.channelId, creds.token).then((list) => { setSavedRobots(list); if (list.length > 0) { const x = list.at(0)!; setSelectedBotId((p) => { if (p && list.some((b: ManagedRobot) => b.id === p)) return p; setBotName(x.name); setSymbol(x.symbol); setTimeframe(x.timeframe); setStrategyType(x.strategyType); setRisk(x.risk); return x.id; }); } }).catch(() => {});
   }, [creds.channelId, creds.token]);
 
   const handleSelectSavedBot = (id: string) => {
@@ -175,10 +179,10 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     setCandleStatus(`Carregando pregão ${replayDate.split('-').reverse().join('/')} de ${resolvedSymbol} (${timeframe}) no MT5...`);
     try {
       const isWdoZones = strategyType === 'wdo_opening_zones';
-      const [list, h1List, d1List] = await Promise.all([
-        syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, timeframe, isWdoZones ? { force: true, isManualRequest: true } : { force: true, isManualRequest: true, date: replayDate }),
-        isWdoZones ? syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, 'H1', { force: true }).catch(() => new Array<LiveCandle>()) : Promise.resolve(new Array<LiveCandle>()),
-        isWdoZones ? syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, 'D1', { force: true }).catch(() => new Array<LiveCandle>()) : Promise.resolve(new Array<LiveCandle>()),
+      const dObj = new Date(`${replayDate}T12:00:00Z`); dObj.setUTCDate(dObj.getUTCDate() - 4); const fStart = Number.isNaN(dObj.getTime()) ? replayDate : dObj.toISOString().slice(0, 10); const dParam = loadUntilToday ? `from:${fStart}` : replayDate; const [list, h1List, d1List] = await Promise.all([
+        syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, timeframe, isWdoZones && !loadUntilToday ? { force: true, isManualRequest: true } : { force: true, isManualRequest: true, date: dParam }),
+        isWdoZones ? syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, 'H1', loadUntilToday ? { force: true, isManualRequest: true, date: dParam } : { force: true }).catch(() => new Array<LiveCandle>()) : Promise.resolve(new Array<LiveCandle>()),
+        isWdoZones ? syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, 'D1', loadUntilToday ? { force: true, isManualRequest: true, date: dParam } : { force: true }).catch(() => new Array<LiveCandle>()) : Promise.resolve(new Array<LiveCandle>()),
       ]);
       if (isWdoZones) {
         setReplayMtfCandles({
@@ -187,7 +191,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
         });
       }
       if (list && list.length > 0) {
-        setCandles(list);
+        setCandles(list); if (loadUntilToday) { setSelectedDay('ALL'); const si = list.findIndex((x) => new Date(Number(x.time || 0) * 1000).toISOString().slice(0, 10) >= replayDate); setReplayBars(si > 0 ? si : 10); setCandleStatus('Multi-pregao pronto. Clique em 100% ou Play.'); return; }
         const dayMatches = list.filter((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) === replayDate);
         if (dayMatches.length > 0) {
           setSelectedDay(replayDate);
@@ -220,7 +224,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     setCandleStatus(`Carregando hist\u00f3rico completo desde ${yearStart.split('-').reverse().join('/')} de ${resolvedSymbol} (${timeframe}) no MT5...`);
     try {
       const isWdoZones = strategyType === 'wdo_opening_zones';
-      const [list, h1List, d1List] = await Promise.all([
+      const dObj = new Date(`${replayDate}T12:00:00Z`); dObj.setUTCDate(dObj.getUTCDate() - 4); const fStart = Number.isNaN(dObj.getTime()) ? replayDate : dObj.toISOString().slice(0, 10); const dParam = loadUntilToday ? `from:${fStart}` : replayDate; const [list, h1List, d1List] = await Promise.all([
         syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, timeframe, { force: true, isManualRequest: true, date: `from:${yearStart}` }),
         isWdoZones ? syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, 'H1', { force: true, isManualRequest: true, date: `from:${yearStart}` }).catch(() => new Array<LiveCandle>()) : Promise.resolve(new Array<LiveCandle>()),
         isWdoZones ? syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, 'D1', { force: true, isManualRequest: true, date: `from:${yearStart}` }).catch(() => new Array<LiveCandle>()) : Promise.resolve(new Array<LiveCandle>()),
@@ -232,7 +236,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
         });
       }
       if (list && list.length > 0) {
-        setCandles(list);
+        setCandles(list); if (loadUntilToday) { setSelectedDay('ALL'); const si = list.findIndex((x) => new Date(Number(x.time || 0) * 1000).toISOString().slice(0, 10) >= replayDate); setReplayBars(si > 0 ? si : 10); setCandleStatus('Multi-pregao pronto. Clique em 100% ou Play.'); return; }
         setSelectedDay('ALL');
         const firstDayStr = new Date(Number(list.at(0)?.time || 0) * 1000).toISOString().slice(0, 10);
         const secondDayIdx = list.findIndex((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) > firstDayStr);
@@ -311,13 +315,33 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
         setCandleStatus(`Conectando pregão ao vivo de ${resolvedSymbol} (${timeframe})...`);
       }
       try {
-        pollTickCount += 1; const shouldResyncFull = isInitial || pollTickCount % 10 === 0; const list = shouldResyncFull
-          ? await syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, timeframe, { force: true })
-          : await fetchCandles(creds.channelId, creds.token, resolvedSymbol, timeframe);
+        pollTickCount += 1;
+        const shouldResyncFull = isInitial || pollTickCount % 10 === 0;
+        const isWdoZones = strategyType === 'wdo_opening_zones';
+        const [list, h1List, d1List] = await Promise.all([
+          shouldResyncFull
+            ? syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, timeframe, { force: true, isManualRequest: isInitial })
+            : fetchCandles(creds.channelId, creds.token, resolvedSymbol, timeframe),
+          isWdoZones && shouldResyncFull
+            ? syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, 'H1', { force: true }).catch(() => new Array<LiveCandle>())
+            : Promise.resolve(null),
+          isWdoZones && shouldResyncFull
+            ? syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, 'D1', { force: true }).catch(() => new Array<LiveCandle>())
+            : Promise.resolve(null),
+        ]);
         if (cancelled) return;
+        if (isWdoZones && (Array.isArray(h1List) || Array.isArray(d1List))) {
+          setReplayMtfCandles((prev) => ({
+            h1: Array.isArray(h1List) && h1List.length > 0 ? h1List : prev.h1,
+            d1: Array.isArray(d1List) && d1List.length > 0 ? d1List : prev.d1,
+          }));
+        }
         if (list && list.length > 0) {
+          const uniqueDays = Array.from(new Set(list.map((c) => new Date(toSec(c.time) * 1000).toISOString().slice(0, 10)))).sort();
+          const keepDays = new Set(uniqueDays.slice(-2));
+          const recentWithPrevDay = list.filter((c) => keepDays.has(new Date(toSec(c.time) * 1000).toISOString().slice(0, 10)));
           const todayBars = list.filter((c) => new Date(toSec(c.time) * 1000).toISOString().slice(0, 10) === todayStr);
-          const incoming = todayBars.length > 0 ? todayBars : list;
+          const incoming = recentWithPrevDay.length > 0 ? recentWithPrevDay : list;
           setCandles((prev) => {
             const target = isInitial ? incoming : mergeBars(prev, incoming);
             const lastPrev = prev.at(-1);
@@ -781,151 +805,94 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
 
   return (
     <div className="flex-1 h-full min-h-0 flex flex-col overflow-hidden bg-[#090D12]">
-      <div className="flex-1 min-h-0 overflow-y-auto">
-      <div className="w-full px-6 py-4 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h1 className="font-display text-xl font-bold text-gray-100">Simulador de Backtest & Replay</h1>
-            <p className="text-xs text-gray-400 mt-0.5">Teste qualquer robô criado no painel sobre velas históricas reais do MT5 e avance vela por vela no modo Replay.</p>
-          </div>
-          <div className="shrink-0 flex flex-nowrap items-center gap-1.5 whitespace-nowrap">
-            <div className="flex items-center gap-2 bg-[#0F141C] border border-[#1E2633] rounded-lg px-2.5 py-1">
-              <span className="text-[11px] text-gray-400">Data do Pregão:</span>
-              <input
-                type="date"
-                value={replayDate}
-                max={new Date().toISOString().slice(0, 10)}
-                onChange={(e) => setReplayDate(e.target.value)}
-                style={{ colorScheme: 'dark' }}
-                className="bg-[#090D12] border border-[#1E2633] rounded px-2 py-1 text-xs font-mono text-gray-100 focus:outline-none focus:border-emerald-500 cursor-pointer"
-              />
-            </div>
-            <button type="button" onClick={handleLoadMt5Candles} disabled={loadingCandles && !isLiveMode} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold cursor-pointer disabled:opacity-60">
-              <Download className="w-3.5 h-3.5" /><span>{loadingCandles && !isLiveMode ? 'Carregando...' : 'Carregar Replay'}</span>
+      <div className="flex-1 h-full min-h-0 flex flex-col overflow-hidden">
+      <div className="flex-1 min-h-0 w-full px-4 py-2 flex flex-col gap-2 overflow-hidden">
+        <div className="shrink-0 rounded-xl bg-[#0F141C] border border-[#1E2633] px-3 py-1.5 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <select value={selectedBotId} onChange={(e) => handleSelectSavedBot(e.target.value)} className="max-w-[240px] px-2.5 py-1 rounded-lg bg-[#090D12] border border-[#1E2633] text-xs text-gray-100">
+              {savedRobots.length === 0 && <option value="" disabled>Nenhum robô criado</option>}
+              {savedRobots.map((b) => (<option key={b.id} value={b.id}>{b.name} ({b.symbol})</option>))}
+            </select>
+            <button type="button" onClick={() => { setEditNotice(''); setIsEditModalOpen(true); }} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-xs text-sky-300 font-medium cursor-pointer">
+              <Settings2 className="w-3.5 h-3.5" /><span>Editar</span>
             </button>
-          <button
-            type="button"
-            disabled={loadingCandles}
-            onClick={handleLoadYearCandles}
-            title="Carregar todos os preg\u00f5es desde 01/01 deste ano para backtest cont\u00ednuo"
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-sky-500/40 text-sky-300 text-xs font-medium cursor-pointer disabled:opacity-40"
-          >
-            <span>Ano (Jan)</span>
-          </button>
-            <button
-              type="button"
-              onClick={() => { setIsPlaying(false); setIsLiveMode((prev) => !prev); }}
-              className={isLiveMode
-                ? 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold cursor-pointer ring-2 ring-sky-400/50'
-                : 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-sky-300 text-xs font-semibold cursor-pointer'}
-            >
-              <Radio className={isLiveMode ? 'w-3.5 h-3.5 animate-pulse' : 'w-3.5 h-3.5'} />
-              <span>{isLiveMode ? 'Ao Vivo ON' : 'Ao Vivo (Paper)'}</span>
+            <label title="Quantidade de contratos / lote usado na simulação" className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[#090D12] border border-[#1E2633] text-xs font-mono text-gray-300">
+              <span className="text-[10px] text-gray-500">Contratos:</span>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={risk.volume}
+                onChange={(e) => setRisk({ ...risk, volume: Math.max(1, Math.floor(Number(e.target.value) || 1)) })}
+                className="w-11 bg-transparent text-right text-sky-300 font-semibold focus:outline-none"
+              />
+            </label>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <input type="date" value={replayDate} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setReplayDate(e.target.value)} style={{ colorScheme: 'dark' }} className="bg-[#090D12] border border-[#1E2633] rounded-lg px-2 py-1 text-xs font-mono text-gray-100 cursor-pointer" />
+            <label title="Baixar todos os pregões da data selecionada até hoje e rodar em modo sequencial" className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-[#090D12] border border-[#1E2633] hover:border-sky-500/40 text-xs text-gray-200 cursor-pointer select-none">
+              <input type="checkbox" checked={loadUntilToday} onChange={(e) => setLoadUntilToday(e.target.checked)} className="rounded border-gray-600 bg-[#090D12] text-sky-500 focus:ring-0 cursor-pointer" />
+              <span>Até hoje</span>
+            </label>
+            <button type="button" onClick={handleLoadMt5Candles} disabled={loadingCandles && !isLiveMode} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold cursor-pointer disabled:opacity-60">
+              <Download className="w-3.5 h-3.5" /><span>{loadingCandles && !isLiveMode ? 'Carregando...' : 'Carregar'}</span>
+            </button>
+            <button type="button" onClick={() => { setIsPlaying(false); setIsLiveMode((prev) => !prev); }} className={isLiveMode ? 'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold cursor-pointer ring-2 ring-sky-400/50' : 'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-sky-300 text-xs font-semibold cursor-pointer'}>
+              <Radio className={isLiveMode ? 'w-3.5 h-3.5 animate-pulse' : 'w-3.5 h-3.5'} /><span>{isLiveMode ? 'Ao Vivo ON' : 'Ao Vivo'}</span>
             </button>
           </div>
         </div>
 
-        <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] p-4 grid grid-cols-2 md:grid-cols-6 gap-3 items-end">
-          <div className="col-span-2">
-            <label className="block text-[10px] text-gray-400 mb-1">Carregar Robô Salvo</label>
-            <div className="flex items-center gap-1.5">
-              <select value={selectedBotId} onChange={(e) => handleSelectSavedBot(e.target.value)} className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg bg-[#090D12] border border-[#1E2633] text-xs text-gray-100">
-                <option value="">-- Configuração Manual --</option>
-                {savedRobots.map((b) => (<option key={b.id} value={b.id}>{b.name} ({b.symbol} · {b.timeframe})</option>))}
-              </select>
-              <button type="button" onClick={() => { setEditNotice(''); setIsEditModalOpen(true); }} className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-xs text-sky-300 font-medium cursor-pointer">
-                <Settings2 className="w-3.5 h-3.5" /><span>Editar</span>
+        <div className={isChartMaximized ? 'fixed top-0 inset-x-0 bottom-[50px] z-50 bg-[#090D12] px-4 pt-2 pb-0 flex flex-col gap-1.5' : 'flex-1 min-h-0 rounded-xl bg-[#0F141C] border border-[#1E2633] p-2.5 flex flex-col gap-1.5 overflow-hidden'}>
+          <div className="relative z-20 shrink-0 flex flex-wrap items-center justify-between gap-2 px-1">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs min-w-0">
+              <span className="text-[11px] text-gray-400 font-semibold">{resolvedSymbol} · {timeframe} · {botName}</span>
+              {simResult && (() => {
+                const sum = simResult.summary;
+                const gw = simResult.trades.filter((t) => t.pnlBrl > 0).reduce((a, t) => a + t.pnlBrl, 0);
+                const gl = Math.abs(simResult.trades.filter((t) => t.pnlBrl < 0).reduce((a, t) => a + t.pnlBrl, 0));
+                const pf = gl > 0 && sum.wins > 0 && sum.losses > 0 ? (gw / sum.wins) / (gl / sum.losses) : gw > 0 ? 99.9 : 0;
+                const zm = new Map<string, { zone: string; count: number; wins: number; pnl: number }>();
+                for (const t of simResult.trades) {
+                  const m = /\bZ[1-5]\b/i.exec(String(t.entryReason || ''));
+                  const k = m ? m.at(0)!.toUpperCase() : 'Geral';
+                  const cur = zm.get(k) || { zone: k, count: 0, wins: 0, pnl: 0 };
+                  cur.count += 1; if (t.pnlBrl > 0) cur.wins += 1; cur.pnl = Number((cur.pnl + t.pnlBrl).toFixed(2));
+                  zm.set(k, cur);
+                }
+                const zs = Array.from(zm.values()).sort((a, b) => a.zone.localeCompare(b.zone));
+                return (
+                  <>
+                    <span className="text-gray-700">|</span>
+                    <span><span className="text-gray-500 text-[10px]">Líq: </span><strong className={sum.netPnlBrl >= 0 ? 'text-emerald-400' : 'text-rose-400'}>{formatBrl(sum.netPnlBrl)}</strong> <span className="text-[10px] text-gray-500">({sum.netPoints >= 0 ? '+' : ''}{sum.netPoints.toFixed(1)}p)</span></span>
+                    <span><span className="text-gray-500 text-[10px]">Acerto: </span><strong className="text-gray-100">{sum.winRatePct.toFixed(1)}%</strong> <span className="text-[10px] text-gray-500">({sum.wins}W/{sum.losses}L)</span></span>
+                    <span><span className="text-gray-500 text-[10px]">PF: </span><strong className={sum.profitFactor >= 1.3 ? 'text-emerald-400' : sum.profitFactor >= 1 ? 'text-sky-400' : 'text-rose-400'}>{Number.isFinite(sum.profitFactor) ? sum.profitFactor.toFixed(2) : '∞'}</strong></span>
+                    <span><span className="text-gray-500 text-[10px]">Payoff: </span><strong className="text-amber-300">{pf.toFixed(2)}x</strong></span>
+                    <span><span className="text-gray-500 text-[10px]">DD: </span><strong className="text-rose-400">-{formatBrl(sum.maxDrawdownBrl)}</strong></span>
+                    <span><span className="text-gray-500 text-[10px]">Pos: </span><strong className="text-gray-200">{simResult.openPosition ? `${simResult.openPosition.side} ${simResult.openPosition.volume}x` : 'Zerado'}</strong></span>
+                    {zs.map((z) => (
+                      <span key={z.zone} className="px-1.5 py-0.5 rounded bg-[#090D12] border border-[#1E2633] inline-flex items-center gap-1 text-[10px]">
+                        <strong className="text-sky-300">{z.zone}</strong>
+                        <span className="text-gray-400">{z.count}({z.count > 0 ? Math.round((z.wins / z.count) * 100) : 0}%)</span>
+                        <span className={z.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}>{z.pnl >= 0 ? '+' : ''}{formatBrl(z.pnl)}</span>
+                      </span>
+                    ))}
+                  </>
+                );
+              })()}
+            </div>
+            <div className="shrink-0 flex items-center gap-1.5">
+              <button type="button" onClick={() => setIsTradesDrawerOpen((p) => !p)} className={isTradesDrawerOpen ? 'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-600/20 border border-sky-400/50 text-sky-300 text-xs font-medium cursor-pointer' : 'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-gray-200 text-xs font-medium cursor-pointer'}>
+                {isTradesDrawerOpen ? <ChevronRight className="w-3.5 h-3.5 text-sky-400" /> : <ChevronLeft className="w-3.5 h-3.5 text-sky-400" />}
+                <span>Operações ({simResult?.trades.length ?? 0})</span>
+              </button>
+              <button type="button" onClick={() => setIsChartMaximized((p) => !p)} className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-xs font-medium text-gray-100 cursor-pointer">
+                {isChartMaximized ? <><Minimize2 className="w-3.5 h-3.5 text-sky-400" /><span>Restaurar (ESC)</span></> : <><Maximize2 className="w-3.5 h-3.5 text-sky-400" /><span>Maximizar</span></>}
               </button>
             </div>
           </div>
-          <div>
-            <label className="block text-[10px] text-gray-400 mb-1">Ativo</label>
-            <input type="text" value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} className="w-full px-2.5 py-1.5 rounded-lg bg-[#090D12] border border-[#1E2633] text-xs font-mono text-gray-100" />
-          </div>
-          <div>
-            <label className="block text-[10px] text-gray-400 mb-1">Timeframe</label>
-            <select value={timeframe} onChange={(e) => setTimeframe(e.target.value as 'M1' | 'M5' | 'M15' | 'M30' | 'H1')} className="w-full px-2.5 py-1.5 rounded-lg bg-[#090D12] border border-[#1E2633] text-xs font-mono text-gray-100">
-              <option value="M1">M1</option><option value="M5">M5</option><option value="M15">M15</option><option value="M30">M30</option><option value="H1">H1</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-[10px] text-gray-400 mb-1">Estratégia</label>
-            <select value={strategyType} onChange={(e) => setStrategyType(e.target.value as ManagedStrategyType)} className="w-full px-2.5 py-1.5 rounded-lg bg-[#090D12] border border-[#1E2633] text-xs text-gray-100">
-              <option value="ema_cross">Médias ({fastPeriod}x{slowPeriod})</option>
-              <option value="rsi_reversal">IFR ({rsiPeriod})</option>
-              <option value="breakout">Rompimento ({lookbackBars}v)</option><option value="wdo_opening_zones">Abertura WDO (5 Zonas)</option>
-            </select>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-[10px] text-gray-400 mb-1">SL (pts)</label>
-              <input type="number" min="0" value={risk.stopPoints} onChange={(e) => setRisk({ ...risk, stopPoints: Math.max(0, Number(e.target.value) || 0) })} className="w-full px-2 py-1.5 rounded-lg bg-[#090D12] border border-[#1E2633] text-xs font-mono text-gray-100" />
-            </div>
-            <div>
-              <label className="block text-[10px] text-gray-400 mb-1">TP (pts)</label>
-              <input type="number" min="0" value={risk.takePoints} onChange={(e) => setRisk({ ...risk, takePoints: Math.max(0, Number(e.target.value) || 0) })} className="w-full px-2 py-1.5 rounded-lg bg-[#090D12] border border-[#1E2633] text-xs font-mono text-gray-100" />
-            </div>
-          </div>
-        </div>
-
-
-        {!selectedBotId && (
-        <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] px-4 py-2.5 flex flex-wrap items-center gap-4 text-xs">
-          <span className="text-[11px] font-semibold text-gray-300">Regra de Disparo:</span>
-{strategyType === 'wdo_opening_zones' ? (<div className='flex flex-wrap items-center gap-2 text-[11px] text-emerald-300 font-medium'><span className='px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/30'>5 Zonas (Z1..Z5) • Gatilhos A/B</span><span className='text-gray-400'>Canais D-1 (±7 pts) • IFR(7) • EMAs 13/17/21 (H1/D1) • 1 op/dia</span></div>) : (<>          <div className="flex items-center gap-2">
-            <span className="text-[11px] text-gray-400">{strategyType === 'ema_cross' ? 'Cruza p/ Cima:' : strategyType === 'rsi_reversal' ? 'Sobrevenda:' : 'Rompe Máxima:'}</span>
-            <select value={onBullishSignal} onChange={(e) => setOnBullishSignal(e.target.value as SignalAction)} className="px-2 py-1 rounded bg-[#090D12] border border-[#1E2633] text-xs text-gray-100">
-              <option value="BUY">Comprar</option><option value="SELL">Vender</option><option value="NONE">Ignorar</option>
-            </select>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] text-gray-400">{strategyType === 'ema_cross' ? 'Cruza p/ Baixo:' : strategyType === 'rsi_reversal' ? 'Sobrecompra:' : 'Rompe Mínima:'}</span>
-            <select value={onBearishSignal} onChange={(e) => setOnBearishSignal(e.target.value as SignalAction)} className="px-2 py-1 rounded bg-[#090D12] border border-[#1E2633] text-xs text-gray-100">
-              <option value="SELL">Vender</option><option value="BUY">Comprar</option><option value="NONE">Ignorar</option>
-            </select>
-          </div></>)}
-        </div>
-        )}
-
-
-        {simResult && (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] p-3.5">
-              <div className="text-[11px] text-gray-400">Resultado Líquido</div>
-              <div className={`text-lg font-mono font-bold mt-1 ${simResult.summary.netPnlBrl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{formatBrl(simResult.summary.netPnlBrl)}</div>
-              <div className="text-[10px] font-mono text-gray-500">{simResult.summary.netPoints} pts</div>
-            </div>
-            <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] p-3.5">
-              <div className="text-[11px] text-gray-400">Taxa de Acerto</div>
-              <div className="text-lg font-mono font-bold text-gray-100 mt-1">{simResult.summary.winRatePct}%</div>
-              <div className="text-[10px] font-mono text-gray-500">{simResult.summary.wins}W / {simResult.summary.losses}L</div>
-            </div>
-            <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] p-3.5">
-              <div className="text-[11px] text-gray-400">Fator de Lucro</div>
-              <div className="text-lg font-mono font-bold text-sky-400 mt-1">{simResult.summary.profitFactor.toFixed(2)}</div>
-              <div className="text-[10px] font-mono text-gray-500">{simResult.summary.totalTrades} trades</div>
-            </div>
-            <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] p-3.5">
-              <div className="text-[11px] text-gray-400">Drawdown Máximo</div>
-              <div className="text-lg font-mono font-bold text-rose-400 mt-1">-{formatBrl(simResult.summary.maxDrawdownBrl)}</div>
-              <div className="text-[10px] font-mono text-gray-500">Pior trade: {formatBrl(simResult.summary.worstTradeBrl)}</div>
-            </div>
-            <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] p-3.5">
-              <div className="text-[11px] text-gray-400">Posição Aberta</div>
-              <div className="text-sm font-mono font-semibold text-gray-100 mt-1">{simResult.openPosition ? `${simResult.openPosition.side} ${simResult.openPosition.volume}x @ ${simResult.openPosition.entryPrice}` : 'Zerado'}</div>
-              <div className="text-[10px] font-mono text-gray-500 truncate">{simResult.lastDecision}</div>
-            </div>
-          </div>
-        )}
-
-        <div className={isChartMaximized ? 'fixed top-0 inset-x-0 bottom-[50px] z-50 bg-[#090D12] px-4 pt-3 pb-0 flex flex-col gap-2' : 'rounded-xl bg-[#0F141C] border border-[#1E2633] p-3 flex flex-col gap-2'}>
-          <div className="relative z-20 shrink-0 flex items-center justify-between px-1">
-            <span className="text-[11px] font-mono text-gray-400">{resolvedSymbol} · {timeframe} · {botName}</span>
-            <button type="button" onClick={() => setIsChartMaximized((p) => !p)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-xs font-medium text-gray-100 cursor-pointer">
-              {isChartMaximized ? <><Minimize2 className="w-3.5 h-3.5 text-sky-400" /><span>Restaurar (ESC)</span></> : <><Maximize2 className="w-3.5 h-3.5 text-sky-400" /><span>Maximizar</span></>}
-            </button>
-          </div>
-          <div className={isChartMaximized ? 'relative flex-1 w-full min-h-0 overflow-hidden' : 'relative w-full h-[calc(100vh-370px)] min-h-[420px] overflow-hidden'}>
+          <div className="relative flex-1 w-full min-h-[340px] flex overflow-hidden">
+            <div className="relative flex-1 min-w-0 h-full overflow-hidden">
             <div ref={chartWrapRef} className="absolute inset-0" />
             {wdoReplayHud && (
               <div className="absolute bottom-8 right-20 z-20 pointer-events-none flex flex-col items-end gap-1 px-2.5 py-1.5 rounded-lg bg-[#090D12]/85 backdrop-blur border border-[#1E2633] text-[11px] font-mono shadow-lg">
@@ -975,35 +942,52 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
                 )}
               </div>
             )}
+            </div>
+            {!isTradesDrawerOpen && (
+              <button
+                type="button"
+                onClick={() => setIsTradesDrawerOpen(true)}
+                title="Expandir barra lateral de operações simuladas"
+                className="shrink-0 w-7 h-full bg-[#090D12] hover:bg-[#161C25] border-l border-[#1E2633] flex flex-col items-center justify-center gap-2 text-gray-400 hover:text-sky-300 cursor-pointer transition-colors"
+              >
+                <ChevronLeft className="w-3.5 h-3.5 text-sky-400" />
+                <span className="text-[10px] font-mono tracking-wider [writing-mode:vertical-rl] rotate-180">
+                  OPS ({simResult?.trades.length ?? 0})
+                </span>
+              </button>
+            )}
+            {isTradesDrawerOpen && (
+              <aside className="shrink-0 w-[480px] max-w-[55vw] h-full bg-[#0F141C] border-l border-[#1E2633] flex flex-col">
+                <div className="shrink-0 px-3.5 py-2 border-b border-[#1E2633] flex items-center justify-between">
+                  <span className="text-xs font-semibold text-gray-100">Operações Simuladas ({simResult?.trades.length ?? 0})</span>
+                  <button type="button" onClick={() => setIsTradesDrawerOpen(false)} className="p-1 rounded hover:bg-[#1E2633] text-gray-400 hover:text-gray-200 cursor-pointer"><ChevronRight className="w-4 h-4" /></button>
+                </div>
+                <div className="flex-1 min-h-0 overflow-y-auto p-2.5 space-y-2 font-mono text-[11px]">
+                  {!simResult || simResult.trades.length === 0 ? (
+                    <div className="p-6 text-center text-xs text-gray-500 font-sans">Nenhuma operação executada até este ponto do replay.</div>
+                  ) : (
+                    [...simResult.trades].reverse().map((t) => (
+                      <div key={t.id} className="rounded-lg bg-[#090D12]/90 border border-[#1E2633] hover:border-[#2E3A4B] px-3 py-2 space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2"><span className="text-[10px] text-gray-500">#{t.id}</span><span className={`text-xs font-bold ${t.side === 'COMPRA' ? 'text-emerald-400' : 'text-rose-400'}`}>{t.side} {t.volume}x</span></div>
+                          <span className={`shrink-0 whitespace-nowrap text-xs font-bold ${t.pnlBrl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{t.pnlBrl >= 0 ? '+' : ''}{formatBrl(t.pnlBrl)} <span className="text-[10px] font-normal opacity-80">({t.points >= 0 ? '+' : ''}{t.points}p)</span></span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 min-w-0">
+                          {t.entryReason ? <span title={t.entryReason} className="truncate px-1.5 py-0.5 rounded bg-sky-950/70 text-sky-300 border border-sky-500/30 text-[10px]">{t.entryReason}</span> : <span className="text-[10px] text-gray-600">-</span>}
+                          <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] border ${t.exitReason.toLowerCase().includes('take') ? 'bg-emerald-950/50 text-emerald-300 border-emerald-500/30' : t.exitReason.toLowerCase().includes('stop') ? 'bg-rose-950/50 text-rose-300 border-rose-500/30' : 'bg-[#161C25] text-gray-300 border-[#2E3A4B]'}`}>{t.exitReason}</span>
+                        </div>
+                        <div className="pt-1 border-t border-[#1E2633]/70 flex items-center justify-between gap-2 text-[10px] text-gray-400">
+                          <span>In: <strong className="font-normal text-gray-200">{t.entryLabel} @ {t.entryPrice}</strong></span>
+                          <span>Out: <strong className="font-normal text-gray-200">{t.exitLabel} @ {t.exitPrice}</strong></span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </aside>
+            )}
           </div>
         </div>
-
-        {simResult && simResult.trades.length > 0 && (
-          <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] overflow-hidden">
-            <div className="px-4 py-3 border-b border-[#1E2633] text-xs font-semibold text-gray-200">Operações Simuladas ({simResult.trades.length})</div>
-            <div className="max-h-72 overflow-y-auto">
-              <table className="w-full text-left text-xs font-mono">
-                <thead className="bg-[#090D12] text-[10px] text-gray-400 uppercase">
-                  <tr><th className="px-4 py-2">#</th><th className="px-4 py-2">Lado</th><th className="px-4 py-2">Gatilho / Zona</th><th className="px-4 py-2">Entrada</th><th className="px-4 py-2">Saída</th><th className="px-4 py-2">Motivo</th><th className="px-4 py-2 text-right">Pts</th><th className="px-4 py-2 text-right">Resultado</th></tr>
-                </thead>
-                <tbody className="divide-y divide-[#1E2633]">
-                  {[...simResult.trades].reverse().map((t) => (
-                    <tr key={t.id} className="hover:bg-[#161C25]">
-                      <td className="px-4 py-2 text-gray-500">{t.id}</td>
-                      <td className={`px-4 py-2 font-semibold ${t.side === 'COMPRA' ? 'text-emerald-400' : 'text-rose-400'}`}>{t.side} {t.volume}x</td><td className="px-4 py-2">{t.entryReason ? <span className="px-1.5 py-0.5 rounded bg-sky-950/70 text-sky-300 border border-sky-500/30 text-[10px]">{t.entryReason}</span> : <span className="text-gray-600">-</span>}</td>
-                      <td className="px-4 py-2 text-gray-300">{t.entryLabel} @ {t.entryPrice}</td>
-                      <td className="px-4 py-2 text-gray-300">{t.exitLabel} @ {t.exitPrice}</td>
-                      <td className="px-4 py-2 text-gray-400">{t.exitReason}</td>
-                      <td className={`px-4 py-2 text-right ${t.points >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{t.points}</td>
-                      <td className={`px-4 py-2 text-right font-semibold ${t.pnlBrl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{formatBrl(t.pnlBrl)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
         </div>
       </div>
       <div className={isChartMaximized ? "fixed bottom-0 inset-x-0 z-50 h-[50px] bg-[#090D12]/95 backdrop-blur border-t border-[#1E2633] px-4 flex items-center justify-between gap-3 shadow-2xl overflow-hidden" : "shrink-0 z-30 w-full h-[50px] bg-[#090D12]/90 border-t border-[#1E2633] px-4 flex items-center justify-between gap-3 overflow-hidden"}>
