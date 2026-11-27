@@ -798,8 +798,13 @@ export function TradingChartView({
       else { zoneLabel = 'Z5'; zoneSide = 'Compra'; }
     }
 
-    return { rsiPeriod, rsiVal, zoneLabel, zoneSide };
-  }, [isSelectedWdoZones, targetRobot, managedRobots, allCandles]);
+    const emaLines = computeWdoOpeningOverlayLines(allCandles, chPts, wdoMtfCandles.h1, wdoMtfCandles.d1)
+      .filter((l) => l.title.startsWith('EMA'));
+    const h1Emas = emaLines.filter((l) => l.title.endsWith('H1'));
+    const d1Emas = emaLines.filter((l) => l.title.endsWith('D1'));
+
+    return { rsiPeriod, rsiVal, zoneLabel, zoneSide, h1Emas, d1Emas };
+  }, [isSelectedWdoZones, targetRobot, managedRobots, allCandles, wdoMtfCandles]);
 
   // 1. Inicializa e destrói o gráfico TradingView Lightweight Charts por ativo/timeframe
   useEffect(() => {
@@ -1549,25 +1554,42 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
           <div className="flex-1 min-h-0 bg-[#090D12] relative">
             <div ref={containerRef} className="w-full h-full" />
               {wdoHudStatus && (
-                <div className="absolute bottom-8 right-20 z-20 pointer-events-none flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-[#090D12]/85 backdrop-blur border border-[#1E2633] text-[11px] font-mono shadow-lg">
-                  {wdoHudStatus.zoneLabel && (
-                    <span className="inline-flex items-center gap-1 text-sky-300 font-semibold">
-                      <span>{wdoHudStatus.zoneLabel}</span>
-                      <span className="text-gray-400 font-normal">({wdoHudStatus.zoneSide})</span>
+                <div className="absolute bottom-8 right-20 z-20 pointer-events-none flex flex-col items-end gap-1 px-2.5 py-1.5 rounded-lg bg-[#090D12]/85 backdrop-blur border border-[#1E2633] text-[11px] font-mono shadow-lg">
+                  <div className="flex items-center gap-2">
+                    {wdoHudStatus.zoneLabel && (
+                      <span className="inline-flex items-center gap-1 text-sky-300 font-semibold">
+                        <span>{wdoHudStatus.zoneLabel}</span>
+                        <span className="text-gray-400 font-normal">({wdoHudStatus.zoneSide})</span>
+                      </span>
+                    )}
+                    {wdoHudStatus.zoneLabel && <span className="text-gray-600">|</span>}
+                    <span className="inline-flex items-center gap-1">
+                      <span className="text-gray-400">IFR({wdoHudStatus.rsiPeriod}):</span>
+                      <span className={`font-bold ${
+                        wdoHudStatus.rsiVal === null ? 'text-gray-400'
+                        : wdoHudStatus.rsiVal >= 86 ? 'text-rose-400'
+                        : wdoHudStatus.rsiVal <= 16 ? 'text-emerald-400'
+                        : 'text-gray-100'
+                      }`}>
+                        {wdoHudStatus.rsiVal !== null ? wdoHudStatus.rsiVal.toFixed(1) : '--'}
+                      </span>
                     </span>
+                  </div>
+                  {(wdoHudStatus.h1Emas.length > 0 || wdoHudStatus.d1Emas.length > 0) && (
+                    <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-0.5 text-[10px]">
+                      {wdoHudStatus.h1Emas.map((e) => (
+                        <span key={e.title} className="text-violet-400">
+                          {e.title.replace(' H1', '')} <span className="text-gray-200">{e.price.toFixed(1)}</span>
+                        </span>
+                      ))}
+                      {wdoHudStatus.h1Emas.length > 0 && wdoHudStatus.d1Emas.length > 0 && <span className="text-gray-600">|</span>}
+                      {wdoHudStatus.d1Emas.map((e) => (
+                        <span key={e.title} className="text-pink-400">
+                          {e.title.replace(' D1', '')} <span className="text-gray-200">{e.price.toFixed(1)}</span>
+                        </span>
+                      ))}
+                    </div>
                   )}
-                  {wdoHudStatus.zoneLabel && <span className="text-gray-600">|</span>}
-                  <span className="inline-flex items-center gap-1">
-                    <span className="text-gray-400">IFR({wdoHudStatus.rsiPeriod}):</span>
-                    <span className={`font-bold ${
-                      wdoHudStatus.rsiVal === null ? 'text-gray-400'
-                      : wdoHudStatus.rsiVal >= 86 ? 'text-rose-400'
-                      : wdoHudStatus.rsiVal <= 16 ? 'text-emerald-400'
-                      : 'text-gray-100'
-                    }`}>
-                      {wdoHudStatus.rsiVal !== null ? wdoHudStatus.rsiVal.toFixed(1) : '--'}
-                    </span>
-                  </span>
                 </div>
               )}
             {allCandles.length === 0 && (
