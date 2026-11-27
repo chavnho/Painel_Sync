@@ -238,9 +238,13 @@ function computeWdoOpeningOverlayLines(
   }
   const days = Array.from(daysMap.keys()).sort();
   if (days.length < 2) return empty;
-  const todayKey = days.at(days.length - 1)!;
-  const todayBars = daysMap.get(todayKey)!;
-  const prevBars = daysMap.get(days.at(days.length - 2)!)!;
+  const nowBrtKey = new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
+  const lastCandleDayKey = days.at(days.length - 1)!;
+  const hasTodaySession = lastCandleDayKey >= nowBrtKey;
+  const d1Key = hasTodaySession ? days.at(days.length - 2)! : lastCandleDayKey;
+  const todayKey = hasTodaySession ? lastCandleDayKey : nowBrtKey;
+  const todayBars = daysMap.get(todayKey) ?? new Array<LiveCandle>();
+  const prevBars = daysMap.get(d1Key)!;
   const prevHigh = Math.max(...prevBars.map((b) => b.high));
   const prevLow = Math.min(...prevBars.map((b) => b.low));
   const upLow = Number((prevHigh - chPts).toFixed(2));
