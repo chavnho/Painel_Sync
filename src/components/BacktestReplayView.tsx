@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CandlestickSeries,
   ColorType,
@@ -387,7 +387,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     };
 
     pollLive(true);
-    const id = window.setInterval(() => { pollLive(false); }, 250);
+    const id = window.setInterval(() => { pollLive(false); }, 750);
     return () => {
       cancelled = true;
       window.clearInterval(id);
@@ -448,6 +448,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
   }, [isTickMode, dayTicks, tickCursor, selectedDay, replayDate, activeCandles, timeframe]);
 
   const effectiveCandles = tickDrivenCandles ?? activeCandles;
+  const deferredCandles = useDeferredValue(effectiveCandles);
 
   const handleJumpToTime = () => {
     const clean = jumpTime.trim();
@@ -518,21 +519,21 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     const params: ManagedRobotParams = { ...baseParams, onBullishSignal, onBearishSignal };
     return runBacktestSimulation({
       robot: { name: botName, magicNumber: 9999, symbol: resolvedSymbol, timeframe, enabled: true, strategyType, params: params as Record<string, unknown>, risk },
-      candles: effectiveCandles,
+      candles: deferredCandles,
       maxBars: effectiveReplayBars > 0 ? effectiveReplayBars : effectiveCandles.length,
       startFromBar: strategyType === 'wdo_opening_zones' && selectedDay !== 'ALL' ? Math.max(4, replayInitialBar) : undefined,
       isTickMode,
     });
-  }, [effectiveCandles, effectiveReplayBars, replayInitialBar, selectedDay, isTickMode, botName, resolvedSymbol, timeframe, strategyType, maType, fastPeriod, slowPeriod, rsiPeriod, oversold, overbought, lookbackBars, onBullishSignal, onBearishSignal, risk]);
+  }, [deferredCandles, effectiveReplayBars, replayInitialBar, selectedDay, isTickMode, botName, resolvedSymbol, timeframe, strategyType, maType, fastPeriod, slowPeriod, rsiPeriod, oversold, overbought, lookbackBars, onBullishSignal, onBearishSignal, risk]);
 
   const wdoReplayHud = useMemo(() => {
     if (strategyType !== 'wdo_opening_zones' || activeCandles.length === 0) return null;
     const targetCount = effectiveReplayBars > 0 ? Math.min(effectiveReplayBars, effectiveCandles.length) : effectiveCandles.length;
-    const vis = effectiveCandles.slice(0, targetCount);
+    const vis = deferredCandles.slice(0, targetCount);
     const chPts = Math.max(1, Number(7) || 7);
     const rsiPer = Math.max(2, Number(rsiPeriod) || 7);
     return computeWdoHudState(vis, chPts, rsiPer, replayMtfCandles.h1, replayMtfCandles.d1, true, selectedDay);
-  }, [strategyType, effectiveCandles, effectiveReplayBars, rsiPeriod, replayMtfCandles, selectedDay]);
+  }, [strategyType, deferredCandles, effectiveReplayBars, rsiPeriod, replayMtfCandles, selectedDay]);
 
   const tickFetchAbortRef = useRef(0);
 
@@ -823,7 +824,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
       tradeLinesPrimitiveRef.current?.setSegments(new Array());
       markersPluginRef.current?.setMarkers(new Array());
     }
-  }, [effectiveCandles, effectiveReplayBars, simResult, strategyType, replayMtfCandles, selectedDay]);
+  }, [deferredCandles, effectiveReplayBars, simResult, strategyType, replayMtfCandles, selectedDay]);
 
   useEffect(() => {
     if (!isChartMaximized) return;
