@@ -224,8 +224,8 @@ function computeWdoOpeningOverlayLines(
   chPts = 7,
   h1Candles: Array<LiveCandle> = new Array<LiveCandle>(),
   d1Candles: Array<LiveCandle> = new Array<LiveCandle>()
-): Array<{ price: number; color: string; lineStyle: LineStyle; title: string }> {
-  const empty = new Array<{ price: number; color: string; lineStyle: LineStyle; title: string }>();
+): Array<{ price: number; color: string; lineStyle: LineStyle; lineWidth?: number; title: string }> {
+  const empty = new Array<{ price: number; color: string; lineStyle: LineStyle; lineWidth?: number; title: string }>();
   if (!Array.isArray(candles) || candles.length < 10) return empty;
   const daysMap = new Map<string, Array<LiveCandle>>();
   for (let i = 0; i < candles.length; i++) {
@@ -246,7 +246,7 @@ function computeWdoOpeningOverlayLines(
   const upLow = Number((prevHigh - chPts).toFixed(2));
   const dnHigh = Number((prevLow + chPts).toFixed(2));
 
-  const lines: Array<{ price: number; color: string; lineStyle: LineStyle; title: string }> = [
+  const lines: Array<{ price: number; color: string; lineStyle: LineStyle; lineWidth?: number; title: string }> = [
     { price: prevHigh, color: '#38BDF8', lineStyle: LineStyle.Solid, title: 'Max D-1' },
     { price: upLow, color: '#38BDF8', lineStyle: LineStyle.Dashed, title: 'Max-' + chPts },
     { price: dnHigh, color: '#38BDF8', lineStyle: LineStyle.Solid, title: 'Min+' + chPts },
@@ -289,9 +289,9 @@ function computeWdoOpeningOverlayLines(
 
   for (const p of Array.of(13, 17, 21)) {
     const eh = calcEmaVal(h1PriorCloses, p);
-    if (eh != null) lines.push({ price: eh, color: '#FBBF24', lineStyle: LineStyle.Dotted, title: 'EMA' + p + ' H1' });
+    if (eh != null) lines.push({ price: eh, color: '#FBBF24', lineStyle: LineStyle.Dotted, lineWidth: 2, title: 'EMA' + p + ' H1' });
     const ed = calcEmaVal(d1PriorCloses, p);
-    if (ed != null) lines.push({ price: ed, color: '#34D399', lineStyle: LineStyle.Dotted, title: 'EMA' + p + ' D1' });
+    if (ed != null) lines.push({ price: ed, color: '#F472B6', lineStyle: LineStyle.Dotted, lineWidth: 2, title: 'EMA' + p + ' D1' });
   }
   return lines;
 }
@@ -1208,7 +1208,7 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
             candleSeries.createPriceLine({
               price: wl.price,
               color: wl.color,
-              lineWidth: 1,
+              lineWidth: (wl.lineWidth ?? 1) as 1 | 2 | 3 | 4,
               lineStyle: wl.lineStyle,
               axisLabelVisible: true,
               axisLabelColor: '#18181B',
