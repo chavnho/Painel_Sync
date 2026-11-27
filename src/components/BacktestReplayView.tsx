@@ -139,6 +139,8 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
   const priceLinesRef = useRef<IPriceLine[]>([]);
   const overlaySeriesRef = useRef<Array<ISeriesApi<'Line'>>>([]);
   const lastRenderedCountRef = useRef<number>(0);
+  const lastRenderedLastTimeRef = useRef<number>(0);
+  const lastPriceLinesSigRef = useRef<string>("");
   const lastRenderedSeriesRef = useRef<LiveCandle[] | null>(null);
 
   useEffect(() => {
@@ -647,25 +649,33 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     const targetCount = effectiveReplayBars > 0 ? Math.min(effectiveReplayBars, effectiveCandles.length) : effectiveCandles.length;
     const visibleCandles = effectiveCandles.slice(0, targetCount);
     const baseSec = Math.floor(Date.now() / 1000) - activeCandles.length * 60;
+    const barTimes = visibleCandles.map((c, idx) => toChartTime(c.time, baseSec + idx * 60));
+    const lastIdx = targetCount - 1;
+    const lastBarTime = lastIdx >= 0 ? Number(barTimes.at(lastIdx) ?? 0) : 0;
     const isStepPlusOne =
       lastRenderedSeriesRef.current === activeCandles &&
       targetCount === lastRenderedCountRef.current + 1 &&
       targetCount > 1;
-    const barTimes = visibleCandles.map((c, idx) => toChartTime(c.time, baseSec + idx * 60));
-    if (isStepPlusOne) {
-      const idx = targetCount - 1;
-      const c = visibleCandles.at(idx)!;
-      series.update({ time: barTimes.at(idx)!, open: Number(c.open), high: Number(c.high), low: Number(c.low), close: Number(c.close) });
+    const isLiveTickIncremental =
+      isLiveMode &&
+      targetCount > 1 &&
+      (targetCount === lastRenderedCountRef.current || targetCount === lastRenderedCountRef.current + 1) &&
+      lastRenderedLastTimeRef.current > 0 &&
+      lastBarTime >= lastRenderedLastTimeRef.current;
+    if (isStepPlusOne || isLiveTickIncremental) {
+      const c = visibleCandles.at(lastIdx)!;
+      series.update({ time: barTimes.at(lastIdx)!, open: Number(c.open), high: Number(c.high), low: Number(c.low), close: Number(c.close) });
     } else {
       series.setData(visibleCandles.map((c, idx) => ({
         time: barTimes.at(idx)!, open: Number(c.open), high: Number(c.high), low: Number(c.low), close: Number(c.close),
       })));
     }
+    if (!(isStepPlusOne || isLiveTickIncremental)) lastPriceLinesSigRef.current = "";
     lastRenderedSeriesRef.current = activeCandles;
     lastRenderedCountRef.current = targetCount;
-    for (const pl of priceLinesRef.current) { try { series.removePriceLine(pl); } catch {} }
-    priceLinesRef.current = [];
+    lastRenderedLastTimeRef.current = lastBarTime;
     const nextLocalLevels = new Array<LocalLevelItem>();
+    const pendingPriceLines = new Array<{ price: number; color: string; lineWidth: number; lineStyle: number; title: string }>();
     if (strategyType === 'wdo_opening_zones' && visibleCandles.length >= 10) {
       const chPts = Math.max(1, Number(7) || 7);
       const wdoLines = computeWdoOpeningOverlayLines(visibleCandles, chPts, replayMtfCandles.h1, replayMtfCandles.d1, true, selectedDay);
@@ -681,19 +691,34 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
             label: wl.title.replace('EMA', '').replace(' H1', '').replace(' D1', '').replace(/^/, wl.title.endsWith('H1') ? 'H' : 'D') + ' - ' + wl.price.toFixed(1),
           });
         } else {
-          priceLinesRef.current.push(
-            series.createPriceLine({
-              price: wl.price,
-              color: wl.color,
-              lineWidth: wl.lineWidth,
-              lineStyle: wl.lineStyle,
-              axisLabelVisible: true,
-              axisLabelColor: '#18181B',
-              axisLabelTextColor: wl.color,
-              title: wl.title,
-            })
-          );
+          pendingPriceLines.push({
+            price: wl.price,
+            color: wl.color,
+            lineWidth: wl.lineWidth,
+            lineStyle: wl.lineStyle,
+            title: wl.title,
+          });
         }
+      }
+    }
+    const plSig = pendingPriceLines.map((p) => `${p.title}:${p.price}:${p.color}:${p.lineStyle}`).join("|");
+    if (plSig !== lastPriceLinesSigRef.current) {
+      lastPriceLinesSigRef.current = plSig;
+      for (const pl of priceLinesRef.current) { try { series.removePriceLine(pl); } catch {} }
+      priceLinesRef.current = new Array();
+      for (const p of pendingPriceLines) {
+        priceLinesRef.current.push(
+          series.createPriceLine({
+            price: p.price,
+            color: p.color,
+            lineWidth: p.lineWidth as 1 | 2 | 3 | 4,
+            lineStyle: p.lineStyle,
+            axisLabelVisible: true,
+            axisLabelColor: '#18181B',
+            axisLabelTextColor: p.color,
+            title: p.title,
+          })
+        );
       }
     }
     tradeLinesPrimitiveRef.current?.setLocalLevels(nextLocalLevels);
