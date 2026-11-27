@@ -251,10 +251,10 @@ function computeWdoOpeningOverlayLines(
   const dnHigh = Number((prevLow + chPts).toFixed(2));
 
   const lines: Array<{ price: number; color: string; lineStyle: LineStyle; lineWidth?: number; title: string }> = [
-    { price: prevHigh, color: '#38BDF8', lineStyle: LineStyle.Solid, lineWidth: 2, title: 'Max D-1' },
-    { price: upLow, color: '#38BDF8', lineStyle: LineStyle.Dashed, lineWidth: 2, title: 'Max-' + chPts },
-    { price: dnHigh, color: '#38BDF8', lineStyle: LineStyle.Dashed, lineWidth: 2, title: 'Min+' + chPts },
-    { price: prevLow, color: '#38BDF8', lineStyle: LineStyle.Solid, lineWidth: 2, title: 'Min D-1' },
+    { price: prevHigh, color: '#4169E1', lineStyle: LineStyle.Solid, lineWidth: 2, title: 'Max D-1' },
+    { price: upLow, color: '#4169E1', lineStyle: LineStyle.Dashed, lineWidth: 2, title: 'Max-' + chPts },
+    { price: dnHigh, color: '#4169E1', lineStyle: LineStyle.Dashed, lineWidth: 2, title: 'Min+' + chPts },
+    { price: prevLow, color: '#4169E1', lineStyle: LineStyle.Solid, lineWidth: 2, title: 'Min D-1' },
   ];
 
   const firstTodayTs = Number(todayBars.at(0)?.time || 0);
@@ -1575,7 +1575,7 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
                 <div className="absolute bottom-8 right-20 z-20 pointer-events-none flex flex-col items-end gap-1 px-2.5 py-1.5 rounded-lg bg-[#090D12]/85 backdrop-blur border border-[#1E2633] text-[11px] font-mono shadow-lg">
                   <div className="flex items-center gap-2">
                     {wdoHudStatus.zoneLabel && (
-                      <span className="inline-flex items-center gap-1 text-sky-300 font-semibold">
+                      <span className="inline-flex items-center gap-1 text-[#60A5FA] font-semibold">
                         <span>{wdoHudStatus.zoneLabel}</span>
                         <span className="text-gray-400 font-normal">({wdoHudStatus.zoneSide})</span>
                       </span>
@@ -1613,7 +1613,7 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
                   )}
                   {wdoHudStatus.prevDayFormatted && (
                     <div className="w-full pt-1 border-t border-[#1E2633]/80 flex items-center justify-between gap-3 text-[10px] text-gray-400">
-                      <span>Canal D-1: <span className="text-sky-300 font-semibold">{wdoHudStatus.prevDayFormatted}</span></span>
+                      <span>Canal D-1: <span className="text-[#60A5FA] font-semibold">{wdoHudStatus.prevDayFormatted}</span></span>
                       <span>Pregão: <span className="text-gray-200">{wdoHudStatus.todayDayFormatted}</span></span>
                     </div>
                   )}
