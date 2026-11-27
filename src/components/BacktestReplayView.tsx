@@ -926,7 +926,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
               </button>
             )}
             {isTradesDrawerOpen && (
-              <aside className="shrink-0 w-[390px] max-w-[48vw] h-full bg-[#0F141C] border-l border-[#1E2633] flex flex-col">
+              <aside className="shrink-0 w-[480px] max-w-[55vw] h-full bg-[#0F141C] border-l border-[#1E2633] flex flex-col">
                 <div className="shrink-0 px-3.5 py-2 border-b border-[#1E2633] flex items-center justify-between">
                   <span className="text-xs font-semibold text-gray-100">Operações Simuladas ({simResult?.trades.length ?? 0})</span>
                   <button type="button" onClick={() => setIsTradesDrawerOpen(false)} className="p-1 rounded hover:bg-[#1E2633] text-gray-400 hover:text-gray-200 cursor-pointer"><ChevronRight className="w-4 h-4" /></button>
