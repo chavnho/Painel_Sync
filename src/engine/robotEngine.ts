@@ -18,6 +18,7 @@ export interface EngineOrderDirective {
   magicNumber: number;
   side?: "COMPRA" | "VENDA";
   volume?: number;
+  entryPrice?: number;
   sl?: number;
   tp?: number;
   barTime: number;

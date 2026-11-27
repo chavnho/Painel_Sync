@@ -215,7 +215,7 @@ export function runBacktestSimulation(input: {
         closePos(curBar.close, barTs, fmt.label, evalRes.directive.reason); closedOnThisBar = true;
       } else if (evalRes.directive.type === "OPEN_ORDER" && !pos && !closedOnThisBar && evalRes.directive.side) {
         lastSignalBar = evalRes.directive.barTime;
-        const execPrice = Number(curBar.open) || curBar.close;
+        const execPrice = Number(evalRes.directive.entryPrice) > 0 ? Number(evalRes.directive.entryPrice) : (Number(curBar.open) || curBar.close);
         const stopPts = Math.max(0, Number(input.robot.risk.stopPoints) || 0);
         const takePts = Math.max(0, Number(input.robot.risk.takePoints) || 0);
         const isBuySide = evalRes.directive.side === "COMPRA";
