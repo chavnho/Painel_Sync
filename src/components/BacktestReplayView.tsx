@@ -194,7 +194,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
           const fallbackDay = new Date(Number(list.at(-1)?.time || 0) * 1000).toISOString().slice(0, 10);
           setSelectedDay(fallbackDay);
         }
-        if (strategyType === 'wdo_opening_zones') { const td = dayMatches.length > 0 ? replayDate : new Date(Number(list.at(-1)?.time || 0) * 1000).toISOString().slice(0, 10); const upTo = list.filter((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) <= td); const fIdx = upTo.findIndex((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) === td); setReplayBars(fIdx > 0 ? fIdx : 1); } else { if (isTickMode) { setTickCursor(1); } else { setReplayBars(replayInitialBar); } }
+        if (strategyType === 'wdo_opening_zones') { const td = dayMatches.length > 0 ? replayDate : new Date(Number(list.at(-1)?.time || 0) * 1000).toISOString().slice(0, 10); const upTo = list.filter((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) <= td); const fIdx = upTo.findIndex((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) === td); setReplayBars(fIdx > 0 ? fIdx : 1); } else { if (isTickMode) { setTickCursor(0); } else { setReplayBars(replayInitialBar); } }
         setCandleStatus(`Cache pronto (${dayMatches.length || list.length} velas). Clique em Play Replay ou 100%.`);
       } else {
         const brDate = replayDate.split('-').reverse().join('/');
@@ -345,7 +345,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     if (!isTickMode || dayTicks.length === 0) return null;
     const targetDay = selectedDay !== 'ALL' ? selectedDay : replayDate;
     const prior = activeCandles.filter((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) < targetDay);
-    const limit = Math.max(1, Math.min(dayTicks.length, tickCursor));
+    const limit = Math.max(0, Math.min(dayTicks.length, tickCursor));
     const tfSec = timeframe === 'M1' ? 60 : timeframe === 'M15' ? 900 : timeframe === 'H1' ? 3600 : 300;
     const built = new Array<LiveCandle>();
     let curBucket = -1;
@@ -432,7 +432,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
         if (idx === 0) {
           const curCandleTime = Number(activeCandles.at(Math.max(0, Math.min(activeCandles.length - 1, replayBars - 1)))?.time || 0);
           const curDayStr = curCandleTime > 0 ? new Date(curCandleTime * 1000).toISOString().slice(0, 10) : '';
-          let startCursor = 1;
+          let startCursor = 0;
           if (curDayStr === targetDay && replayBars < activeCandles.length) {
             const foundIdx = accumulated.findIndex((tk) => Math.floor(Number(tk[0]) / 1000) >= curCandleTime);
             if (foundIdx >= 0) startCursor = foundIdx + 1;
@@ -913,7 +913,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
               <button type="button" disabled={activeCandles.length === 0 || replayBars >= activeCandles.length} onClick={handleStepNextDay} title="Avançar para o fim do pregão atual ou abertura do próximo dia" className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-sky-700/50 text-sky-300 text-xs font-medium cursor-pointer disabled:opacity-40">
                 <FastForward className="w-3.5 h-3.5" /><span>+1 Dia</span>
               </button>
-            <button type="button" disabled={candles.length === 0} onClick={() => { setIsPlaying(false); if (isTickMode) { setTickCursor(1); } else { setReplayBars(replayInitialBar); } }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-gray-200 text-xs cursor-pointer disabled:opacity-40">
+            <button type="button" disabled={candles.length === 0} onClick={() => { setIsPlaying(false); if (isTickMode) { setTickCursor(0); } else { setReplayBars(replayInitialBar); } }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-gray-200 text-xs cursor-pointer disabled:opacity-40">
               <RotateCcw className="w-3.5 h-3.5" /><span>Zerar</span>
             </button>
             <button type="button" disabled={activeCandles.length === 0} onClick={() => { setIsPlaying(false); setReplayBars(activeCandles.length); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-emerald-300 text-xs cursor-pointer disabled:opacity-40">
