@@ -253,10 +253,6 @@ export const TradingChartView = memo(function TradingChartView({
   const resolveCurrentSymbol = (rawSym?: string): string => {
     const up = (rawSym || '').toUpperCase().trim();
     if (!up) return '';
-    if (up.endsWith('@N') || up.endsWith('$')) {
-      const baseRoot = up.replace(/(@N|\$)$/, '');
-      if (baseRoot && activeContracts[baseRoot]) return activeContracts[baseRoot].toUpperCase();
-    }
     const m = /^(WDO|WIN|IND|DOL|BIT)[FGHJKMNQUVXZ]\d{2}$/.exec(up);
     const root = m?.at(1);
     if (root && activeContracts[root]) return activeContracts[root].toUpperCase();
