@@ -38,7 +38,13 @@
   - **2A (Rompimento das bordas do Canal Superior na 1a vela M5):** Durante a 1a vela de M5, **VENDE a mercado** se Preco >= (Maxima_D1 + 1 tick) OU Preco <= (Maxima_D1 - 7 - 1 tick). Se fechar a 1a vela sem romper, **2B assume** a partir da 2a vela de M5.
   - **2B (Rompimento):** **VENDA** quando Preco >= Maxima OU Preco <= Minima da vela anterior de M5.
 - **Z3 (Compra ou Venda - Reversao nas extremidades):**
-  - **3A (EMAs / Indicadores):** Pendente
+  - **3A (Corredor Bi-direcional entre a EMA mais proxima acima e a EMA mais proxima abaixo na 1a vela M5):**
+    - Avalia as 6 medias: EMA(13, 17, 21) do H1 e EMA(13, 17, 21) do D1.
+    - Identifica a **EMA mais proxima ACIMA** do Preco_Abertura (teto de resistencia) e a **EMA mais proxima ABAIXO** do Preco_Abertura (piso de suporte).
+    - Monitora ambas simultaneamente durante a 1a vela de M5 — **a que o preco tocar primeiro dispara a operacao**:
+      - Tocou primeiro na EMA de cima (Preco >= EMA_Acima_Mais_Proxima): **VENDE a mercado** imediatamente.
+      - Tocou primeiro na EMA de baixo (Preco <= EMA_Abaixo_Mais_Proxima): **COMPRA a mercado** imediatamente.
+    - Se a 1a vela M5 fechar sem tocar nenhuma das duas medias: **3B assume** a partir da 2a vela de M5.
   - **3B (Rompimento):** **COMPRA** quando Preco <= Minima da vela anterior de M5 OU **VENDA** quando Preco >= Maxima da vela anterior de M5.
 - **Z4 (Somente Compra):**
   - **4A (Rompimento das bordas do Canal Inferior na 1a vela M5):** Durante a 1a vela de M5, **COMPRA a mercado** se Preco >= (Minima_D1 + 7 + 1 tick) OU Preco <= (Minima_D1 - 1 tick). Se fechar a 1a vela sem romper, **4B assume** a partir da 2a vela de M5.
