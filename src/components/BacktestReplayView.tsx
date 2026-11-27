@@ -28,7 +28,8 @@ import {
   X,
 } from 'lucide-react';
 import { runBacktestSimulation } from '../engine/backtestSimulator';
-import { TradeLinesPrimitive, type TradeSegmentItem } from '../utils/tradeLinesPrimitive';
+import { TradeLinesPrimitive, type TradeSegmentItem, type LocalLevelItem } from '../utils/tradeLinesPrimitive';
+import { computeWdoOpeningOverlayLines, computeWdoHudState } from '../utils/wdoChartOverlay';
 import type {
   LiveCandle,
   ManagedRobot,
@@ -168,7 +169,18 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     setLoadingCandles(true);
     setCandleStatus(`Carregando pregão ${replayDate.split('-').reverse().join('/')} de ${resolvedSymbol} (${timeframe}) no MT5...`);
     try {
-      const list = await syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, timeframe, { force: true, isManualRequest: true, date: replayDate });
+      const isWdoZones = strategyType === 'wdo_opening_zones';
+      const [list, h1List, d1List] = await Promise.all([
+        syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, timeframe, isWdoZones ? { force: true, isManualRequest: true } : { force: true, isManualRequest: true, date: replayDate }),
+        isWdoZones ? syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, 'H1', { force: true }).catch(() => new Array<LiveCandle>()) : Promise.resolve(new Array<LiveCandle>()),
+        isWdoZones ? syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, 'D1', { force: true }).catch(() => new Array<LiveCandle>()) : Promise.resolve(new Array<LiveCandle>()),
+      ]);
+      if (isWdoZones) {
+        setReplayMtfCandles({
+          h1: Array.isArray(h1List) ? h1List : new Array<LiveCandle>(),
+          d1: Array.isArray(d1List) ? d1List : new Array<LiveCandle>(),
+        });
+      }
       if (list && list.length > 0) {
         setCandles(list);
         const dayMatches = list.filter((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) === replayDate);
@@ -178,7 +190,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
           const fallbackDay = new Date(Number(list.at(-1)?.time || 0) * 1000).toISOString().slice(0, 10);
           setSelectedDay(fallbackDay);
         }
-        setReplayBars(1);
+        if (strategyType === 'wdo_opening_zones') { const td = dayMatches.length > 0 ? replayDate : new Date(Number(list.at(-1)?.time || 0) * 1000).toISOString().slice(0, 10); const upTo = list.filter((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) <= td); const fIdx = upTo.findIndex((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) === td); setReplayBars(fIdx > 0 ? fIdx : 1); } else { setReplayBars(replayInitialBar); }
         setCandleStatus(`Cache pronto (${dayMatches.length || list.length} velas). Clique em Play Replay ou 100%.`);
       } else {
         const brDate = replayDate.split('-').reverse().join('/');
@@ -203,11 +215,35 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     return Array.from(set).sort((a, b) => b.localeCompare(a));
   }, [candles]);
 
+  const [replayMtfCandles, setReplayMtfCandles] = useState<{ h1: Array<LiveCandle>; d1: Array<LiveCandle> }>({ h1: new Array<LiveCandle>(), d1: new Array<LiveCandle>() });
+
+  useEffect(() => {
+    if (strategyType !== 'wdo_opening_zones' || !resolvedSymbol || !creds.channelId || !creds.token) return;
+    let alive = true;
+    Promise.all([
+      fetchCandles(creds.channelId, creds.token, resolvedSymbol, 'H1').catch(() => new Array<LiveCandle>()),
+      fetchCandles(creds.channelId, creds.token, resolvedSymbol, 'D1').catch(() => new Array<LiveCandle>()),
+    ]).then(([h1, d1]) => {
+      if (alive) setReplayMtfCandles({ h1: Array.isArray(h1) ? h1 : new Array<LiveCandle>(), d1: Array.isArray(d1) ? d1 : new Array<LiveCandle>() });
+    });
+    return () => { alive = false; };
+  }, [strategyType, resolvedSymbol, creds.channelId, creds.token]);
+
   const activeCandles = useMemo(() => {
     if (selectedDay === 'ALL' || availableDays.length === 0) return candles;
+    if (strategyType === 'wdo_opening_zones') {
+      const upToDay = candles.filter((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) <= selectedDay);
+      return upToDay.length > 0 ? upToDay : candles;
+    }
     const filtered = candles.filter((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) === selectedDay);
     return filtered.length > 0 ? filtered : candles;
-  }, [candles, selectedDay, availableDays]);
+  }, [candles, selectedDay, availableDays, strategyType]);
+
+  const replayInitialBar = useMemo(() => {
+    if (strategyType !== 'wdo_opening_zones' || selectedDay === 'ALL' || activeCandles.length === 0) return 1;
+    const firstIdx = activeCandles.findIndex((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) === selectedDay);
+    return firstIdx > 0 ? firstIdx : 1;
+  }, [strategyType, selectedDay, activeCandles]);
 
   useEffect(() => {
     if (!isLiveMode) return;
@@ -300,8 +336,36 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
       robot: { name: botName, magicNumber: 9999, symbol: resolvedSymbol, timeframe, enabled: true, strategyType, params: params as Record<string, unknown>, risk },
       candles: activeCandles,
       maxBars: replayBars > 0 ? replayBars : activeCandles.length,
+      startFromBar: strategyType === 'wdo_opening_zones' && selectedDay !== 'ALL' ? Math.max(4, replayInitialBar - 1) : undefined,
     });
-  }, [activeCandles, replayBars, botName, resolvedSymbol, timeframe, strategyType, maType, fastPeriod, slowPeriod, rsiPeriod, oversold, overbought, lookbackBars, onBullishSignal, onBearishSignal, risk]);
+  }, [activeCandles, replayBars, replayInitialBar, selectedDay, botName, resolvedSymbol, timeframe, strategyType, maType, fastPeriod, slowPeriod, rsiPeriod, oversold, overbought, lookbackBars, onBullishSignal, onBearishSignal, risk]);
+
+  const wdoReplayHud = useMemo(() => {
+    if (strategyType !== 'wdo_opening_zones' || activeCandles.length === 0) return null;
+    const targetCount = replayBars > 0 ? Math.min(replayBars, activeCandles.length) : activeCandles.length;
+    const vis = activeCandles.slice(0, targetCount);
+    const chPts = Math.max(1, Number(7) || 7);
+    const rsiPer = Math.max(2, Number(rsiPeriod) || 7);
+    return computeWdoHudState(vis, chPts, rsiPer, replayMtfCandles.h1, replayMtfCandles.d1, true, selectedDay);
+  }, [strategyType, activeCandles, replayBars, rsiPeriod, replayMtfCandles, selectedDay]);
+
+  const handleStepNextDay = () => {
+    if (activeCandles.length === 0) return;
+    setIsPlaying(false);
+    const curIdx = Math.max(0, Math.min(activeCandles.length - 1, replayBars - 1));
+    const curDay = new Date(Number(activeCandles.at(curIdx)?.time || 0) * 1000).toISOString().slice(0, 10);
+    let lastOfCurDay = curIdx;
+    while (lastOfCurDay + 1 < activeCandles.length && new Date(Number(activeCandles.at(lastOfCurDay + 1)?.time || 0) * 1000).toISOString().slice(0, 10) === curDay) {
+      lastOfCurDay++;
+    }
+    if (replayBars < lastOfCurDay + 1) {
+      setReplayBars(lastOfCurDay + 1);
+    } else if (lastOfCurDay + 1 < activeCandles.length) {
+      setReplayBars(lastOfCurDay + 2);
+    } else {
+      setReplayBars(activeCandles.length);
+    }
+  };
 
   useEffect(() => {
     const el = chartWrapRef.current;
@@ -312,7 +376,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
       handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
       handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
       layout: { background: { type: ColorType.Solid, color: '#090D12' }, textColor: '#94A3B8' },
-      grid: { vertLines: { color: '#1E2633' }, horzLines: { color: '#1E2633' } },
+      grid: { vertLines: { visible: false }, horzLines: { visible: false } },
       crosshair: { mode: CrosshairMode.Normal },
       timeScale: { borderColor: '#1E2633', timeVisible: true, secondsVisible: false },
       rightPriceScale: { borderColor: '#1E2633' },
@@ -362,7 +426,39 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     lastRenderedCountRef.current = targetCount;
     for (const pl of priceLinesRef.current) { try { series.removePriceLine(pl); } catch {} }
     priceLinesRef.current = [];
-    const overlays = simResult?.overlays ?? [];
+    const nextLocalLevels = new Array<LocalLevelItem>();
+    if (strategyType === 'wdo_opening_zones' && visibleCandles.length >= 10) {
+      const chPts = Math.max(1, Number(7) || 7);
+      const wdoLines = computeWdoOpeningOverlayLines(visibleCandles, chPts, replayMtfCandles.h1, replayMtfCandles.d1, true, selectedDay);
+      const leftT = barTimes.at(Math.max(0, barTimes.length - 6));
+      const rightT = barTimes.at(barTimes.length - 1);
+      for (const wl of wdoLines) {
+        if (wl.title.startsWith('EMA') && leftT !== undefined && rightT !== undefined) {
+          nextLocalLevels.push({
+            anchorLeftTime: leftT,
+            anchorRightTime: rightT,
+            price: wl.price,
+            color: wl.color,
+            label: wl.title.replace('EMA', '').replace(' H1', '').replace(' D1', '').replace(/^/, wl.title.endsWith('H1') ? 'H' : 'D') + ' - ' + wl.price.toFixed(1),
+          });
+        } else {
+          priceLinesRef.current.push(
+            series.createPriceLine({
+              price: wl.price,
+              color: wl.color,
+              lineWidth: wl.lineWidth,
+              lineStyle: wl.lineStyle,
+              axisLabelVisible: true,
+              axisLabelColor: '#18181B',
+              axisLabelTextColor: wl.color,
+              title: wl.title,
+            })
+          );
+        }
+      }
+    }
+    tradeLinesPrimitiveRef.current?.setLocalLevels(nextLocalLevels);
+    const overlays = strategyType === 'wdo_opening_zones' ? new Array() : (simResult?.overlays ?? []);
     while (overlaySeriesRef.current.length > overlays.length) {
       const removed = overlaySeriesRef.current.pop();
       if (removed) { try { chart.removeSeries(removed); } catch {} }
@@ -445,7 +541,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
       tradeLinesPrimitiveRef.current?.setSegments([]);
       markersPluginRef.current?.setMarkers([]);
     }
-  }, [activeCandles, replayBars, simResult]);
+  }, [activeCandles, replayBars, simResult, strategyType, replayMtfCandles, selectedDay]);
 
   useEffect(() => {
     if (!isChartMaximized) return;
@@ -619,6 +715,54 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
           </div>
           <div className={isChartMaximized ? 'relative flex-1 w-full min-h-0 overflow-hidden' : 'relative w-full h-[calc(100vh-370px)] min-h-[420px] overflow-hidden'}>
             <div ref={chartWrapRef} className="absolute inset-0" />
+            {wdoReplayHud && (
+              <div className="absolute bottom-8 right-20 z-20 pointer-events-none flex flex-col items-end gap-1 px-2.5 py-1.5 rounded-lg bg-[#090D12]/85 backdrop-blur border border-[#1E2633] text-[11px] font-mono shadow-lg">
+                <div className="flex items-center gap-2">
+                  {wdoReplayHud.zoneLabel && (
+                    <span className="inline-flex items-center gap-1 text-[#60A5FA] font-semibold">
+                      <span>{wdoReplayHud.zoneLabel}</span>
+                      <span className="text-gray-400 font-normal">({wdoReplayHud.zoneSide})</span>
+                    </span>
+                  )}
+                  {wdoReplayHud.zoneLabel && <span className="text-gray-600">|</span>}
+                  <span className="inline-flex items-center gap-1">
+                    <span className="text-gray-400">IFR({wdoReplayHud.rsiPeriod}):</span>
+                    <span className={`font-bold ${
+                      wdoReplayHud.rsiVal === null ? 'text-gray-400'
+                      : wdoReplayHud.rsiVal >= 86 ? 'text-rose-400'
+                      : wdoReplayHud.rsiVal <= 16 ? 'text-emerald-400'
+                      : 'text-gray-100'
+                    }`}>
+                      {wdoReplayHud.rsiVal !== null ? wdoReplayHud.rsiVal.toFixed(1) : '--'}
+                    </span>
+                  </span>
+                </div>
+                {(wdoReplayHud.d1Emas.length > 0 || wdoReplayHud.h1Emas.length > 0) && (
+                  <div className="grid grid-cols-2 gap-x-3 text-[10px] leading-tight pt-1 border-t border-[#1E2633]/80 w-full">
+                    <div className="flex flex-col gap-0.5">
+                      {[...wdoReplayHud.d1Emas].reverse().map((e) => (
+                        <div key={e.title} className="text-green-500 whitespace-nowrap">
+                          D{e.title.replace('EMA', '').replace(' D1', '')} - <span className="text-gray-200">{e.price.toFixed(1)}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex flex-col gap-0.5 text-right">
+                      {[...wdoReplayHud.h1Emas].reverse().map((e) => (
+                        <div key={e.title} className="text-purple-400 whitespace-nowrap">
+                          H{e.title.replace('EMA', '').replace(' H1', '')} - <span className="text-gray-200">{e.price.toFixed(1)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {wdoReplayHud.prevDayFormatted && (
+                  <div className="w-full pt-1 border-t border-[#1E2633]/80 flex items-center justify-between gap-3 text-[10px] text-gray-400">
+                    <span>Canal D-1: <span className="text-[#60A5FA] font-semibold">{wdoReplayHud.prevDayFormatted}</span></span>
+                    <span>Pregão: <span className="text-gray-200">{wdoReplayHud.todayDayFormatted}</span></span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -652,13 +796,16 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
       </div>
       <div className={isChartMaximized ? "fixed bottom-0 inset-x-0 z-50 h-[50px] bg-[#090D12]/95 backdrop-blur border-t border-[#1E2633] px-4 flex items-center justify-between gap-3 shadow-2xl overflow-hidden" : "shrink-0 z-30 w-full h-[50px] bg-[#090D12]/90 border-t border-[#1E2633] px-4 flex items-center justify-between gap-3 overflow-hidden"}>
           <div className="shrink-0 flex flex-nowrap items-center gap-1.5 whitespace-nowrap">
-            <button type="button" disabled={candles.length === 0} onClick={() => { if (!isPlaying && replayBars >= candles.length) setReplayBars(1); setIsPlaying((p) => !p); }} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold cursor-pointer disabled:opacity-40">
+            <button type="button" disabled={candles.length === 0} onClick={() => { if (!isPlaying && replayBars >= candles.length) setReplayBars(replayInitialBar); setIsPlaying((p) => !p); }} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold cursor-pointer disabled:opacity-40">
               {isPlaying ? <><Pause className="w-3.5 h-3.5" /><span>Pausar</span></> : <><Play className="w-3.5 h-3.5" /><span>Play Replay</span></>}
             </button>
             <button type="button" disabled={activeCandles.length === 0 || replayBars >= activeCandles.length} onClick={() => { setIsPlaying(false); setReplayBars((p) => Math.min(activeCandles.length, p + 1)); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-gray-200 text-xs cursor-pointer disabled:opacity-40">
               <SkipForward className="w-3.5 h-3.5" /><span>+1 Vela</span>
             </button>
-            <button type="button" disabled={candles.length === 0} onClick={() => { setIsPlaying(false); setReplayBars(1); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-gray-200 text-xs cursor-pointer disabled:opacity-40">
+              <button type="button" disabled={activeCandles.length === 0 || replayBars >= activeCandles.length} onClick={handleStepNextDay} title="Avançar para o fim do pregão atual ou abertura do próximo dia" className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-sky-700/50 text-sky-300 text-xs font-medium cursor-pointer disabled:opacity-40">
+                <FastForward className="w-3.5 h-3.5" /><span>+1 Dia</span>
+              </button>
+            <button type="button" disabled={candles.length === 0} onClick={() => { setIsPlaying(false); setReplayBars(replayInitialBar); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-gray-200 text-xs cursor-pointer disabled:opacity-40">
               <RotateCcw className="w-3.5 h-3.5" /><span>Zerar</span>
             </button>
             <button type="button" disabled={activeCandles.length === 0} onClick={() => { setIsPlaying(false); setReplayBars(activeCandles.length); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-emerald-300 text-xs cursor-pointer disabled:opacity-40">

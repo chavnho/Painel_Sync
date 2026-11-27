@@ -180,7 +180,7 @@ export function evaluateWdoOpeningZones(input: {
     const tpPts = Number(robot.risk.takePoints) > 0 ? Number(robot.risk.takePoints) : 6;
     const sl = trigSide === "COMPRA" ? snapPriceToTick(trigPrice - slPts, spec.tickSize, spec.digits) : snapPriceToTick(trigPrice + slPts, spec.tickSize, spec.digits);
     const tp = trigSide === "COMPRA" ? snapPriceToTick(trigPrice + tpPts, spec.tickSize, spec.digits) : snapPriceToTick(trigPrice - tpPts, spec.tickSize, spec.digits);
-    return { decision: `${hhmm} ORDEM ${trigSide} ${trigTag} @ ${trigPrice}`, overlays, directive: { type: "OPEN_ORDER", symbol: resolvedSymbol, magicNumber: robot.magicNumber, side: trigSide, volume: safeVol, sl, tp, barTime: lastBarTime, reason: trigTag } };
+    return { decision: `${hhmm} ORDEM ${trigSide} ${trigTag} @ ${trigPrice}`, overlays, directive: { type: "OPEN_ORDER", symbol: resolvedSymbol, magicNumber: robot.magicNumber, side: trigSide, volume: safeVol, entryPrice: trigPrice, sl, tp, barTime: lastBarTime, reason: trigTag } };
   }
   return { decision: `${hhmm} ${note}`, directive: null, overlays };
 }

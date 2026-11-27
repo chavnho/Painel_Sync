@@ -93,6 +93,7 @@ export function runBacktestSimulation(input: {
   robot: Omit<PersistedManagedRobot, "id" | "channelId" | "createdAt" | "updatedAt" | "lastSignalBar" | "lastDecision">;
   candles: LiveCandle[];
   maxBars?: number;
+  startFromBar?: number;
 }): BacktestRunResult {
   const allNorm = toNormalizedCandles(input.candles);
   const limit = input.maxBars && input.maxBars > 0 ? Math.min(allNorm.length, Math.trunc(input.maxBars)) : allNorm.length;
@@ -154,7 +155,8 @@ export function runBacktestSimulation(input: {
     pos = null;
   };
 
-  for (let i = 4; i < slice.length; i++) {
+  const firstLoopBar = Math.max(4, Number(input.startFromBar) || 4);
+  for (let i = firstLoopBar; i < slice.length; i++) {
     const windowBars = slice.slice(0, i + 1);
     const curBar = windowBars.at(-1)!;
     const barTs = Number(curBar.time) || i * 60;
@@ -215,7 +217,7 @@ export function runBacktestSimulation(input: {
         closePos(curBar.close, barTs, fmt.label, evalRes.directive.reason); closedOnThisBar = true;
       } else if (evalRes.directive.type === "OPEN_ORDER" && !pos && !closedOnThisBar && evalRes.directive.side) {
         lastSignalBar = evalRes.directive.barTime;
-        const execPrice = Number(curBar.open) || curBar.close;
+        const execPrice = Number(evalRes.directive.entryPrice) > 0 ? Number(evalRes.directive.entryPrice) : (Number(curBar.open) || curBar.close);
         const stopPts = Math.max(0, Number(input.robot.risk.stopPoints) || 0);
         const takePts = Math.max(0, Number(input.robot.risk.takePoints) || 0);
         const isBuySide = evalRes.directive.side === "COMPRA";
