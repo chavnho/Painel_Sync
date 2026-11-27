@@ -35,6 +35,7 @@ import type {
   DashboardView,
   ExecutedTrade,
   LiveCandle,
+  ManagedRobot,
   LiveMarker,
   OpenPosition,
   PendingOrder,
@@ -52,6 +53,7 @@ import { formatBrl, formatPrice } from '../utils/tradingMath';
 
 interface TradingChartViewProps {
   robots: RobotStream[];
+  managedRobots?: ManagedRobot[];
   activeContracts?: Record<string, string>;
   selectedRobotId: string | 'ALL';
   onSelectRobot?: (robotId: string | 'ALL') => void;
@@ -217,8 +219,67 @@ function writeCachedSymbols(channelId: string, symbols: string[]) {
   }
 }
 
+function computeWdoOpeningOverlayLines(candles: LiveCandle[], chPts = 7) {
+  if (!Array.isArray(candles) || candles.length < 10) return [];
+  const daysMap = new Map<string, LiveCandle[]>();
+  for (let i = 0; i < candles.length; i++) {
+    const c = candles[i];
+    const ts = Number(c.time) > 1e11 ? Math.floor(Number(c.time) / 1000) : Math.floor(Number(c.time) || i * 300);
+    const dk = new Date(ts * 1000).toISOString().slice(0, 10);
+    const arr = daysMap.get(dk) ?? [];
+    arr.push(c);
+    daysMap.set(dk, arr);
+  }
+  const days = Array.from(daysMap.keys()).sort();
+  if (days.length < 2) return [];
+  const todayBars = daysMap.get(days[days.length - 1])!;
+  const prevBars = daysMap.get(days[days.length - 2])!;
+  const prevHigh = Math.max(...prevBars.map((b) => b.high));
+  const prevLow = Math.min(...prevBars.map((b) => b.low));
+  const upLow = Number((prevHigh - chPts).toFixed(2));
+  const dnHigh = Number((prevLow + chPts).toFixed(2));
+
+  const lines: Array<{ price: number; color: string; lineStyle: LineStyle; title: string }> = [
+    { price: prevHigh, color: '#F43F5E', lineStyle: LineStyle.Solid, title: 'Max D-1' },
+    { price: upLow, color: '#FB923C', lineStyle: LineStyle.Dotted, title: 'Max-' + chPts },
+    { price: dnHigh, color: '#38BDF8', lineStyle: LineStyle.Dotted, title: 'Min+' + chPts },
+    { price: prevLow, color: '#10B981', lineStyle: LineStyle.Solid, title: 'Min D-1' },
+  ];
+
+  const firstTodayTs = Number(todayBars[0]?.time || 0);
+  const prior = firstTodayTs > 0 ? candles.filter((c) => Number(c.time || 0) < firstTodayTs) : candles.slice(0, Math.max(0, candles.length - todayBars.length));
+  const aggCloses = (sec: number) => {
+    const out: number[] = [];
+    let cur = -1;
+    for (let i = 0; i < prior.length; i++) {
+      const c = prior[i];
+      const t = Number(c.time) > 1e11 ? Math.floor(Number(c.time) / 1000) : Math.floor(Number(c.time) || i * 300);
+      const b = Math.floor(t / sec);
+      if (b !== cur || out.length === 0) { cur = b; out.push(c.close); }
+      else { out[out.length - 1] = c.close; }
+    }
+    return out;
+  };
+  const calcEmaVal = (closes: number[], period: number) => {
+    if (closes.length < period) return null;
+    const k = 2 / (period + 1);
+    let ema = closes.slice(0, period).reduce((a, b) => a + b, 0) / period;
+    for (let i = period; i < closes.length; i++) ema = closes[i] * k + ema * (1 - k);
+    return Number(ema.toFixed(2));
+  };
+  const h1C = aggCloses(3600);
+  const d1C = aggCloses(86400);
+  for (const p of Array.of(13, 17, 21)) {
+    const eh = calcEmaVal(h1C, p);
+    if (eh != null) lines.push({ price: eh, color: '#A78BFA', lineStyle: LineStyle.Dashed, title: 'EMA' + p + ' H1' });
+    const ed = calcEmaVal(d1C, p);
+    if (ed != null) lines.push({ price: ed, color: '#C084FC', lineStyle: LineStyle.Dashed, title: 'EMA' + p + ' D1' });
+  }
+  return lines;
+}
 export function TradingChartView({
   robots,
+  managedRobots = [],
   activeContracts = {},
   selectedRobotId,
   onSelectRobot,
@@ -1094,7 +1155,26 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
         );
       }
     }
-    priceLinesRef.current = nextPriceLines;
+          const selectedAppBot = targetRobot ? managedRobots.find((m) => m.magicNumber === targetRobot.magicNumber) : null;
+      if (selectedAppBot && selectedAppBot.strategyType === 'wdo_opening_zones') {
+        const chPts = Math.max(1, Number(selectedAppBot.params?.channelPoints) || 7);
+        const wdoLines = computeWdoOpeningOverlayLines(timedCandles.map((tc) => tc.candle), chPts);
+        for (const wl of wdoLines) {
+          nextPriceLines.push(
+            candleSeries.createPriceLine({
+              price: wl.price,
+              color: wl.color,
+              lineWidth: 1,
+              lineStyle: wl.lineStyle,
+              axisLabelVisible: true,
+              axisLabelColor: '#18181B',
+              axisLabelTextColor: wl.color,
+              title: wl.title,
+            })
+          );
+        }
+      }
+      priceLinesRef.current = nextPriceLines;
 
     // Na primeira carga do ativo/timeframe, mostra os últimos ~70 candles confortavelmente
     if (!initialFitDoneRef.current) {

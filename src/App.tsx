@@ -14,6 +14,7 @@ import { BacktestReplayView } from './components/BacktestReplayView';
 import { LiveLogView } from './components/LiveLogView';
 import type {
   DashboardTelemetry,
+  ManagedRobot,
   DashboardView,
   Mt5SyncCredentials,
   PairingAttemptEvent,
@@ -24,7 +25,6 @@ import {
   loadOrCreateMt5SyncCredentials,
   regenerateMt5SyncCredentials,
   fetchManagedRobots,
-  type ManagedRobot,
 } from './utils/mt5Bridge';
 
 export default function App() {
@@ -330,7 +330,7 @@ export default function App() {
 
           {activeView === 'charts' && (
             <TradingChartView
-              robots={robots}
+              robots={robots} managedRobots={managedRobots}
               activeContracts={telemetry?.activeContracts}
               magicColors={magicColors}
               selectedRobotId={selectedRobotId}

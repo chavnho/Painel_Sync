@@ -628,13 +628,13 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
             <div className="max-h-72 overflow-y-auto">
               <table className="w-full text-left text-xs font-mono">
                 <thead className="bg-[#090D12] text-[10px] text-gray-400 uppercase">
-                  <tr><th className="px-4 py-2">#</th><th className="px-4 py-2">Lado</th><th className="px-4 py-2">Entrada</th><th className="px-4 py-2">Saída</th><th className="px-4 py-2">Motivo</th><th className="px-4 py-2 text-right">Pts</th><th className="px-4 py-2 text-right">Resultado</th></tr>
+                  <tr><th className="px-4 py-2">#</th><th className="px-4 py-2">Lado</th><th className="px-4 py-2">Gatilho / Zona</th><th className="px-4 py-2">Entrada</th><th className="px-4 py-2">Saída</th><th className="px-4 py-2">Motivo</th><th className="px-4 py-2 text-right">Pts</th><th className="px-4 py-2 text-right">Resultado</th></tr>
                 </thead>
                 <tbody className="divide-y divide-[#1E2633]">
                   {[...simResult.trades].reverse().map((t) => (
                     <tr key={t.id} className="hover:bg-[#161C25]">
                       <td className="px-4 py-2 text-gray-500">{t.id}</td>
-                      <td className={`px-4 py-2 font-semibold ${t.side === 'COMPRA' ? 'text-emerald-400' : 'text-rose-400'}`}>{t.side} {t.volume}x</td>
+                      <td className={`px-4 py-2 font-semibold ${t.side === 'COMPRA' ? 'text-emerald-400' : 'text-rose-400'}`}>{t.side} {t.volume}x</td><td className="px-4 py-2">{t.entryReason ? <span className="px-1.5 py-0.5 rounded bg-sky-950/70 text-sky-300 border border-sky-500/30 text-[10px]">{t.entryReason}</span> : <span className="text-gray-600">-</span>}</td>
                       <td className="px-4 py-2 text-gray-300">{t.entryLabel} @ {t.entryPrice}</td>
                       <td className="px-4 py-2 text-gray-300">{t.exitLabel} @ {t.exitPrice}</td>
                       <td className="px-4 py-2 text-gray-400">{t.exitReason}</td>
