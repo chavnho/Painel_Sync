@@ -25,7 +25,7 @@ input group "=== 3. Logs na Aba Experts ==="
 input bool            InpLogOrders           = true;                    // Logar Abertura/Cancelamento de Ordens
 input bool            InpLogPositions        = true;                    // Logar Abertura/Fechamento de Posicoes
 input bool            InpLogConnection       = true;                    // Logar Catalogo e Contratos Vigentes
-input bool            InpLogServer           = false;                   // Logar Pedidos de Candles e HTTP
+input bool            InpLogServer           = true;                    // Logar Pedidos de Candles e HTTP
 input bool            InpDebug               = false;                   // Modo Depuracao Detalhado
 
 ulong g_prevPosTickets[];
@@ -1010,12 +1010,21 @@ int SendToTicksEndpoint(const string jsonPayload)
 
 void SendCandlesData(const string symbol, const ENUM_TIMEFRAMES period, const string requestId, const int barsCount, const bool isDelta = false, const string targetDate = "")
 {
-   // Verifica se o ativo jÃ¡ estava visÃ­vel na ObservaÃ§Ã£o do Mercado antes
+   uint t0 = GetTickCount();
+   string tfStr = TimeframeToShortString(period);
+   if(requestId != "" && (InpLogServer || InpDebug))
+      Print("PainelSync [CANDLES REQ] Pedido recebido -> symbol=", symbol, " | tf=", tfStr, " | bars=", barsCount, " | date=", (targetDate != "" ? targetDate : "LATEST"), " | reqId=", requestId);
+
+   // Verifica se o ativo ja estava visivel na Observacao do Mercado antes
    bool wasSelected = (bool)SymbolInfoInteger(symbol, SYMBOL_SELECT);
 
    if(!wasSelected)
    {
-      if(!SymbolSelect(symbol, true)) return;
+      if(!SymbolSelect(symbol, true))
+      {
+         Print("PainelSync [CANDLES ERR] Falha ao selecionar simbolo ", symbol, " no MarketWatch (err=", GetLastError(), ") | reqId=", requestId);
+         return;
+      }
    }
 
    MqlRates rates[];
@@ -1024,7 +1033,11 @@ void SendCandlesData(const string symbol, const ENUM_TIMEFRAMES period, const st
    datetime dStart = 0;
    datetime dEnd = 0;
    total = CopyAndRepairRates(symbol, period, barsCount, targetDate, rates);
-   if(total <= 0) return;
+   if(total <= 0)
+   {
+      Print("PainelSync [CANDLES EMPTY] 0 velas copiadas para ", symbol, " ", tfStr, " (date=", (targetDate != "" ? targetDate : "LATEST"), ", err=", GetLastError(), ") | reqId=", requestId);
+      return;
+   }
    {
       int stepSec = PeriodSeconds(period);
       string gapsLog = "";
@@ -1077,6 +1090,8 @@ void SendCandlesData(const string symbol, const ENUM_TIMEFRAMES period, const st
             + "}";
    }
    json += "]}";
+   if((requestId != "" && (InpLogServer || InpDebug)) || InpDebug)
+      Print("PainelSync [CANDLES POST] ", symbol, " ", tfStr, " -> ", total, " velas (", TimeToString(rates[0].time, TIME_DATE|TIME_MINUTES), " .. ", TimeToString(rates[total-1].time, TIME_DATE|TIME_MINUTES), ") | bytes=", StringLen(json), " | copyMs=", (GetTickCount() - t0), " | reqId=", requestId);
    SendToServer(json);
 }
 
