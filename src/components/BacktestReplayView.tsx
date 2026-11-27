@@ -787,110 +787,30 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     <div className="flex-1 h-full min-h-0 flex flex-col overflow-hidden bg-[#090D12]">
       <div className="flex-1 min-h-0 overflow-y-auto">
       <div className="w-full px-6 py-4 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h1 className="font-display text-xl font-bold text-gray-100">Simulador de Backtest & Replay</h1>
-            <p className="text-xs text-gray-400 mt-0.5">Teste qualquer robô criado no painel sobre velas históricas reais do MT5 e avance vela por vela no modo Replay.</p>
-          </div>
-          <div className="shrink-0 flex flex-nowrap items-center gap-1.5 whitespace-nowrap">
-            <div className="flex items-center gap-2 bg-[#0F141C] border border-[#1E2633] rounded-lg px-2.5 py-1">
-              <span className="text-[11px] text-gray-400">Data do Pregão:</span>
-              <input
-                type="date"
-                value={replayDate}
-                max={new Date().toISOString().slice(0, 10)}
-                onChange={(e) => setReplayDate(e.target.value)}
-                style={{ colorScheme: 'dark' }}
-                className="bg-[#090D12] border border-[#1E2633] rounded px-2 py-1 text-xs font-mono text-gray-100 focus:outline-none focus:border-emerald-500 cursor-pointer"
-              />
-            </div>
-            <button type="button" onClick={handleLoadMt5Candles} disabled={loadingCandles && !isLiveMode} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold cursor-pointer disabled:opacity-60">
-              <Download className="w-3.5 h-3.5" /><span>{loadingCandles && !isLiveMode ? 'Carregando...' : 'Carregar Replay'}</span>
+        <div className="shrink-0 rounded-xl bg-[#0F141C] border border-[#1E2633] px-3 py-1.5 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <select value={selectedBotId} onChange={(e) => handleSelectSavedBot(e.target.value)} className="max-w-[240px] px-2.5 py-1 rounded-lg bg-[#090D12] border border-[#1E2633] text-xs text-gray-100">
+              {savedRobots.length === 0 && <option value="" disabled>Nenhum robô criado</option>}
+              {savedRobots.map((b) => (<option key={b.id} value={b.id}>{b.name} ({b.symbol})</option>))}
+            </select>
+            <button type="button" onClick={() => { setEditNotice(''); setIsEditModalOpen(true); }} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-xs text-sky-300 font-medium cursor-pointer">
+              <Settings2 className="w-3.5 h-3.5" /><span>Editar</span>
             </button>
-          <button
-            type="button"
-            disabled={loadingCandles}
-            onClick={handleLoadYearCandles}
-            title="Carregar todos os preg\u00f5es desde 01/01 deste ano para backtest cont\u00ednuo"
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-sky-500/40 text-sky-300 text-xs font-medium cursor-pointer disabled:opacity-40"
-          >
-            <span>Ano (Jan)</span>
-          </button>
-            <button
-              type="button"
-              onClick={() => { setIsPlaying(false); setIsLiveMode((prev) => !prev); }}
-              className={isLiveMode
-                ? 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold cursor-pointer ring-2 ring-sky-400/50'
-                : 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-sky-300 text-xs font-semibold cursor-pointer'}
-            >
-              <Radio className={isLiveMode ? 'w-3.5 h-3.5 animate-pulse' : 'w-3.5 h-3.5'} />
-              <span>{isLiveMode ? 'Ao Vivo ON' : 'Ao Vivo (Paper)'}</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <input type="date" value={replayDate} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setReplayDate(e.target.value)} style={{ colorScheme: 'dark' }} className="bg-[#090D12] border border-[#1E2633] rounded-lg px-2 py-1 text-xs font-mono text-gray-100 cursor-pointer" />
+            <label title="Baixar todos os pregões da data selecionada até hoje e rodar em modo sequencial" className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-[#090D12] border border-[#1E2633] hover:border-sky-500/40 text-xs text-gray-200 cursor-pointer select-none">
+              <input type="checkbox" checked={loadUntilToday} onChange={(e) => setLoadUntilToday(e.target.checked)} className="rounded border-gray-600 bg-[#090D12] text-sky-500 focus:ring-0 cursor-pointer" />
+              <span>Até hoje</span>
+            </label>
+            <button type="button" onClick={handleLoadMt5Candles} disabled={loadingCandles && !isLiveMode} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold cursor-pointer disabled:opacity-60">
+              <Download className="w-3.5 h-3.5" /><span>{loadingCandles && !isLiveMode ? 'Carregando...' : 'Carregar'}</span>
+            </button>
+            <button type="button" onClick={() => { setIsPlaying(false); setIsLiveMode((prev) => !prev); }} className={isLiveMode ? 'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold cursor-pointer ring-2 ring-sky-400/50' : 'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-sky-300 text-xs font-semibold cursor-pointer'}>
+              <Radio className={isLiveMode ? 'w-3.5 h-3.5 animate-pulse' : 'w-3.5 h-3.5'} /><span>{isLiveMode ? 'Ao Vivo ON' : 'Ao Vivo'}</span>
             </button>
           </div>
         </div>
-
-        <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] p-4 grid grid-cols-2 md:grid-cols-6 gap-3 items-end">
-          <div className="col-span-2">
-            <label className="block text-[10px] text-gray-400 mb-1">Carregar Robô Salvo</label>
-            <div className="flex items-center gap-1.5">
-              <select value={selectedBotId} onChange={(e) => handleSelectSavedBot(e.target.value)} className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg bg-[#090D12] border border-[#1E2633] text-xs text-gray-100">
-                <option value="">-- Configuração Manual --</option>
-                {savedRobots.map((b) => (<option key={b.id} value={b.id}>{b.name} ({b.symbol} · {b.timeframe})</option>))}
-              </select>
-              <button type="button" onClick={() => { setEditNotice(''); setIsEditModalOpen(true); }} className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-xs text-sky-300 font-medium cursor-pointer">
-                <Settings2 className="w-3.5 h-3.5" /><span>Editar</span>
-              </button>
-            </div>
-          </div>
-          <div>
-            <label className="block text-[10px] text-gray-400 mb-1">Ativo</label>
-            <input type="text" value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} className="w-full px-2.5 py-1.5 rounded-lg bg-[#090D12] border border-[#1E2633] text-xs font-mono text-gray-100" />
-          </div>
-          <div>
-            <label className="block text-[10px] text-gray-400 mb-1">Timeframe</label>
-            <select value={timeframe} onChange={(e) => setTimeframe(e.target.value as 'M1' | 'M5' | 'M15' | 'M30' | 'H1')} className="w-full px-2.5 py-1.5 rounded-lg bg-[#090D12] border border-[#1E2633] text-xs font-mono text-gray-100">
-              <option value="M1">M1</option><option value="M5">M5</option><option value="M15">M15</option><option value="M30">M30</option><option value="H1">H1</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-[10px] text-gray-400 mb-1">Estratégia</label>
-            <select value={strategyType} onChange={(e) => setStrategyType(e.target.value as ManagedStrategyType)} className="w-full px-2.5 py-1.5 rounded-lg bg-[#090D12] border border-[#1E2633] text-xs text-gray-100">
-              <option value="ema_cross">Médias ({fastPeriod}x{slowPeriod})</option>
-              <option value="rsi_reversal">IFR ({rsiPeriod})</option>
-              <option value="breakout">Rompimento ({lookbackBars}v)</option><option value="wdo_opening_zones">Abertura WDO (5 Zonas)</option>
-            </select>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-[10px] text-gray-400 mb-1">SL (pts)</label>
-              <input type="number" min="0" value={risk.stopPoints} onChange={(e) => setRisk({ ...risk, stopPoints: Math.max(0, Number(e.target.value) || 0) })} className="w-full px-2 py-1.5 rounded-lg bg-[#090D12] border border-[#1E2633] text-xs font-mono text-gray-100" />
-            </div>
-            <div>
-              <label className="block text-[10px] text-gray-400 mb-1">TP (pts)</label>
-              <input type="number" min="0" value={risk.takePoints} onChange={(e) => setRisk({ ...risk, takePoints: Math.max(0, Number(e.target.value) || 0) })} className="w-full px-2 py-1.5 rounded-lg bg-[#090D12] border border-[#1E2633] text-xs font-mono text-gray-100" />
-            </div>
-          </div>
-        </div>
-
-
-        {!selectedBotId && (
-        <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] px-4 py-2.5 flex flex-wrap items-center gap-4 text-xs">
-          <span className="text-[11px] font-semibold text-gray-300">Regra de Disparo:</span>
-{strategyType === 'wdo_opening_zones' ? (<div className='flex flex-wrap items-center gap-2 text-[11px] text-emerald-300 font-medium'><span className='px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/30'>5 Zonas (Z1..Z5) • Gatilhos A/B</span><span className='text-gray-400'>Canais D-1 (±7 pts) • IFR(7) • EMAs 13/17/21 (H1/D1) • 1 op/dia</span></div>) : (<>          <div className="flex items-center gap-2">
-            <span className="text-[11px] text-gray-400">{strategyType === 'ema_cross' ? 'Cruza p/ Cima:' : strategyType === 'rsi_reversal' ? 'Sobrevenda:' : 'Rompe Máxima:'}</span>
-            <select value={onBullishSignal} onChange={(e) => setOnBullishSignal(e.target.value as SignalAction)} className="px-2 py-1 rounded bg-[#090D12] border border-[#1E2633] text-xs text-gray-100">
-              <option value="BUY">Comprar</option><option value="SELL">Vender</option><option value="NONE">Ignorar</option>
-            </select>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] text-gray-400">{strategyType === 'ema_cross' ? 'Cruza p/ Baixo:' : strategyType === 'rsi_reversal' ? 'Sobrecompra:' : 'Rompe Mínima:'}</span>
-            <select value={onBearishSignal} onChange={(e) => setOnBearishSignal(e.target.value as SignalAction)} className="px-2 py-1 rounded bg-[#090D12] border border-[#1E2633] text-xs text-gray-100">
-              <option value="SELL">Vender</option><option value="BUY">Comprar</option><option value="NONE">Ignorar</option>
-            </select>
-          </div></>)}
-        </div>
-        )}
-
 
         {simResult && (
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
