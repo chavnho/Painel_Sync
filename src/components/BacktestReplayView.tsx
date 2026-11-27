@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CandlestickSeries,
   ColorType,
@@ -350,7 +350,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
           const recentWithPrevDay = list.filter((c) => keepDays.has(new Date(toSec(c.time) * 1000).toISOString().slice(0, 10)));
           const todayBars = list.filter((c) => new Date(toSec(c.time) * 1000).toISOString().slice(0, 10) === todayStr);
           const incoming = recentWithPrevDay.length > 0 ? recentWithPrevDay : list;
-          setCandles((prev) => {
+          startTransition(() => setCandles((prev) => {
             const prevLast = prev.at(-1);
             const incFirst = incoming.at(0);
             const tfSec = timeframe === 'M1' ? 60 : timeframe === 'M5' ? 300 : timeframe === 'M15' ? 900 : timeframe === 'H1' ? 3600 : 300;
@@ -370,10 +370,23 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
             ) {
               return prev;
             }
+            if (!isInitial && prev.length === target.length && lastPrev?.time === lastNext?.time && (pollTickCount % 4 !== 0)) {
+              const series = candleSeriesRef.current;
+              if (series && lastNext) {
+                series.update({
+                  time: toChartTime(lastNext.time),
+                  open: Number(lastNext.open),
+                  high: Number(lastNext.high),
+                  low: Number(lastNext.low),
+                  close: Number(lastNext.close),
+                });
+              }
+              return prev;
+            }
             setReplayBars(target.length);
             setCandleStatus(`AO VIVO · ${resolvedSymbol} (${timeframe}) · ${target.length} velas (Paper Trading sem ordem real)`);
             return target;
-          });
+          }));
           setSelectedDay(todayStr);
         }
       } catch {
@@ -387,7 +400,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     };
 
     pollLive(true);
-    const id = window.setInterval(() => { pollLive(false); }, 750);
+    const id = window.setInterval(() => { pollLive(false); }, 500);
     return () => {
       cancelled = true;
       window.clearInterval(id);
