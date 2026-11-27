@@ -295,7 +295,7 @@ function computeWdoOpeningOverlayLines(
     const eh = calcEmaVal(h1PriorCloses, p);
     if (eh != null) lines.push({ price: eh, color: '#7C3AED', lineStyle: LineStyle.Dotted, lineWidth: 2, title: 'EMA' + p + ' H1' });
     const ed = calcEmaVal(d1PriorCloses, p);
-    if (ed != null) lines.push({ price: ed, color: '#F472B6', lineStyle: LineStyle.Dotted, lineWidth: 2, title: 'EMA' + p + ' D1' });
+    if (ed != null) lines.push({ price: ed, color: '#10B981', lineStyle: LineStyle.Dotted, lineWidth: 2, title: 'EMA' + p + ' D1' });
   }
   return lines;
 }
