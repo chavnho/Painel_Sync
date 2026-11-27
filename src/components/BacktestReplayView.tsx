@@ -349,6 +349,24 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     return computeWdoHudState(vis, chPts, rsiPer, replayMtfCandles.h1, replayMtfCandles.d1, true, selectedDay);
   }, [strategyType, activeCandles, replayBars, rsiPeriod, replayMtfCandles, selectedDay]);
 
+  const handleStepNextDay = () => {
+    if (activeCandles.length === 0) return;
+    setIsPlaying(false);
+    const curIdx = Math.max(0, Math.min(activeCandles.length - 1, replayBars - 1));
+    const curDay = new Date(Number(activeCandles.at(curIdx)?.time || 0) * 1000).toISOString().slice(0, 10);
+    let lastOfCurDay = curIdx;
+    while (lastOfCurDay + 1 < activeCandles.length && new Date(Number(activeCandles.at(lastOfCurDay + 1)?.time || 0) * 1000).toISOString().slice(0, 10) === curDay) {
+      lastOfCurDay++;
+    }
+    if (replayBars < lastOfCurDay + 1) {
+      setReplayBars(lastOfCurDay + 1);
+    } else if (lastOfCurDay + 1 < activeCandles.length) {
+      setReplayBars(lastOfCurDay + 2);
+    } else {
+      setReplayBars(activeCandles.length);
+    }
+  };
+
   useEffect(() => {
     const el = chartWrapRef.current;
     if (!el) return;
