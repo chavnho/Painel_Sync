@@ -60,4 +60,8 @@
 ## 6. Saidas e Gestao de Risco
 - **Take Profit:** 6 pontos
 - **Stop Loss:** 10 pontos
-- **Protecoes Extras (Breakeven / Trailing / Zeragem):** A definir
+- **Zeragem Compulsoria (Day Trade):** 17:50 BRT (por seguranca, embora 99,99% encerre antes das 11:00)
+- **Reconstrucao de Estado ao Iniciar Apos 09:00:** Ao iniciar ou reiniciar durante o pregao, o motor simula cronologicamente as velas M5 desde as 09:00:
+  - Se ja houve sinal/operacao no dia (Gain ou Loss), bloqueia novas entradas ate o proximo pregao.
+  - Se ainda nao houve entrada no dia e surgir sinal valido, opera normalmente.
+
