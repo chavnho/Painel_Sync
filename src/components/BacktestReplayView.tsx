@@ -169,7 +169,18 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     setLoadingCandles(true);
     setCandleStatus(`Carregando pregão ${replayDate.split('-').reverse().join('/')} de ${resolvedSymbol} (${timeframe}) no MT5...`);
     try {
-      const list = await syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, timeframe, { force: true, isManualRequest: true, date: replayDate });
+      const isWdoZones = strategyType === 'wdo_opening_zones';
+      const [list, h1List, d1List] = await Promise.all([
+        syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, timeframe, isWdoZones ? { force: true, isManualRequest: true } : { force: true, isManualRequest: true, date: replayDate }),
+        isWdoZones ? syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, 'H1', { force: true }).catch(() => new Array<LiveCandle>()) : Promise.resolve(new Array<LiveCandle>()),
+        isWdoZones ? syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, 'D1', { force: true }).catch(() => new Array<LiveCandle>()) : Promise.resolve(new Array<LiveCandle>()),
+      ]);
+      if (isWdoZones) {
+        setReplayMtfCandles({
+          h1: Array.isArray(h1List) ? h1List : new Array<LiveCandle>(),
+          d1: Array.isArray(d1List) ? d1List : new Array<LiveCandle>(),
+        });
+      }
       if (list && list.length > 0) {
         setCandles(list);
         const dayMatches = list.filter((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) === replayDate);
@@ -179,7 +190,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
           const fallbackDay = new Date(Number(list.at(-1)?.time || 0) * 1000).toISOString().slice(0, 10);
           setSelectedDay(fallbackDay);
         }
-        setReplayBars(replayInitialBar);
+        if (strategyType === 'wdo_opening_zones') { const td = dayMatches.length > 0 ? replayDate : new Date(Number(list.at(-1)?.time || 0) * 1000).toISOString().slice(0, 10); const upTo = list.filter((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) <= td); const fIdx = upTo.findIndex((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) === td); setReplayBars(fIdx >= 0 ? fIdx + 1 : 1); } else { setReplayBars(replayInitialBar); }
         setCandleStatus(`Cache pronto (${dayMatches.length || list.length} velas). Clique em Play Replay ou 100%.`);
       } else {
         const brDate = replayDate.split('-').reverse().join('/');
@@ -325,8 +336,9 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
       robot: { name: botName, magicNumber: 9999, symbol: resolvedSymbol, timeframe, enabled: true, strategyType, params: params as Record<string, unknown>, risk },
       candles: activeCandles,
       maxBars: replayBars > 0 ? replayBars : activeCandles.length,
+      startFromBar: strategyType === 'wdo_opening_zones' && selectedDay !== 'ALL' ? Math.max(4, replayInitialBar - 1) : undefined,
     });
-  }, [activeCandles, replayBars, botName, resolvedSymbol, timeframe, strategyType, maType, fastPeriod, slowPeriod, rsiPeriod, oversold, overbought, lookbackBars, onBullishSignal, onBearishSignal, risk]);
+  }, [activeCandles, replayBars, replayInitialBar, selectedDay, botName, resolvedSymbol, timeframe, strategyType, maType, fastPeriod, slowPeriod, rsiPeriod, oversold, overbought, lookbackBars, onBullishSignal, onBearishSignal, risk]);
 
   const wdoReplayHud = useMemo(() => {
     if (strategyType !== 'wdo_opening_zones' || activeCandles.length === 0) return null;

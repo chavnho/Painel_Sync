@@ -93,6 +93,7 @@ export function runBacktestSimulation(input: {
   robot: Omit<PersistedManagedRobot, "id" | "channelId" | "createdAt" | "updatedAt" | "lastSignalBar" | "lastDecision">;
   candles: LiveCandle[];
   maxBars?: number;
+  startFromBar?: number;
 }): BacktestRunResult {
   const allNorm = toNormalizedCandles(input.candles);
   const limit = input.maxBars && input.maxBars > 0 ? Math.min(allNorm.length, Math.trunc(input.maxBars)) : allNorm.length;
@@ -154,7 +155,8 @@ export function runBacktestSimulation(input: {
     pos = null;
   };
 
-  for (let i = 4; i < slice.length; i++) {
+  const firstLoopBar = Math.max(4, Number(input.startFromBar) || 4);
+  for (let i = firstLoopBar; i < slice.length; i++) {
     const windowBars = slice.slice(0, i + 1);
     const curBar = windowBars.at(-1)!;
     const barTs = Number(curBar.time) || i * 60;
