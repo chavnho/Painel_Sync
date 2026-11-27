@@ -796,6 +796,17 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
             <button type="button" onClick={() => { setEditNotice(''); setIsEditModalOpen(true); }} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-xs text-sky-300 font-medium cursor-pointer">
               <Settings2 className="w-3.5 h-3.5" /><span>Editar</span>
             </button>
+            <label title="Quantidade de contratos / lote usado na simulação" className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[#090D12] border border-[#1E2633] text-xs font-mono text-gray-300">
+              <span className="text-[10px] text-gray-500">Contratos:</span>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={risk.volume}
+                onChange={(e) => setRisk({ ...risk, volume: Math.max(1, Math.floor(Number(e.target.value) || 1)) })}
+                className="w-11 bg-transparent text-right text-sky-300 font-semibold focus:outline-none"
+              />
+            </label>
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
             <input type="date" value={replayDate} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setReplayDate(e.target.value)} style={{ colorScheme: 'dark' }} className="bg-[#090D12] border border-[#1E2633] rounded-lg px-2 py-1 text-xs font-mono text-gray-100 cursor-pointer" />
