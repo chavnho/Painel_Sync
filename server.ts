@@ -699,7 +699,7 @@ async function startServer() {
       } catch {}
     }
     const reqId = `ticks_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    addToQueue({ id: reqId, symbol, timeframe: "TICKS", date, fromHour, toHour, timestamp: Date.now(), status: "pending" } as unknown as PendingRequest);
+    addToQueue({ id: reqId, channelId, symbol, timeframe: "TICKS", date, fromHour, toHour, timestamp: Date.now(), status: "pending" } as unknown as PendingRequest);
     const resultTicks = await new Promise<Array<[number, number, number]>>((resolve) => {
       const timer = setTimeout(() => {
         ticksWaiters.delete(reqId);
