@@ -1,7 +1,7 @@
 import { TradeLinesPrimitive, type TradeSegmentItem, type LocalLevelItem } from '../utils/tradeLinesPrimitive';
 import { computeWdoOpeningOverlayLines, computeWdoHudState } from '../utils/wdoChartOverlay';
 import { INITIAL_CHART_VIEW_BARS, MAX_CHART_CANDLES, getRobotColorTheme } from '../utils/themeTokens';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AreaSeries,
   CandlestickSeries,
@@ -220,7 +220,7 @@ function writeCachedSymbols(channelId: string, symbols: string[]) {
   }
 }
 
-export function TradingChartView({
+export const TradingChartView = memo(function TradingChartView({
   robots,
   managedRobots = [],
   activeContracts = {},
@@ -1513,4 +1513,4 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
       </div>
     </div>
   );
-}
+});

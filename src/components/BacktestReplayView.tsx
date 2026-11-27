@@ -1,4 +1,4 @@
-import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CandlestickSeries,
   ColorType,
@@ -92,7 +92,7 @@ function toChartTime(raw: unknown, fallbackSec = 0): UTCTimestamp {
   return (n > 1e11 ? Math.floor(n / 1000) : Math.floor(n)) as UTCTimestamp;
 }
 
-export function BacktestReplayView({ creds, activeContracts }: BacktestReplayViewProps) {
+export const BacktestReplayView = memo(function BacktestReplayView({ creds, activeContracts }: BacktestReplayViewProps) {
   const [savedRobots, setSavedRobots] = useState<ManagedRobot[]>([]);
   const [selectedBotId, setSelectedBotId] = useState('');
   const [botName, setBotName] = useState('Simulação EMA 9x21');
@@ -1185,4 +1185,4 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
       )}
     </div>
   );
-}
+});
