@@ -58,24 +58,27 @@ datetime g_lastSymbolsReport = 0;
 string   g_focusSymbol = "";
 string   g_focusTimeframe = "";
 string   g_lastFastSig = "";
+uint     g_fastBackoffUntilMs = 0;
 
 void SendFastFocusDelta(const string symbol, const string tfStr)
 {
-   if(symbol == "" || tfStr == "") return;
+   if(IsStopped() || symbol == "" || tfStr == "") return;
+   uint nowMs = GetTickCount();
+   if(g_fastBackoffUntilMs > 0 && (int)(g_fastBackoffUntilMs - nowMs) > 0) return;
+
    ENUM_TIMEFRAMES period = StringToTimeframe(tfStr);
    MqlRates rates[];
    ArraySetAsSeries(rates, false);
    int copied = CopyRates(symbol, period, 0, 3, rates);
-   if(copied <= 0) return;
+   if(copied <= 0 || ArraySize(rates) < copied) return;
 
-   int digits = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
+   int digits = (int)MathMax(0, MathMin(8, SymbolInfoInteger(symbol, SYMBOL_DIGITS)));
    MqlRates lastBar = rates[copied - 1];
    string sig = symbol + "|" + tfStr + "|" + IntegerToString((long)lastBar.time) + "|"
               + DoubleToString(lastBar.open, digits) + "|" + DoubleToString(lastBar.high, digits) + "|"
               + DoubleToString(lastBar.low, digits) + "|" + DoubleToString(lastBar.close, digits) + "|"
               + IntegerToString((long)lastBar.tick_volume);
    if(sig == g_lastFastSig) return;
-   g_lastFastSig = sig;
 
    string json = "{\"isChartRequest\":true,\"isChartDelta\":true,\"symbol\":\"" + symbol + "\",\"timeframe\":\"" + tfStr + "\",\"candles\":[";
    for(int i = 0; i < copied; i++)
@@ -97,15 +100,26 @@ void SendFastFocusDelta(const string symbol, const string tfStr)
    string headers = "Content-Type: application/json\r\nX-Sync-Token: " + InpToken + "\r\n";
    char data[];
    int len = StringToCharArray(json, data, 0, WHOLE_ARRAY, CP_UTF8);
-   if(len > 0) ArrayResize(data, len - 1);
+   if(len <= 1) return;
+   ArrayResize(data, len - 1);
    char result[];
    string resultHeaders = "";
-   WebRequest("POST", url, headers, 150, data, result, resultHeaders);
+   ResetLastError();
+   int status = WebRequest("POST", url, headers, 500, data, result, resultHeaders);
+   if(status >= 200 && status < 300)
+   {
+      g_lastFastSig = sig;
+      g_fastBackoffUntilMs = 0;
+   }
+   else
+   {
+      g_fastBackoffUntilMs = GetTickCount() + 3000;
+   }
 }
 
 void OnStart()
 {
-   Print("PainelSync Service v2.03: Iniciando monitoramento em segundo plano no canal ", InpChannelId, "...");
+   Print("PainelSync Service v2.04: Iniciando monitoramento em segundo plano no canal ", InpChannelId, "...");
 
    g_lastSymbolsReport = TimeCurrent();
    SendSymbolsReport();
