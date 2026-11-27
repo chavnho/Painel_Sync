@@ -30,6 +30,7 @@ import {
   X,
 } from 'lucide-react';
 import { useAsyncBacktest } from '../hooks/useAsyncBacktest';
+import { mergeLiveCandlesWithAutoHeal, timeframeToSeconds } from '../hooks/useLiveCandlesFeed';
 import { TradeLinesPrimitive, type TradeSegmentItem, type LocalLevelItem } from '../utils/tradeLinesPrimitive';
 import { computeWdoOpeningOverlayLines } from '../utils/wdoChartOverlay';
 import type {
@@ -353,25 +354,12 @@ export const BacktestReplayView = memo(function BacktestReplayView({ creds, acti
           const todayBars = list.filter((c) => new Date(toSec(c.time) * 1000).toISOString().slice(0, 10) === todayStr);
           const incoming = recentWithPrevDay.length > 0 ? recentWithPrevDay : list;
           startTransition(() => setCandles((prev) => {
-            const prevLast = prev.at(-1);
-            const incFirst = incoming.at(0);
-            const tfSec = timeframe === 'M1' ? 60 : timeframe === 'M5' ? 300 : timeframe === 'M15' ? 900 : timeframe === 'H1' ? 3600 : 300;
-            if (!isInitial && prevLast && incFirst && toSec(incFirst.time) - toSec(prevLast.time) > tfSec * 2) {
-              forceFullTailNext = true;
-            }
-            const target = isInitial ? incoming : mergeBars(prev, incoming);
+            const mergedRes = mergeLiveCandlesWithAutoHeal(prev, incoming, timeframeToSeconds(timeframe), isInitial);
+            if (mergedRes.hadGap) forceFullTailNext = true;
+            if (!mergedRes.changed) return prev;
+            const target = mergedRes.candles;
             const lastPrev = prev.at(-1);
             const lastNext = target.at(-1);
-            if (
-              !isInitial &&
-              prev.length === target.length &&
-              lastPrev?.time === lastNext?.time &&
-              lastPrev?.close === lastNext?.close &&
-              lastPrev?.high === lastNext?.high &&
-              lastPrev?.low === lastNext?.low
-            ) {
-              return prev;
-            }
             if (!isInitial && prev.length === target.length && lastPrev?.time === lastNext?.time) {
               const series = candleSeriesRef.current;
               if (series && lastNext) {

@@ -2,6 +2,7 @@ import { TradeLinesPrimitive, type TradeSegmentItem, type LocalLevelItem } from 
 import { computeWdoOpeningOverlayLines, computeWdoHudState } from '../utils/wdoChartOverlay';
 import { INITIAL_CHART_VIEW_BARS, MAX_CHART_CANDLES, getRobotColorTheme } from '../utils/themeTokens';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { mergeLiveCandlesWithAutoHeal, timeframeToSeconds } from '../hooks/useLiveCandlesFeed';
 import {
   AreaSeries,
   CandlestickSeries,
@@ -461,30 +462,15 @@ export const TradingChartView = memo(function TradingChartView({
           if (result && result.length > 0) {
             needFullTail = false;
             setManualCandles((prev) => {
-              if (
-                prev &&
-                prev.length === result.length &&
-                prev[prev.length - 1]?.time === result[result.length - 1]?.time &&
-                prev[prev.length - 1]?.close === result[result.length - 1]?.close &&
-                prev[prev.length - 1]?.high === result[result.length - 1]?.high &&
-                prev[prev.length - 1]?.low === result[result.length - 1]?.low &&
-                prev[prev.length - 1]?.volume === result[result.length - 1]?.volume
-              ) {
-                return prev;
-              }
-              if (isFirstLoad || !prev || prev.length === 0 || result.length > 50) {
-                return result;
-              }
-              const lastPrev = prev.at(-1);
-              const firstIncoming = result.at(0);
-              const tfSec = selectedTf === 'M1' ? 60 : selectedTf === 'M5' ? 300 : selectedTf === 'M15' ? 900 : selectedTf === 'H1' ? 3600 : 300;
-              if (lastPrev && firstIncoming && Number(firstIncoming.time) - Number(lastPrev.time) > tfSec * 2) {
-                needFullTail = true;
-              }
-              const byTime = new Map<number, LiveCandle>();
-              for (const b of prev) byTime.set(Number(b.time), b);
-              for (const b of result) byTime.set(Number(b.time), b);
-              return Array.from(byTime.entries()).sort(([tA], [tB]) => tA - tB).map(([, bar], idx) => ({ ...bar, index: idx }));
+              const base = prev ?? new Array<LiveCandle>();
+              const res = mergeLiveCandlesWithAutoHeal(
+                base,
+                result,
+                timeframeToSeconds(selectedTf),
+                isFirstLoad
+              );
+              if (res.hadGap) needFullTail = true;
+              return res.changed ? res.candles : prev;
             });
             setManualError(null);
           } else if (isFirstLoad) {
