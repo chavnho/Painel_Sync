@@ -166,22 +166,24 @@ function resolveManagedSymbol(channel: LiveSyncChannel, rawSymbol: string): stri
 function getWatchSymbolsForChannel(channelId: string, channel: LiveSyncChannel): Array<{ symbol: string; timeframe: string }> {
   const seen = new Set<string>();
   const list: Array<{ symbol: string; timeframe: string }> = [];
-  for (const bot of listManagedRobots(channelId).filter((b) => b.enabled)) {
+  for (const bot of listManagedRobots(channelId).filter((b) => b.enabled && b.environment === "PRODUCTION")) {
     const sym = resolveManagedSymbol(channel, bot.symbol);
     const tf = bot.timeframe.toUpperCase();
     const key = `${sym}:${tf}`;
     if (!seen.has(key)) { seen.add(key); list.push({ symbol: sym, timeframe: tf }); }
+    if (bot.strategyType === "wdo_opening_zones" && !seen.has(`WDO@N:${tf}`)) { seen.add(`WDO@N:${tf}`); list.push({ symbol: "WDO@N", timeframe: tf }); }
   }
   return list;
 }
 
 function runManagedRobotsCycle(channelId: string, channel: LiveSyncChannel) {
-  const activeBots = listManagedRobots(channelId).filter((b) => b.enabled);
+  const activeBots = listManagedRobots(channelId).filter((b) => b.enabled && b.environment === "PRODUCTION");
   if (activeBots.length === 0) return;
   for (const bot of activeBots) {
     const resolvedSymbol = resolveManagedSymbol(channel, bot.symbol);
     const tf = bot.timeframe.toUpperCase();
-    const candles = chartCandlesCache.get(`${channelId}:${resolvedSymbol}:${tf}`) || [];
+    const analysisSym = bot.strategyType === "wdo_opening_zones" ? "WDO@N" : resolvedSymbol;
+    const candles = chartCandlesCache.get(`${channelId}:${analysisSym}:${tf}`) || chartCandlesCache.get(`${channelId}:${resolvedSymbol}:${tf}`) || [];
     let openPosition: { side: "COMPRA" | "VENDA"; volume: number; entryPrice: number; currentPrice: number; sl: number; tp: number; floatingPnlBrl: number } | null = null;
     let dailyPnlBrl = 0;
     for (const r of channel.robots.values()) {
@@ -1265,14 +1267,14 @@ async function startServer() {
     const tfRaw = String(b.timeframe || "M5").toUpperCase();
     const timeframe = (["M1", "M5", "M15", "M30", "H1"].includes(tfRaw) ? tfRaw : "M5") as "M1" | "M5" | "M15" | "M30" | "H1";
     const stRaw = String(b.strategyType || "ema_cross");
-    const strategyType = (["ema_cross", "rsi_reversal", "breakout"].includes(stRaw) ? stRaw : "ema_cross") as "ema_cross" | "rsi_reversal" | "breakout";
+    const strategyType = (Array.of("ema_cross", "rsi_reversal", "breakout", "wdo_opening_zones").includes(stRaw) ? stRaw : "ema_cross") as "ema_cross" | "rsi_reversal" | "breakout" | "wdo_opening_zones";
     const created = createManagedRobot({
       channelId,
       name: String(b.name || "").trim() || "Robo App",
       magicNumber: Number(b.magicNumber) || undefined,
       symbol: String(b.symbol || "WIN$").trim().toUpperCase(),
       timeframe,
-      enabled: Boolean(b.enabled),
+      enabled: b.environment === "PRODUCTION" ? Boolean(b.enabled) : false, environment: b.environment === "PRODUCTION" ? "PRODUCTION" : "SIMULATOR",
       strategyType,
       params: typeof b.params === "object" && b.params ? b.params : {},
       risk: {

@@ -10,8 +10,12 @@ import {
   Award,
   CandlestickChart,
   CheckCircle2,
+  Check,
   Eye,
   EyeOff,
+  Pencil,
+  X,
+  XCircle,
   Layers,
   ShieldAlert,
   TrendingDown,
@@ -33,6 +37,7 @@ import {
   formatPrice,
 } from '../utils/tradingMath';
 import { LivePairingMonitor } from './LivePairingMonitor';
+import { sendRemoteCommand } from '../utils/mt5Bridge';
 
 interface OverviewViewProps {
   robots: RobotStream[];
@@ -45,6 +50,8 @@ interface OverviewViewProps {
   pairingEvents: PairingAttemptEvent[];
   lastSyncAt: string | null;
   onClearPairingLog: () => void;
+  onRenameMagic?: (magicNumber: number, nextName: string) => void;
+  onToggleHideMagic?: (magicNumber: number, nextHidden: boolean) => void;
 }
 
 export function OverviewView({
@@ -58,8 +65,15 @@ export function OverviewView({
   pairingEvents,
   lastSyncAt,
   onClearPairingLog,
+  onRenameMagic,
+  onToggleHideMagic,
 }: OverviewViewProps) {
   const [hoverEqIdx, setHoverEqIdx] = useState<number | null>(null);
+  const [editingMagic, setEditingMagic] = useState<number | null>(null);
+  const [draftName, setDraftName] = useState('');
+  const [confirmCloseKey, setConfirmCloseKey] = useState<string | null>(null);
+  const [cmdMsg, setCmdMsg] = useState<string | null>(null);
+  const handleQuickCmd = async (action: 'CLOSE_MAGIC' | 'CLOSE_ALL', magicNumber?: number, symbol?: string) => { setConfirmCloseKey(null); try { await sendRemoteCommand(creds.channelId, creds.token, { action, magicNumber, symbol, ttlSeconds: 15 }); setCmdMsg('Comando enviado ao MT5...'); } catch { setCmdMsg('Falha ao enviar comando'); } finally { window.setTimeout(() => setCmdMsg(null), 4000); } };
   const [includeHidden, setIncludeHidden] = useState(false);
   const [sortKey, setSortKey] = useState<'dailyPnl' | 'winRate'>('dailyPnl');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -257,40 +271,6 @@ export function OverviewView({
             </div>
           </div>
           <EquityBaselineChart todayTrades={allTrades} historyTrades={scopedHistoryTrades} floatingPnlBrl={metrics.floatingPnlBrl} />
-          <div className={`${UI_THEME.surfaces.card} overflow-hidden`}>
-            <table className="w-full text-left border-collapse text-xs">
-              <thead className="bg-[#161D27]/60 text-[11px] uppercase tracking-wider text-slate-400 border-b border-[#1E293B]">
-                <tr><th className="px-4 py-2.5 font-medium">Robô</th><th className="px-4 py-2.5 font-medium">Ativo</th><th className="px-4 py-2.5 font-medium">Posição</th><th className="px-4 py-2.5 font-medium text-right">Resultado Hoje</th><th className="px-4 py-2.5 font-medium text-right w-16">Gráfico</th></tr>
-              </thead>
-              <tbody className="divide-y divide-[#1E293B]/60">
-                {sortedRobots.map((bot) => {
-                  const isSel = selectedRobotId === bot.robotId;
-                  return (
-                    <tr key={bot.robotId} onClick={() => onSelectRobot(isSel ? 'ALL' : bot.robotId)} className={`transition-colors cursor-pointer ${isSel ? 'bg-blue-500/10' : 'hover:bg-[#161D27]/80'}`}>
-                      <td className="px-4 py-2.5 font-semibold text-slate-100">{bot.name}</td>
-                      <td className="px-4 py-2.5 font-mono text-slate-300">{bot.symbol} <span className="text-slate-500">• {bot.timeframe || 'M5'}</span></td>
-                      <td className="px-4 py-2.5 font-mono tabular-nums">{bot.position ? <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold ${bot.position.side === 'COMPRA' ? 'bg-emerald-500/15 text-emerald-300' : 'bg-rose-500/15 text-rose-300'}`}>{bot.position.side} {bot.position.volume}x ({formatBrl(bot.floatingPnlBrl)})</span> : <span className="text-slate-500">Zerado</span>}</td>
-                      <td className={`px-4 py-2.5 text-right font-mono font-bold tabular-nums ${bot.dailyPnlBrl > 0 ? 'text-emerald-400' : bot.dailyPnlBrl < 0 ? 'text-rose-400' : 'text-slate-300'}`}>{formatBrl(bot.dailyPnlBrl)}</td>
-                      <td className="px-4 py-2.5 text-right"><button type="button" onClick={(e) => { e.stopPropagation(); onSelectRobot(bot.robotId); onNavigate('charts'); }} className="inline-flex items-center p-1.5 rounded bg-[#161D27] hover:bg-[#1E293B] text-slate-300 hover:text-emerald-400 cursor-pointer"><CandlestickChart className="w-3.5 h-3.5" /></button></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          {allTrades.length > 0 && (
-            <div className={`${UI_THEME.surfaces.card} overflow-hidden`}>
-              <div className="px-4 py-2.5 border-b border-[#1E293B] flex items-center justify-between"><span className="text-xs font-medium text-slate-200">Execuções Hoje ({allTrades.length})</span><button type="button" onClick={() => onNavigate('operations')} className="text-[11px] text-blue-400 hover:text-blue-300 cursor-pointer">Ver todas →</button></div>
-              <div className="divide-y divide-[#1E293B]/60">
-                {allTrades.slice(0, 5).map((tr) => (
-                  <div key={tr.id} className="px-4 py-2 flex items-center justify-between gap-4 text-xs">
-                    <div className="flex items-center gap-2.5 min-w-0">{tr.side === 'COMPRA' ? <TrendingUp className="w-3.5 h-3.5 text-emerald-400 shrink-0" /> : <TrendingDown className="w-3.5 h-3.5 text-rose-400 shrink-0" />}<span className="text-slate-200 truncate">{tr.side} {tr.volume}x {tr.symbol}</span><span className="text-slate-500 truncate">• {tr.robotName}</span><span className="text-[11px] font-mono text-slate-500 hidden sm:inline">{tr.entryTime} → {tr.exitTime}</span></div>
-                    <span className={`font-mono font-bold tabular-nums shrink-0 ${tr.pnlBrl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{formatBrl(tr.pnlBrl)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </section>
       </div>
     </div>

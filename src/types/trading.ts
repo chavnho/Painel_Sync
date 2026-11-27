@@ -261,6 +261,7 @@ export interface ManagedRobot {
   symbol: string;
   timeframe: 'M1' | 'M5' | 'M15' | 'M30' | 'H1';
   enabled: boolean;
+  environment?: 'SIMULATOR' | 'PRODUCTION';
   strategyType: ManagedStrategyType;
   params: ManagedRobotParams;
   risk: ManagedRobotRisk;
