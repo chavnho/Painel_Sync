@@ -433,7 +433,7 @@ export interface PersistedManagedRobot {
   timeframe: "M1" | "M5" | "M15" | "M30" | "H1";
   enabled: boolean;
   environment?: 'SIMULATOR' | 'PRODUCTION';
-  strategyType: "ema_cross" | "rsi_reversal" | "breakout";
+  strategyType: "ema_cross" | "rsi_reversal" | "breakout" | "wdo_opening_zones";
   params: Record<string, unknown>;
   risk: {
     volume: number;

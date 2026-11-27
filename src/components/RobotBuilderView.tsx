@@ -285,7 +285,7 @@ export function RobotBuilderView({ creds, mt5Robots = [], onRenameMagic, onToggl
   };
 
   const strategyLabel = (st: ManagedStrategyType) =>
-    st === 'ema_cross' ? 'Cruzamento de Médias' : st === 'rsi_reversal' ? 'Reversão IFR (RSI)' : 'Rompimento de Canal';
+    st === 'wdo_opening_zones' ? 'Abertura WDO (5 Zonas A/B)' : st === 'ema_cross' ? 'Cruzamento de Médias' : st === 'rsi_reversal' ? 'Reversão IFR (RSI)' : 'Rompimento de Canal';
 
   return (
     <div className="flex-1 h-full min-h-0 flex flex-col overflow-hidden bg-[#090D12]"><div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden">
@@ -337,7 +337,7 @@ export function RobotBuilderView({ creds, mt5Robots = [], onRenameMagic, onToggl
 
               <div>
                 <label className="block text-[11px] text-gray-400 mb-1">Estratégia</label>
-                <select value={strategyType} onChange={(e) => setStrategyType(e.target.value as ManagedStrategyType)} className="w-full px-3 py-2 rounded-lg bg-[#090D12] border border-[#1E2633] text-xs text-gray-100 focus:outline-none focus:border-emerald-500">
+                <select value={strategyType} onChange={(e) => { const nextSt = e.target.value as ManagedStrategyType; setStrategyType(nextSt); if (nextSt === 'wdo_opening_zones') { setSymbol('WDO$'); setTimeframe('M5'); setRisk((prev) => ({ ...prev, stopPoints: 10, takePoints: 6, closeTime: '17:50', startTime: '09:00', endTime: '17:45' })); } }} className="w-full px-3 py-2 rounded-lg bg-[#090D12] border border-[#1E2633] text-xs text-gray-100 focus:outline-none focus:border-emerald-500">
                   <option value="ema_cross">Cruzamento de Médias (EMA / SMA)</option>
                   <option value="rsi_reversal">Reversão por IFR / RSI</option>
                   <option value="breakout">Rompimento de Máxima / Mínima</option>
@@ -381,7 +381,7 @@ export function RobotBuilderView({ creds, mt5Robots = [], onRenameMagic, onToggl
                 </div>
               )}
 
-              {strategyType === 'breakout' && (
+              {strategyType === 'wdo_opening_zones' && (<div className='rounded-lg bg-[#090D12] border border-emerald-500/25 p-2.5 text-[11px] text-gray-300 space-y-1'><div className='font-semibold text-emerald-300'>Abertura WDO • 5 Zonas (1A..5A / 1B..5B)</div><div className='text-gray-400'>• Canais D-1: Max-7 pts e Min+7 pts • IFR(7) • EMAs 13/17/21 (H1/D1)</div><div className='text-gray-400'>• 1 operação única/dia • Alvo 6 pts • Stop 10 pts • Zeragem 17:50</div></div>)}{strategyType === 'breakout' && (
                 <div className="p-3 rounded-lg bg-[#090D12] border border-[#1E2633]">
                   <label className="block text-[10px] text-gray-400 mb-1">Candles anteriores (Lookback)</label>
                   <input type="number" min={2} max={200} value={lookbackBars} onChange={(e) => setLookbackBars(Number(e.target.value))} className="w-full px-2.5 py-1.5 rounded bg-[#0F141C] border border-[#1E2633] text-xs font-mono text-gray-100" />

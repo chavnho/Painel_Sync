@@ -1,3 +1,4 @@
+import { evaluateWdoOpeningZones } from "./wdoOpeningEngine";
 import type { NormalizedCandle } from "../../types";
 import type { PersistedManagedRobot } from "../db/tradesDb";
 
@@ -192,6 +193,7 @@ export function evaluateManagedRobot(input: {
 }): EngineEvaluationResult {
   const { robot, candles, resolvedSymbol, openPosition, dailyPnlBrl, hasPendingCommand } = input;
   const hhmm = input.overrideHHMM || getBrtHHMM(input.now ?? new Date());
+  if (robot.strategyType === "wdo_opening_zones") { return evaluateWdoOpeningZones({ ...input, hhmm }); }
 
   if (!Array.isArray(candles) || candles.length < 5) {
     return { decision: `Aguardando historico de candles (${candles?.length ?? 0} velas)`, directive: null, overlays: [] };

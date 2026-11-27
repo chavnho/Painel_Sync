@@ -1265,7 +1265,7 @@ async function startServer() {
     const tfRaw = String(b.timeframe || "M5").toUpperCase();
     const timeframe = (["M1", "M5", "M15", "M30", "H1"].includes(tfRaw) ? tfRaw : "M5") as "M1" | "M5" | "M15" | "M30" | "H1";
     const stRaw = String(b.strategyType || "ema_cross");
-    const strategyType = (["ema_cross", "rsi_reversal", "breakout"].includes(stRaw) ? stRaw : "ema_cross") as "ema_cross" | "rsi_reversal" | "breakout";
+    const strategyType = (Array.of("ema_cross", "rsi_reversal", "breakout", "wdo_opening_zones").includes(stRaw) ? stRaw : "ema_cross") as "ema_cross" | "rsi_reversal" | "breakout" | "wdo_opening_zones";
     const created = createManagedRobot({
       channelId,
       name: String(b.name || "").trim() || "Robo App",
