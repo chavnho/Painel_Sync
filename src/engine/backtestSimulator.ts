@@ -94,6 +94,7 @@ export function runBacktestSimulation(input: {
   candles: LiveCandle[];
   maxBars?: number;
   startFromBar?: number;
+  isTickMode?: boolean;
 }): BacktestRunResult {
   const allNorm = toNormalizedCandles(input.candles);
   const limit = input.maxBars && input.maxBars > 0 ? Math.min(allNorm.length, Math.trunc(input.maxBars)) : allNorm.length;

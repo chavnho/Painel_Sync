@@ -385,8 +385,9 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
       candles: effectiveCandles,
       maxBars: effectiveReplayBars > 0 ? effectiveReplayBars : effectiveCandles.length,
       startFromBar: strategyType === 'wdo_opening_zones' && selectedDay !== 'ALL' ? Math.max(4, replayInitialBar) : undefined,
+      isTickMode,
     });
-  }, [effectiveCandles, effectiveReplayBars, replayInitialBar, selectedDay, botName, resolvedSymbol, timeframe, strategyType, maType, fastPeriod, slowPeriod, rsiPeriod, oversold, overbought, lookbackBars, onBullishSignal, onBearishSignal, risk]);
+  }, [effectiveCandles, effectiveReplayBars, replayInitialBar, selectedDay, isTickMode, botName, resolvedSymbol, timeframe, strategyType, maType, fastPeriod, slowPeriod, rsiPeriod, oversold, overbought, lookbackBars, onBullishSignal, onBearishSignal, risk]);
 
   const wdoReplayHud = useMemo(() => {
     if (strategyType !== 'wdo_opening_zones' || activeCandles.length === 0) return null;
