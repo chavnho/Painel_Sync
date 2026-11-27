@@ -9,6 +9,7 @@ import type {
   UTCTimestamp,
 } from 'lightweight-charts';
 
+export interface LocalLevelItem { anchorLeftTime: UTCTimestamp; anchorRightTime: UTCTimestamp; price: number; color: string; label: string; }
 export interface TradeSegmentItem {
   entryTime: UTCTimestamp;
   entryPrice: number;
@@ -16,6 +17,14 @@ export interface TradeSegmentItem {
   exitPrice: number;
   color: string;
   dotColor?: string;
+}
+
+export interface LocalLevelItem {
+  anchorLeftTime: UTCTimestamp;
+  anchorRightTime: UTCTimestamp;
+  price: number;
+  color: string;
+  label: string;
 }
 
 class TradeLinesRenderer implements IPrimitivePaneRenderer {
@@ -27,11 +36,20 @@ class TradeLinesRenderer implements IPrimitivePaneRenderer {
     color: string;
     dotColor: string;
   }>;
+  private readonly levels: Array<{
+    x1: number;
+    x2: number;
+    y: number;
+    color: string;
+    label: string;
+  }>;
 
   constructor(
-    items: Array<{ x1: number; y1: number; x2: number; y2: number; color: string; dotColor: string }>
+    items: Array<{ x1: number; y1: number; x2: number; y2: number; color: string; dotColor: string }>,
+    levels: Array<{ x1: number; x2: number; y: number; color: string; label: string }> = new Array()
   ) {
     this.items = items;
+    this.levels = levels;
   }
 
   draw(target: { useBitmapCoordinateSpace: (cb: (scope: {
@@ -39,7 +57,7 @@ class TradeLinesRenderer implements IPrimitivePaneRenderer {
     horizontalPixelRatio: number;
     verticalPixelRatio: number;
   }) => void) => void }): void {
-    if (this.items.length === 0) return;
+    if (this.items.length === 0 && this.levels.length === 0) return;
 
     target.useBitmapCoordinateSpace(({ context: ctx, horizontalPixelRatio: hpr, verticalPixelRatio: vpr }) => {
       ctx.save();
@@ -82,6 +100,29 @@ class TradeLinesRenderer implements IPrimitivePaneRenderer {
         ctx.fill();
         ctx.stroke();
       }
+
+      for (const lvl of this.levels) {
+        const x1 = lvl.x1 * hpr;
+        const x2 = lvl.x2 * hpr;
+        const y = lvl.y * vpr;
+
+        ctx.beginPath();
+        ctx.strokeStyle = lvl.color;
+        ctx.lineWidth = 2 * hpr;
+        
+        ctx.moveTo(x1, y);
+        ctx.lineTo(x2, y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        if (lvl.label) {
+          ctx.font = `600 ${Math.round(10 * hpr)}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+          ctx.fillStyle = lvl.color;
+          ctx.textBaseline = 'middle';
+          ctx.fillText(lvl.label, x2 + 4 * hpr, y);
+        }
+      }
+      for (const lvl of this.levels) { const x1 = lvl.x1 * hpr; const x2 = lvl.x2 * hpr; const y = lvl.y * vpr; ctx.beginPath(); ctx.strokeStyle = lvl.color; ctx.lineWidth = 2 * hpr; ctx.moveTo(x1, y); ctx.lineTo(x2, y); ctx.stroke(); ctx.setLineDash(new Array<number>()); if (lvl.label) { ctx.font = '600 ' + Math.round(10 * hpr) + 'px monospace'; ctx.fillStyle = lvl.color; ctx.textBaseline = 'middle'; ctx.fillText(lvl.label, x2 + 4 * hpr, y); } }
       ctx.restore();
     });
   }
@@ -107,7 +148,8 @@ export class TradeLinesPrimitive implements ISeriesPrimitive<Time> {
   private chart: IChartApi | null = null;
   private series: SeriesAttachedParameter<Time>['series'] | null = null;
   private requestUpdate?: () => void;
-  private segments: TradeSegmentItem[] = [];
+  private segments: Array<TradeSegmentItem> = new Array();
+  private localLevels: Array<LocalLevelItem> = new Array();
   private readonly paneView: TradeLinesPaneView;
 
   constructor() {
@@ -130,16 +172,22 @@ export class TradeLinesPrimitive implements ISeriesPrimitive<Time> {
     return [this.paneView];
   }
 
-  setSegments(next: TradeSegmentItem[]): void {
+  setSegments(next: Array<TradeSegmentItem>): void {
     this.segments = next;
     this.requestUpdate?.();
     this.chart?.applyOptions({});
   }
 
+  setLocalLevels(next: Array<LocalLevelItem>): void {
+    this.localLevels = next;
+    this.requestUpdate?.();
+    this.chart?.applyOptions({});
+  }
+
   buildRenderer(): IPrimitivePaneRenderer | null {
-    if (!this.chart || !this.series || this.segments.length === 0) return null;
+    if (!this.chart || !this.series || (this.segments.length === 0 && this.localLevels.length === 0)) return null;
     const timeScale = this.chart.timeScale();
-    const coords: Array<{ x1: number; y1: number; x2: number; y2: number; color: string; dotColor: string }> = [];
+    const coords = new Array<{ x1: number; y1: number; x2: number; y2: number; color: string; dotColor: string }>();
 
     for (const seg of this.segments) {
       const x1 = timeScale.timeToCoordinate(seg.entryTime);
@@ -157,6 +205,22 @@ export class TradeLinesPrimitive implements ISeriesPrimitive<Time> {
       });
     }
 
-    return new TradeLinesRenderer(coords);
+    const levelCoords = new Array<{ x1: number; x2: number; y: number; color: string; label: string }>();
+    for (const lvl of this.localLevels) {
+      const xLeft = timeScale.timeToCoordinate(lvl.anchorLeftTime);
+      const xRight = timeScale.timeToCoordinate(lvl.anchorRightTime);
+      const y = this.series.priceToCoordinate(lvl.price);
+      if (xLeft === null || xRight === null || y === null) continue;
+      const span = Math.max(24, xRight - xLeft);
+      levelCoords.push({
+        x1: xLeft,
+        x2: xRight + span,
+        y,
+        color: lvl.color,
+        label: lvl.label,
+      });
+    }
+
+    return new TradeLinesRenderer(coords, levelCoords);
   }
 }

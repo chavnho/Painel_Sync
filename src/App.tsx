@@ -14,6 +14,7 @@ import { BacktestReplayView } from './components/BacktestReplayView';
 import { LiveLogView } from './components/LiveLogView';
 import type {
   DashboardTelemetry,
+  ManagedRobot,
   DashboardView,
   Mt5SyncCredentials,
   PairingAttemptEvent,
@@ -23,11 +24,14 @@ import {
   API_BASE_URL,
   loadOrCreateMt5SyncCredentials,
   regenerateMt5SyncCredentials,
+  fetchManagedRobots,
 } from './utils/mt5Bridge';
 
 export default function App() {
   useEffect(() => { initSavedTheme(); }, []);
-  const [activeView, setActiveView] = useState<DashboardView>('overview');
+  const initialParams = useMemo(() => new URLSearchParams(window.location.search), []);
+  const isStandalone = initialParams.get('standalone') === '1';
+  const [activeView, setActiveView] = useState<DashboardView>(() => (initialParams.get('view') as DashboardView) || 'overview');
 
   useEffect(() => {
     const viewOrder: DashboardView[] = ['overview', 'charts', 'buy-sell', 'operations', 'reports'];
@@ -53,7 +57,9 @@ export default function App() {
   const [telemetry, setTelemetry] = useState<DashboardTelemetry | null>(null);
   const [pairingEvents, setPairingEvents] = useState<PairingAttemptEvent[]>([]);
   const [lastCommandUpdate, setLastCommandUpdate] = useState<RemoteCommand | null>(null);
-  const [selectedRobotId, setSelectedRobotId] = useState<string | 'ALL'>('ALL');
+  const [selectedRobotId, setSelectedRobotId] = useState<string | 'ALL'>(() => initialParams.get('robotId') || 'ALL');
+  const [managedRobots, setManagedRobots] = useState<ManagedRobot[]>([]);
+  const [managedLoaded, setManagedLoaded] = useState(false);
   const [magicColors, setMagicColors] = useState<Record<number, number>>(() => loadMagicColorMap());
   const handleCycleMagicColor = (magic: number, fallbackIdx: number) => {
     setMagicColors((prev) => {
@@ -177,9 +183,22 @@ export default function App() {
     };
   }, [creds.channelId, creds.token]);
 
+  useEffect(() => {
+    let active = true;
+    const loadAppBots = () => {
+      fetchManagedRobots(creds.channelId, creds.token)
+        .then((list) => { if (active && Array.isArray(list)) setManagedRobots(list); })
+        .catch(() => {})
+        .finally(() => { if (active) setManagedLoaded(true); });
+    };
+    loadAppBots();
+    const timer = window.setInterval(loadAppBots, 8000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [creds.channelId, creds.token]);
+
   const robots = useMemo(() => {
     const raw = telemetry?.robots ?? [];
-    return raw.map((bot) => {
+    const mapped = raw.map((bot) => {
       const alias = magicAliases[bot.magicNumber];
       if (!alias) return bot;
       return {
@@ -192,17 +211,38 @@ export default function App() {
           ? bot.historyTrades.map((t) => ({ ...t, robotName: alias }))
           : bot.historyTrades,
       };
-    });
-  }, [telemetry?.robots, magicAliases]);
+          });
+      const existingMagics = new Set(mapped.map((b) => b.magicNumber));
+      for (const appBot of managedRobots) {
+        if (existingMagics.has(appBot.magicNumber)) continue;
+        const alias = magicAliases[appBot.magicNumber];
+        mapped.push({
+          robotId: String(appBot.magicNumber) + "_" + appBot.symbol,
+          name: alias || appBot.name,
+          magicNumber: appBot.magicNumber,
+          symbol: appBot.symbol,
+          timeframe: appBot.timeframe,
+          status: appBot.environment === 'PRODUCTION' ? (appBot.enabled ? 'APP · ATIVO' : 'APP · PAUSADO') : 'APP · SIMULADOR',
+          lastUpdate: new Date().toISOString(),
+          position: null,
+          pendingOrders: [],
+          candles: [],
+          overlays: [],
+          markers: [],
+          trades: [],
+          historyTrades: [],
+          realizedPnlBrl: 0,
+          floatingPnlBrl: 0,
+          dailyPnlBrl: 0,
+          hidden: false,
+        });
+      }
+      return mapped;
+    }, [telemetry?.robots, managedRobots, magicAliases]);
 
   useEffect(() => {
-    if (
-      selectedRobotId !== 'ALL' &&
-      !robots.some((r) => r.robotId === selectedRobotId)
-    ) {
-      setSelectedRobotId('ALL');
-    }
-  }, [robots, selectedRobotId]);
+    if (managedLoaded && selectedRobotId !== 'ALL' && !robots.some((r) => r.robotId === selectedRobotId)) { const magicPrefix = selectedRobotId.split("_")[0]; const byMagic = magicPrefix ? robots.find((r) => String(r.magicNumber) === magicPrefix) : null; if (byMagic) { setSelectedRobotId(byMagic.robotId); } else { setSelectedRobotId('ALL'); } }
+  }, [managedLoaded, robots, selectedRobotId]);
 
   const handleClearSession = useCallback(async () => {
     try {
@@ -260,15 +300,14 @@ export default function App() {
 
   return (
     <div className="h-screen w-screen flex flex-col bg-[#090D12] text-gray-100 overflow-hidden">
-      <DashboardHeader
+      {!isStandalone && <DashboardHeader
         serverStartedAt={serverStartedAt}
         activeView={activeView}
         onViewChange={setActiveView}
         robotsCount={robots.length}
         account={telemetry?.account ?? null}
         streamStatus={streamStatus}
-        lastSyncAt={telemetry?.serverReceivedAt ?? null}
-      />
+        lastSyncAt={telemetry?.serverReceivedAt ?? null} />}
 
       <div className="flex-1 flex min-h-0">
         <main className="flex-1 flex flex-col min-w-0 h-full bg-[#090D12] overflow-hidden">
@@ -291,10 +330,11 @@ export default function App() {
 
           {activeView === 'charts' && (
             <TradingChartView
-              robots={robots}
+              robots={robots} managedRobots={managedRobots}
               activeContracts={telemetry?.activeContracts}
               magicColors={magicColors}
               selectedRobotId={selectedRobotId}
+              onSelectRobot={setSelectedRobotId}
               onNavigate={setActiveView}
             />
           )}
@@ -327,7 +367,7 @@ export default function App() {
             />
           )}
 
-          {activeView === 'robots' && <RobotBuilderView creds={creds} mt5Robots={robots} onRenameMagic={handleRenameMagic} onToggleHideMagic={handleToggleHideMagic} onSelectRobot={setSelectedRobotId} onNavigate={setActiveView} />}
+          {activeView === 'robots' && <RobotBuilderView creds={creds} mt5Robots={robots} magicColors={magicColors} onCycleMagicColor={handleCycleMagicColor} onSetMagicColor={(magic, idx) => { setMagicColors((prev) => { const next = { ...prev, [magic]: idx }; saveMagicColorMap(next); return next; }); }} onRenameMagic={handleRenameMagic} onToggleHideMagic={handleToggleHideMagic} onSelectRobot={setSelectedRobotId} onNavigate={setActiveView} />}
           {activeView === 'simulator' && <BacktestReplayView creds={creds} activeContracts={telemetry?.activeContracts} />}
 
           {activeView === 'connect' && (

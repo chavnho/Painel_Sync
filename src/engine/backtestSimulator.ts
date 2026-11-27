@@ -21,6 +21,7 @@ export interface SimulatedTrade {
   exitPrice: number;
   points: number;
   pnlBrl: number;
+  entryReason?: string;
   exitReason: string;
 }
 
@@ -119,6 +120,7 @@ export function runBacktestSimulation(input: {
     entryPrice: number;
     entryTime: number;
     entryLabel: string;
+    entryReason?: string;
     sl: number;
     tp: number;
   } | null = null;
@@ -140,6 +142,7 @@ export function runBacktestSimulation(input: {
       volume: pos.volume,
       entryTime: pos.entryTime,
       entryLabel: pos.entryLabel,
+      entryReason: pos.entryReason,
       entryPrice: pos.entryPrice,
       exitTime,
       exitLabel,
@@ -224,6 +227,7 @@ export function runBacktestSimulation(input: {
           entryPrice: execPrice,
           entryTime: barTs,
           entryLabel: fmt.label,
+          entryReason: evalRes.directive.reason,
           sl: calcSl,
           tp: calcTp,
         };

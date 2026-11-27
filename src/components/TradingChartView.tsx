@@ -1,4 +1,4 @@
-import { TradeLinesPrimitive, type TradeSegmentItem } from '../utils/tradeLinesPrimitive';
+import { TradeLinesPrimitive, type TradeSegmentItem, type LocalLevelItem } from '../utils/tradeLinesPrimitive';
 import { INITIAL_CHART_VIEW_BARS, MAX_CHART_CANDLES, getRobotColorTheme } from '../utils/themeTokens';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -35,6 +35,7 @@ import type {
   DashboardView,
   ExecutedTrade,
   LiveCandle,
+  ManagedRobot,
   LiveMarker,
   OpenPosition,
   PendingOrder,
@@ -52,8 +53,10 @@ import { formatBrl, formatPrice } from '../utils/tradingMath';
 
 interface TradingChartViewProps {
   robots: RobotStream[];
+  managedRobots?: ManagedRobot[];
   activeContracts?: Record<string, string>;
   selectedRobotId: string | 'ALL';
+  onSelectRobot?: (robotId: string | 'ALL') => void;
   magicColors?: Record<number, number>;
   onNavigate: (view: DashboardView) => void;
 }
@@ -216,10 +219,92 @@ function writeCachedSymbols(channelId: string, symbols: string[]) {
   }
 }
 
+function computeWdoOpeningOverlayLines(
+  candles: Array<LiveCandle>,
+  chPts = 7,
+  h1Candles: Array<LiveCandle> = new Array<LiveCandle>(),
+  d1Candles: Array<LiveCandle> = new Array<LiveCandle>()
+): Array<{ price: number; color: string; lineStyle: LineStyle; lineWidth?: number; title: string }> {
+  const empty = new Array<{ price: number; color: string; lineStyle: LineStyle; lineWidth?: number; title: string }>();
+  if (!Array.isArray(candles) || candles.length < 10) return empty;
+  const daysMap = new Map<string, Array<LiveCandle>>();
+  for (let i = 0; i < candles.length; i++) {
+    const c = candles.at(i)!;
+    const ts = Number(c.time) > 1e11 ? Math.floor(Number(c.time) / 1000) : Math.floor(Number(c.time) || i * 300);
+    const dk = new Date(ts * 1000).toISOString().slice(0, 10);
+    const arr = daysMap.get(dk) ?? new Array<LiveCandle>();
+    arr.push(c);
+    daysMap.set(dk, arr);
+  }
+  const days = Array.from(daysMap.keys()).sort();
+  if (days.length < 2) return empty;
+  const nowBrtKey = new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
+  const lastCandleDayKey = days.at(days.length - 1)!;
+  const hasTodaySession = lastCandleDayKey >= nowBrtKey;
+  const d1Key = hasTodaySession ? days.at(days.length - 2)! : lastCandleDayKey;
+  const todayKey = hasTodaySession ? lastCandleDayKey : nowBrtKey;
+  const todayBars = daysMap.get(todayKey) ?? new Array<LiveCandle>();
+  const prevBars = daysMap.get(d1Key)!;
+  const prevHigh = Math.max(...prevBars.map((b) => b.high));
+  const prevLow = Math.min(...prevBars.map((b) => b.low));
+  const upLow = Number((prevHigh - chPts).toFixed(2));
+  const dnHigh = Number((prevLow + chPts).toFixed(2));
+
+  const lines: Array<{ price: number; color: string; lineStyle: LineStyle; lineWidth?: number; title: string }> = [
+    { price: prevHigh, color: '#2563EB', lineStyle: LineStyle.Solid, lineWidth: 2, title: 'Max D-1' },
+    { price: upLow, color: '#2563EB', lineStyle: LineStyle.Dashed, lineWidth: 2, title: 'Max-' + chPts },
+    { price: dnHigh, color: '#2563EB', lineStyle: LineStyle.Dashed, lineWidth: 2, title: 'Min+' + chPts },
+    { price: prevLow, color: '#2563EB', lineStyle: LineStyle.Solid, lineWidth: 2, title: 'Min D-1' },
+  ];
+
+  const firstTodayTs = Number(todayBars.at(0)?.time || 0);
+  const prior = firstTodayTs > 0 ? candles.filter((c) => Number(c.time || 0) < firstTodayTs) : candles.slice(0, Math.max(0, candles.length - todayBars.length));
+  const aggCloses = (sec: number): Array<number> => {
+    const out = new Array<number>();
+    let cur = -1;
+    for (let i = 0; i < prior.length; i++) {
+      const c = prior.at(i)!;
+      const t = Number(c.time) > 1e11 ? Math.floor(Number(c.time) / 1000) : Math.floor(Number(c.time) || i * 300);
+      const b = Math.floor(t / sec);
+      if (b !== cur || out.length === 0) { cur = b; out.push(c.close); }
+      else { out.splice(out.length - 1, 1, c.close); }
+    }
+    return out;
+  };
+  const calcEmaVal = (closes: Array<number>, period: number): number | null => {
+    if (closes.length < period) return null;
+    const k = 2 / (period + 1);
+    let ema = closes.slice(0, period).reduce((a, b) => a + b, 0) / period;
+    for (let i = period; i < closes.length; i++) ema = closes.at(i)! * k + ema * (1 - k);
+    return Number(ema.toFixed(2));
+  };
+
+  const h1PriorCloses = h1Candles.length > 0
+    ? h1Candles.filter((c) => firstTodayTs <= 0 || Number(c.time || 0) < firstTodayTs).map((c) => c.close)
+    : aggCloses(3600);
+
+  const d1PriorCloses = d1Candles.length > 0
+    ? d1Candles.filter((c) => {
+        const ts = Number(c.time) > 1e11 ? Math.floor(Number(c.time) / 1000) : Math.floor(Number(c.time) || 0);
+        const dk = new Date(ts * 1000).toISOString().slice(0, 10);
+        return dk < todayKey;
+      }).map((c) => c.close)
+    : aggCloses(86400);
+
+  for (const p of Array.of(13, 17, 21)) {
+    const eh = calcEmaVal(h1PriorCloses, p);
+    if (eh != null) lines.push({ price: eh, color: '#C084FC', lineStyle: LineStyle.Dotted, lineWidth: 2, title: 'EMA' + p + ' H1' });
+    const ed = calcEmaVal(d1PriorCloses, p);
+    if (ed != null) lines.push({ price: ed, color: '#22C55E', lineStyle: LineStyle.Dotted, lineWidth: 2, title: 'EMA' + p + ' D1' });
+  }
+  return lines;
+}
 export function TradingChartView({
   robots,
+  managedRobots = [],
   activeContracts = {},
   selectedRobotId,
+  onSelectRobot,
   magicColors = {},
   onNavigate,
 }: TradingChartViewProps) {
@@ -238,7 +323,8 @@ export function TradingChartView({
   const [showMarkers, setShowMarkers] = useState(true);
   const [hoveredTime, setHoveredTime] = useState<number | null>(null);
   const [isScrolledAway, setIsScrolledAway] = useState(false);
-  const [subPaneMode, setSubPaneMode] = useState<'volume' | 'rsi' | 'pnl'>('volume');
+    const [subPaneMode, setSubPaneMode] = useState<'volume' | 'rsi' | 'pnl'>('volume');
+  const [wdoMtfCandles, setWdoMtfCandles] = useState<{ h1: Array<LiveCandle>; d1: Array<LiveCandle> }>({ h1: new Array<LiveCandle>(), d1: new Array<LiveCandle>() });
   const previousSymbolRef = useRef<string>('');
   const lastFollowedBotKeyRef = useRef<string>('');
 
@@ -385,6 +471,31 @@ export function TradingChartView({
 
   
  
+    const isSelectedWdoZones = useMemo(() => {
+    if (!targetRobot) return false;
+    const m = managedRobots.find((b) => b.magicNumber === targetRobot.magicNumber);
+    return m?.strategyType === 'wdo_opening_zones';
+  }, [targetRobot, managedRobots]);
+
+  useEffect(() => {
+    if (!isSelectedWdoZones || !activeSymbol) {
+      setWdoMtfCandles({ h1: new Array<LiveCandle>(), d1: new Array<LiveCandle>() });
+      return;
+    }
+    let active = true;
+    const { channelId, token } = loadOrCreateMt5SyncCredentials();
+    Promise.all([
+      syncCandlesWithMt5(channelId, token, activeSymbol, 'H1', { force: false, timeoutMs: 12000 }).catch(() => new Array<LiveCandle>()),
+      syncCandlesWithMt5(channelId, token, activeSymbol, 'D1', { force: false, timeoutMs: 12000 }).catch(() => new Array<LiveCandle>()),
+    ]).then(([h1, d1]) => {
+      if (!active) return;
+      setWdoMtfCandles({
+        h1: Array.isArray(h1) ? h1 : new Array<LiveCandle>(),
+        d1: Array.isArray(d1) ? d1 : new Array<LiveCandle>(),
+      });
+    });
+    return () => { active = false; };
+  }, [isSelectedWdoZones, activeSymbol, reloadToken]);
   const symbolRobotsRef = useRef(symbolRobots);
   symbolRobotsRef.current = symbolRobots;
 
@@ -643,6 +754,76 @@ export function TradingChartView({
     });
   }, [symbolRobots.length, allCandles, symbolTrades, totalSymbolDailyPnl]);
 
+  const wdoHudStatus = useMemo(() => {
+    if (!isSelectedWdoZones || !targetRobot || allCandles.length < 10) return null;
+    const appBot = managedRobots.find((b) => b.magicNumber === targetRobot.magicNumber);
+    const rsiPeriod = Math.max(2, Number(appBot?.params?.rsiPeriod) || 7);
+    const chPts = Math.max(1, Number(appBot?.params?.channelPoints) || 7);
+
+    const closes = allCandles.map((c) => c.close);
+    let rsiVal: number | null = null;
+    if (closes.length > rsiPeriod) {
+      let g = 0, l = 0;
+      for (let i = 1; i <= rsiPeriod; i++) {
+        const d = closes.at(i)! - closes.at(i - 1)!;
+        if (d >= 0) g += d; else l += -d;
+      }
+      let ag = g / rsiPeriod, al = l / rsiPeriod;
+      for (let i = rsiPeriod + 1; i < closes.length; i++) {
+        const d = closes.at(i)! - closes.at(i - 1)!;
+        ag = (ag * (rsiPeriod - 1) + (d > 0 ? d : 0)) / rsiPeriod;
+        al = (al * (rsiPeriod - 1) + (d < 0 ? -d : 0)) / rsiPeriod;
+      }
+      rsiVal = Number((al === 0 ? 100 : 100 - 100 / (1 + ag / al)).toFixed(1));
+    }
+
+    const daysMap = new Map<string, Array<LiveCandle>>();
+    for (let i = 0; i < allCandles.length; i++) {
+      const c = allCandles.at(i)!;
+      const ts = Number(c.time) > 1e11 ? Math.floor(Number(c.time) / 1000) : Math.floor(Number(c.time) || i * 300);
+      const dk = new Date(ts * 1000).toISOString().slice(0, 10);
+      const arr = daysMap.get(dk) ?? new Array<LiveCandle>();
+      arr.push(c);
+      daysMap.set(dk, arr);
+    }
+    const days = Array.from(daysMap.keys()).sort();
+    let zoneLabel = '';
+    let zoneSide = '';
+    let prevDayFormatted = '';
+    let todayDayFormatted = '';
+    if (days.length >= 2) {
+      const nowBrtKey = new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
+      const lastCandleDayKey = days.at(days.length - 1)!;
+      const hasTodaySession = lastCandleDayKey >= nowBrtKey;
+      const prevKey = hasTodaySession ? days.at(days.length - 2)! : lastCandleDayKey;
+      const todayKey = hasTodaySession ? lastCandleDayKey : nowBrtKey;
+      todayDayFormatted = todayKey.split('-').reverse().join('/');
+      prevDayFormatted = prevKey.split('-').reverse().join('/');
+      const todayBars = daysMap.get(todayKey);
+      const prevBars = daysMap.get(prevKey)!;
+      const prevHigh = Math.max(...prevBars.map((b) => b.high));
+      const prevLow = Math.min(...prevBars.map((b) => b.low));
+      if (todayBars && todayBars.length > 0) {
+        const openP = todayBars.at(0)!.open;
+        if (openP > prevHigh) { zoneLabel = 'Z1'; zoneSide = 'Venda'; }
+        else if (openP >= prevHigh - chPts) { zoneLabel = 'Z2'; zoneSide = 'Venda'; }
+        else if (openP > prevLow + chPts) { zoneLabel = 'Z3'; zoneSide = 'Compra/Venda'; }
+        else if (openP >= prevLow) { zoneLabel = 'Z4'; zoneSide = 'Compra'; }
+        else { zoneLabel = 'Z5'; zoneSide = 'Compra'; }
+      } else {
+        zoneLabel = 'Pré-abertura';
+        zoneSide = 'Aguardando 09:00';
+      }
+    }
+
+    const emaLines = computeWdoOpeningOverlayLines(allCandles, chPts, wdoMtfCandles.h1, wdoMtfCandles.d1)
+      .filter((l) => l.title.startsWith('EMA'));
+    const h1Emas = emaLines.filter((l) => l.title.endsWith('H1'));
+    const d1Emas = emaLines.filter((l) => l.title.endsWith('D1'));
+
+    return { rsiPeriod, rsiVal, zoneLabel, zoneSide, h1Emas, d1Emas, prevDayFormatted, todayDayFormatted };
+  }, [isSelectedWdoZones, targetRobot, managedRobots, allCandles, wdoMtfCandles]);
+
   // 1. Inicializa e destrói o gráfico TradingView Lightweight Charts por ativo/timeframe
   useEffect(() => {
     const container = containerRef.current;
@@ -665,8 +846,8 @@ export function TradingChartView({
         },
       },
       grid: {
-        vertLines: { color: '#131922' },
-        horzLines: { color: '#131922' },
+        vertLines: { visible: false },
+        horzLines: { visible: false },
       },
       crosshair: {
         mode: CrosshairMode.Normal,
@@ -1092,7 +1273,40 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
         );
       }
     }
-    priceLinesRef.current = nextPriceLines;
+          const selectedAppBot = targetRobot ? managedRobots.find((m) => m.magicNumber === targetRobot.magicNumber) : null;
+      const nextLocalLevels = new Array<LocalLevelItem>();
+      if (selectedAppBot && selectedAppBot.strategyType === 'wdo_opening_zones') {
+        const chPts = Math.max(1, Number(selectedAppBot.params?.channelPoints) || 7);
+        const wdoLines = computeWdoOpeningOverlayLines(timedCandles.map((tc) => tc.candle), chPts, wdoMtfCandles.h1, wdoMtfCandles.d1);
+        const leftTc = timedCandles.at(Math.max(0, timedCandles.length - 6));
+        const rightTc = timedCandles.at(timedCandles.length - 1);
+        for (const wl of wdoLines) {
+          if (wl.title.startsWith('EMA') && leftTc && rightTc) {
+            nextLocalLevels.push({
+              anchorLeftTime: leftTc.utcTime,
+              anchorRightTime: rightTc.utcTime,
+              price: wl.price,
+              color: wl.color,
+              label: wl.title.replace('EMA', '').replace(' H1', '').replace(' D1', '').replace(/^/, wl.title.endsWith('H1') ? 'H' : 'D') + ' - ' + wl.price.toFixed(1),
+            });
+          } else {
+            nextPriceLines.push(
+              candleSeries.createPriceLine({
+                price: wl.price,
+                color: wl.color,
+                lineWidth: (wl.lineWidth ?? 1) as 1 | 2 | 3 | 4,
+                lineStyle: wl.lineStyle,
+                axisLabelVisible: true,
+                axisLabelColor: '#18181B',
+                axisLabelTextColor: wl.color,
+                title: wl.title,
+              })
+            );
+          }
+        }
+      }
+      tradeLinesPrimitiveRef.current?.setLocalLevels(nextLocalLevels);
+      priceLinesRef.current = nextPriceLines;
 
     // Na primeira carga do ativo/timeframe, mostra os últimos ~70 candles confortavelmente
     if (!initialFitDoneRef.current) {
@@ -1192,6 +1406,7 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
     <div className="flex-1 flex flex-col min-h-0 px-6 py-4 gap-3 overflow-hidden">
       <div className="w-full flex-1 flex flex-col min-h-0 gap-3">
         <div className="shrink-0 flex flex-wrap items-center justify-center gap-2.5">
+          <div className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-[#0F141C] border border-[#1E2633]"><span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: selectedRobotId === "ALL" ? "#10B981" : getRobotColorTheme(robots.find((r) => r.robotId === selectedRobotId)?.magicNumber ?? 0, magicColors).hex }} /><select value={selectedRobotId} onChange={(e) => { const nextId = e.target.value; setSelectedSymbol(""); onSelectRobot?.(nextId); }} aria-label="Filtrar robô no gráfico" className="bg-transparent text-xs font-medium text-gray-100 focus:outline-none cursor-pointer max-w-[200px]"><option value="ALL" className="bg-[#0F141C] text-gray-100">Todos os Robôs ({robots.filter((r) => !r.hidden).length})</option>{robots.filter((r) => !r.hidden).map((r) => (<option key={r.robotId} value={r.robotId} className="bg-[#0F141C] text-gray-100">{r.name} (#{r.magicNumber})</option>))}</select></div>
           <SymbolAutocomplete
             symbols={availableSymbols}
             selectedSymbol={activeSymbol}
@@ -1356,6 +1571,54 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
 
           <div className="flex-1 min-h-0 bg-[#090D12] relative">
             <div ref={containerRef} className="w-full h-full" />
+              {wdoHudStatus && (
+                <div className="absolute bottom-8 right-20 z-20 pointer-events-none flex flex-col items-end gap-1 px-2.5 py-1.5 rounded-lg bg-[#090D12]/85 backdrop-blur border border-[#1E2633] text-[11px] font-mono shadow-lg">
+                  <div className="flex items-center gap-2">
+                    {wdoHudStatus.zoneLabel && (
+                      <span className="inline-flex items-center gap-1 text-[#60A5FA] font-semibold">
+                        <span>{wdoHudStatus.zoneLabel}</span>
+                        <span className="text-gray-400 font-normal">({wdoHudStatus.zoneSide})</span>
+                      </span>
+                    )}
+                    {wdoHudStatus.zoneLabel && <span className="text-gray-600">|</span>}
+                    <span className="inline-flex items-center gap-1">
+                      <span className="text-gray-400">IFR({wdoHudStatus.rsiPeriod}):</span>
+                      <span className={`font-bold ${
+                        wdoHudStatus.rsiVal === null ? 'text-gray-400'
+                        : wdoHudStatus.rsiVal >= 86 ? 'text-rose-400'
+                        : wdoHudStatus.rsiVal <= 16 ? 'text-emerald-400'
+                        : 'text-gray-100'
+                      }`}>
+                        {wdoHudStatus.rsiVal !== null ? wdoHudStatus.rsiVal.toFixed(1) : '--'}
+                      </span>
+                    </span>
+                  </div>
+                  {(wdoHudStatus.d1Emas.length > 0 || wdoHudStatus.h1Emas.length > 0) && (
+                    <div className="grid grid-cols-2 gap-x-3 text-[10px] leading-tight pt-1 border-t border-[#1E2633]/80 w-full">
+                      <div className="flex flex-col gap-0.5">
+                        {[...wdoHudStatus.d1Emas].reverse().map((e) => (
+                          <div key={e.title} className="text-green-500 whitespace-nowrap">
+                            D{e.title.replace('EMA', '').replace(' D1', '')} - <span className="text-gray-200">{e.price.toFixed(1)}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex flex-col gap-0.5 text-right">
+                        {[...wdoHudStatus.h1Emas].reverse().map((e) => (
+                          <div key={e.title} className="text-purple-400 whitespace-nowrap">
+                            H{e.title.replace('EMA', '').replace(' H1', '')} - <span className="text-gray-200">{e.price.toFixed(1)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {wdoHudStatus.prevDayFormatted && (
+                    <div className="w-full pt-1 border-t border-[#1E2633]/80 flex items-center justify-between gap-3 text-[10px] text-gray-400">
+                      <span>Canal D-1: <span className="text-[#60A5FA] font-semibold">{wdoHudStatus.prevDayFormatted}</span></span>
+                      <span>Pregão: <span className="text-gray-200">{wdoHudStatus.todayDayFormatted}</span></span>
+                    </div>
+                  )}
+                </div>
+              )}
             {allCandles.length === 0 && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-6 pointer-events-none">
                 <CandlestickChart className="w-7 h-7 text-gray-500" />

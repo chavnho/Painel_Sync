@@ -493,7 +493,7 @@ function mapManagedRobotRow(row: Record<string, unknown>): PersistedManagedRobot
   const tfRaw = String(row.timeframe || "M5").toUpperCase();
   const timeframe = (["M1", "M5", "M15", "M30", "H1"].includes(tfRaw) ? tfRaw : "M5") as PersistedManagedRobot["timeframe"];
   const stRaw = String(row.strategy_type || "ema_cross");
-  const strategyType = (["ema_cross", "rsi_reversal", "breakout"].includes(stRaw) ? stRaw : "ema_cross") as PersistedManagedRobot["strategyType"];
+  const strategyType = (["ema_cross", "rsi_reversal", "breakout", "wdo_opening_zones"].includes(stRaw) ? stRaw : "ema_cross") as PersistedManagedRobot["strategyType"];
   return {
     id: String(row.id || ""),
     channelId: String(row.channel_id || ""),

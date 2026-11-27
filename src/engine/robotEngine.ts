@@ -29,6 +29,8 @@ export interface EngineOverlayLine {
   label: string;
   color: string;
   dashed?: boolean;
+  dotted?: boolean;
+  lineWidth?: 1 | 2 | 3 | 4;
   values: Array<number | null>;
 }
 
