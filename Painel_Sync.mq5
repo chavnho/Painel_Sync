@@ -926,7 +926,7 @@ void SendTicksData(const string symbol, const string requestId, const string tar
       total = CopyTicksRange(symbol, ticks, COPY_TICKS_ALL, (ulong)dStart * 1000, (ulong)dEnd * 1000);
 
    int digits = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
-   string json = "{\"token\":\"" + InpSyncToken + "\""
+   string json = "{\"token\":\"" + InpToken + "\""
                + ",\"channelId\":\"" + InpChannelId + "\""
                + ",\"symbol\":\"" + symbol + "\""
                + ",\"date\":\"" + targetDate + "\"";
@@ -955,12 +955,12 @@ void SendTicksData(const string symbol, const string requestId, const string tar
 
 void SendToTicksEndpoint(const string jsonPayload)
 {
-   string url = InpServerUrl;
+   string url = InpEndpointUrl;
    int apiPos = StringFind(url, "/api/mt5-sync/");
    if(apiPos > 0)
       url = StringSubstr(url, 0, apiPos) + "/api/mt5-sync/" + InpChannelId + "/ticks";
    char post[], result[];
-   string headers = "Content-Type: application/json\r\nAuthorization: Bearer " + InpSyncToken + "\r\n";
+   string headers = "Content-Type: application/json\r\nAuthorization: Bearer " + InpToken + "\r\n";
    string resHeaders;
    StringToCharArray(jsonPayload, post, 0, StringLen(jsonPayload), CP_UTF8);
    WebRequest("POST", url, headers, 15000, post, result, resHeaders);
