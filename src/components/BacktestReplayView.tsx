@@ -143,6 +143,7 @@ export const BacktestReplayView = memo(function BacktestReplayView({ creds, acti
   const lastPriceLinesSigRef = useRef<string>("");
   const lastMarkersSigRef = useRef<string>("");
   const barTimesCacheRef = useRef<{ sig: string; times: UTCTimestamp[] }>({ sig: "", times: new Array<UTCTimestamp>() });
+  const isDraggingChartRef = useRef<boolean>(false);
   const lastRenderedSeriesRef = useRef<LiveCandle[] | null>(null);
 
   useEffect(() => {
@@ -371,7 +372,7 @@ export const BacktestReplayView = memo(function BacktestReplayView({ creds, acti
             ) {
               return prev;
             }
-            if (!isInitial && prev.length === target.length && lastPrev?.time === lastNext?.time && (pollTickCount % 10 !== 0)) {
+            if (!isInitial && prev.length === target.length && lastPrev?.time === lastNext?.time && (isDraggingChartRef.current || pollTickCount % 10 !== 0)) {
               const series = candleSeriesRef.current;
               if (series && lastNext) {
                 series.update({
@@ -384,8 +385,10 @@ export const BacktestReplayView = memo(function BacktestReplayView({ creds, acti
               }
               return prev;
             }
-            setReplayBars(target.length);
-            setCandleStatus(`AO VIVO · ${resolvedSymbol} (${timeframe}) · ${target.length} velas (Paper Trading sem ordem real)`);
+            if (prev.length !== target.length) {
+              setReplayBars(target.length);
+              setCandleStatus(`AO VIVO · ${resolvedSymbol} (${timeframe}) · ${target.length} velas (Paper Trading sem ordem real)`);
+            }
             return target;
           }));
           setSelectedDay(todayStr);
@@ -645,9 +648,15 @@ export const BacktestReplayView = memo(function BacktestReplayView({ creds, acti
     const tradeLinesPrimitive = new TradeLinesPrimitive();
     series.attachPrimitive(tradeLinesPrimitive);
     tradeLinesPrimitiveRef.current = tradeLinesPrimitive;
+    const onPointerDown = () => { isDraggingChartRef.current = true; };
+    const onPointerUp = () => { isDraggingChartRef.current = false; };
+    el.addEventListener('pointerdown', onPointerDown, { passive: true });
+    window.addEventListener('pointerup', onPointerUp, { passive: true });
     chartRef.current = chart;
     candleSeriesRef.current = series;
     return () => {
+      el.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointerup', onPointerUp);
       chart.remove();
       chartRef.current = null;
       candleSeriesRef.current = null;
