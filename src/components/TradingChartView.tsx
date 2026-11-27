@@ -1575,18 +1575,17 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
                       </span>
                     </span>
                   </div>
-                  {(wdoHudStatus.h1Emas.length > 0 || wdoHudStatus.d1Emas.length > 0) && (
-                    <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-0.5 text-[10px]">
-                      {wdoHudStatus.h1Emas.map((e) => (
-                        <span key={e.title} className="text-violet-400">
-                          {e.title.replace(' H1', '')} <span className="text-gray-200">{e.price.toFixed(1)}</span>
-                        </span>
+                  {(wdoHudStatus.d1Emas.length > 0 || wdoHudStatus.h1Emas.length > 0) && (
+                    <div className="flex flex-col items-end gap-0.5 text-[10px] leading-tight pt-1 border-t border-[#1E2633]/80 w-full">
+                      {[...wdoHudStatus.d1Emas].reverse().map((e) => (
+                        <div key={e.title} className="text-pink-400">
+                          D{e.title.replace('EMA', '').replace(' D1', '')} - <span className="text-gray-200">{e.price.toFixed(1)}</span>
+                        </div>
                       ))}
-                      {wdoHudStatus.h1Emas.length > 0 && wdoHudStatus.d1Emas.length > 0 && <span className="text-gray-600">|</span>}
-                      {wdoHudStatus.d1Emas.map((e) => (
-                        <span key={e.title} className="text-pink-400">
-                          {e.title.replace(' D1', '')} <span className="text-gray-200">{e.price.toFixed(1)}</span>
-                        </span>
+                      {[...wdoHudStatus.h1Emas].reverse().map((e) => (
+                        <div key={e.title} className="text-violet-400">
+                          H{e.title.replace('EMA', '').replace(' H1', '')} - <span className="text-gray-200">{e.price.toFixed(1)}</span>
+                        </div>
                       ))}
                     </div>
                   )}
