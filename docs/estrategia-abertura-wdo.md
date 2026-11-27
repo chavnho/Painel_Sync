@@ -44,7 +44,11 @@
   - **4A (Indicadores):** Pendente
   - **4B (Rompimento):** **COMPRA** quando Preco >= Maxima OU Preco <= Minima da vela anterior de M5.
 - **Z5 (Somente Compra):**
-  - **5A (Indicadores):** Pendente
+  - **5A (IFR 7 na 1a vela M5):**
+    - Se abrir ja com IFR(7) <= 10: nao entra, cancela 5A e **5B assume** (aguardando fechamento da 1a vela M5).
+    - Se abrir com IFR(7) > 10 e <= 16: **COMPRA a mercado** imediatamente.
+    - Se abrir com IFR(7) > 16: monitora tick a tick durante a 1a vela de M5; se o IFR(7) atingir a faixa (> 10 e <= 16), **COMPRA a mercado** imediatamente.
+    - Se a 1a vela fechar sem executar 5A: **5B assume** a partir da 2a vela de M5.
   - **5B (Rompimento):** **COMPRA** quando Preco >= Maxima OU Preco <= Minima da vela anterior de M5.
 
 ## 6. Saidas e Gestao de Risco
