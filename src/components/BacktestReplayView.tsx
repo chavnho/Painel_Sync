@@ -403,6 +403,9 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     if (isTickMode) {
       tickFetchAbortRef.current += 1;
       setIsPlaying(false);
+      if (tickDrivenCandles && tickDrivenCandles.length > 0) {
+        setReplayBars(Math.min(activeCandles.length, tickDrivenCandles.length));
+      }
       setIsTickMode(false);
       return;
     }
@@ -427,7 +430,14 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
         accumulated = accumulated.concat(res.ticks);
         setDayTicks(accumulated);
         if (idx === 0) {
-          setTickCursor(1);
+          const curCandleTime = Number(activeCandles.at(Math.max(0, Math.min(activeCandles.length - 1, replayBars - 1)))?.time || 0);
+          const curDayStr = curCandleTime > 0 ? new Date(curCandleTime * 1000).toISOString().slice(0, 10) : '';
+          let startCursor = 1;
+          if (curDayStr === targetDay && replayBars < activeCandles.length) {
+            const foundIdx = accumulated.findIndex((tk) => Math.floor(Number(tk[0]) / 1000) >= curCandleTime);
+            if (foundIdx >= 0) startCursor = foundIdx + 1;
+          }
+          setTickCursor(startCursor);
           setIsTickMode(true);
           setLoadingTicks(false);
         }
