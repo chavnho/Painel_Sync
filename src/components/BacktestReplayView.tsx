@@ -739,14 +739,15 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
       if (removed) { try { chart.removeSeries(removed); } catch {} }
     }
     overlays.forEach((ov, ovIdx) => {
-      let line = overlaySeriesRef.current[ovIdx];
+      let line = overlaySeriesRef.current.at(ovIdx);
+      const isNewLine = !line;
       if (!line) {
         line = chart.addSeries(LineSeries, { color: ov.color, lineWidth: ov.lineWidth ?? 2, lineStyle: ov.dotted ? 1 : ov.dashed ? 2 : 0, priceLineVisible: false, lastValueVisible: false });
-        overlaySeriesRef.current[ovIdx] = line;
+        overlaySeriesRef.current.push(line);
       } else {
         line.applyOptions({ color: ov.color, lineWidth: ov.lineWidth ?? 2, lineStyle: ov.dotted ? 1 : ov.dashed ? 2 : 0 });
       }
-      if ((isStepPlusOne || isLiveTickIncremental) && lastIdx >= 0) {
+      if (!isNewLine && (isStepPlusOne || isLiveTickIncremental) && lastIdx >= 0) {
         const lastVal = ov.values.at(lastIdx);
         const lastT = barTimes.at(lastIdx);
         if (lastVal !== null && lastVal !== undefined && lastT !== undefined) {
