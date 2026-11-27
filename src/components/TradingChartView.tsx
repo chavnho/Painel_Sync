@@ -788,20 +788,28 @@ export function TradingChartView({
     let prevDayFormatted = '';
     let todayDayFormatted = '';
     if (days.length >= 2) {
-      const todayKey = days.at(days.length - 1)!;
-      const prevKey = days.at(days.length - 2)!;
+      const nowBrtKey = new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
+      const lastCandleDayKey = days.at(days.length - 1)!;
+      const hasTodaySession = lastCandleDayKey >= nowBrtKey;
+      const prevKey = hasTodaySession ? days.at(days.length - 2)! : lastCandleDayKey;
+      const todayKey = hasTodaySession ? lastCandleDayKey : nowBrtKey;
       todayDayFormatted = todayKey.split('-').reverse().join('/');
       prevDayFormatted = prevKey.split('-').reverse().join('/');
-      const todayBars = daysMap.get(todayKey)!;
+      const todayBars = daysMap.get(todayKey);
       const prevBars = daysMap.get(prevKey)!;
       const prevHigh = Math.max(...prevBars.map((b) => b.high));
       const prevLow = Math.min(...prevBars.map((b) => b.low));
-      const openP = todayBars.at(0)!.open;
-      if (openP > prevHigh) { zoneLabel = 'Z1'; zoneSide = 'Venda'; }
-      else if (openP >= prevHigh - chPts) { zoneLabel = 'Z2'; zoneSide = 'Venda'; }
-      else if (openP > prevLow + chPts) { zoneLabel = 'Z3'; zoneSide = 'Compra/Venda'; }
-      else if (openP >= prevLow) { zoneLabel = 'Z4'; zoneSide = 'Compra'; }
-      else { zoneLabel = 'Z5'; zoneSide = 'Compra'; }
+      if (todayBars && todayBars.length > 0) {
+        const openP = todayBars.at(0)!.open;
+        if (openP > prevHigh) { zoneLabel = 'Z1'; zoneSide = 'Venda'; }
+        else if (openP >= prevHigh - chPts) { zoneLabel = 'Z2'; zoneSide = 'Venda'; }
+        else if (openP > prevLow + chPts) { zoneLabel = 'Z3'; zoneSide = 'Compra/Venda'; }
+        else if (openP >= prevLow) { zoneLabel = 'Z4'; zoneSide = 'Compra'; }
+        else { zoneLabel = 'Z5'; zoneSide = 'Compra'; }
+      } else {
+        zoneLabel = 'Pré-abertura';
+        zoneSide = 'Aguardando 09:00';
+      }
     }
 
     const emaLines = computeWdoOpeningOverlayLines(allCandles, chPts, wdoMtfCandles.h1, wdoMtfCandles.d1)
