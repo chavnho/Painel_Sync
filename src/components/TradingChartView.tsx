@@ -289,7 +289,7 @@ function computeWdoOpeningOverlayLines(
 
   for (const p of Array.of(13, 17, 21)) {
     const eh = calcEmaVal(h1PriorCloses, p);
-    if (eh != null) lines.push({ price: eh, color: '#FBBF24', lineStyle: LineStyle.Dotted, lineWidth: 2, title: 'EMA' + p + ' H1' });
+    if (eh != null) lines.push({ price: eh, color: '#C084FC', lineStyle: LineStyle.Dotted, lineWidth: 2, title: 'EMA' + p + ' H1' });
     const ed = calcEmaVal(d1PriorCloses, p);
     if (ed != null) lines.push({ price: ed, color: '#F472B6', lineStyle: LineStyle.Dotted, lineWidth: 2, title: 'EMA' + p + ' D1' });
   }
