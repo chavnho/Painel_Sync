@@ -355,3 +355,26 @@ export async function fetchSymbolTickSpec(channelId: string, token: string, symb
     return null;
   }
 }
+
+export async function fetchReplayTicks(
+  channelId: string,
+  token: string,
+  symbol: string,
+  date: string,
+  force = false
+): Promise<{ ticks: Array<[number, number, number]>; source: string }> {
+  try {
+    const q = `symbol=${encodeURIComponent(symbol)}&date=${encodeURIComponent(date)}${force ? "&force=true" : ""}`;
+    const res = await fetch(`${API_BASE_URL}/api/mt5-sync/${encodeURIComponent(channelId)}/ticks?${q}`, {
+      headers: { "x-sync-token": token },
+    });
+    if (!res.ok) return { ticks: new Array<[number, number, number]>(), source: "error" };
+    const data = await res.json();
+    return {
+      ticks: Array.isArray(data?.ticks) ? data.ticks : new Array<[number, number, number]>(),
+      source: String(data?.source || "empty"),
+    };
+  } catch {
+    return { ticks: new Array<[number, number, number]>(), source: "error" };
+  }
+}
