@@ -240,10 +240,10 @@ function computeWdoOpeningOverlayLines(candles: LiveCandle[], chPts = 7) {
   const dnHigh = Number((prevLow + chPts).toFixed(2));
 
   const lines: Array<{ price: number; color: string; lineStyle: LineStyle; title: string }> = [
-    { price: prevHigh, color: '#F43F5E', lineStyle: LineStyle.Solid, title: 'Max D-1' },
-    { price: upLow, color: '#FB923C', lineStyle: LineStyle.Dotted, title: 'Max-' + chPts },
-    { price: dnHigh, color: '#38BDF8', lineStyle: LineStyle.Dotted, title: 'Min+' + chPts },
-    { price: prevLow, color: '#10B981', lineStyle: LineStyle.Solid, title: 'Min D-1' },
+    { price: prevHigh, color: '#38BDF8', lineStyle: LineStyle.Solid, title: 'Max D-1' },
+    { price: upLow, color: '#38BDF8', lineStyle: LineStyle.Dashed, title: 'Max-' + chPts },
+    { price: dnHigh, color: '#38BDF8', lineStyle: LineStyle.Solid, title: 'Min+' + chPts },
+    { price: prevLow, color: '#38BDF8', lineStyle: LineStyle.Dashed, title: 'Min D-1' },
   ];
 
   const firstTodayTs = Number(todayBars[0]?.time || 0);
@@ -728,8 +728,8 @@ export function TradingChartView({
         },
       },
       grid: {
-        vertLines: { color: '#131922' },
-        horzLines: { color: '#131922' },
+        vertLines: { visible: false },
+        horzLines: { visible: false },
       },
       crosshair: {
         mode: CrosshairMode.Normal,
