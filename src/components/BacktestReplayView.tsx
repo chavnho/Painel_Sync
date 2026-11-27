@@ -323,7 +323,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
         setIsPlaying(false);
         return;
       }
-      const step = speedMs <= 80 ? 25 : speedMs <= 200 ? 10 : speedMs <= 400 ? 3 : 1;
+      const step = speedMs <= 80 ? 4 : speedMs <= 200 ? 2 : 1;
       const delay = Math.max(25, Math.min(250, Math.floor(speedMs / 3)));
       const id = window.setTimeout(() => {
         setTickCursor((prev) => Math.min(dayTicks.length, prev + step));
