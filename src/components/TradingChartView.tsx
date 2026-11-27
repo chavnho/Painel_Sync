@@ -785,9 +785,15 @@ export function TradingChartView({
     const days = Array.from(daysMap.keys()).sort();
     let zoneLabel = '';
     let zoneSide = '';
+    let prevDayFormatted = '';
+    let todayDayFormatted = '';
     if (days.length >= 2) {
-      const todayBars = daysMap.get(days.at(days.length - 1)!)!;
-      const prevBars = daysMap.get(days.at(days.length - 2)!)!;
+      const todayKey = days.at(days.length - 1)!;
+      const prevKey = days.at(days.length - 2)!;
+      todayDayFormatted = todayKey.split('-').reverse().join('/');
+      prevDayFormatted = prevKey.split('-').reverse().join('/');
+      const todayBars = daysMap.get(todayKey)!;
+      const prevBars = daysMap.get(prevKey)!;
       const prevHigh = Math.max(...prevBars.map((b) => b.high));
       const prevLow = Math.min(...prevBars.map((b) => b.low));
       const openP = todayBars.at(0)!.open;
@@ -803,7 +809,7 @@ export function TradingChartView({
     const h1Emas = emaLines.filter((l) => l.title.endsWith('H1'));
     const d1Emas = emaLines.filter((l) => l.title.endsWith('D1'));
 
-    return { rsiPeriod, rsiVal, zoneLabel, zoneSide, h1Emas, d1Emas };
+    return { rsiPeriod, rsiVal, zoneLabel, zoneSide, h1Emas, d1Emas, prevDayFormatted, todayDayFormatted };
   }, [isSelectedWdoZones, targetRobot, managedRobots, allCandles, wdoMtfCandles]);
 
   // 1. Inicializa e destrói o gráfico TradingView Lightweight Charts por ativo/timeframe
@@ -1591,6 +1597,12 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
                           </div>
                         ))}
                       </div>
+                    </div>
+                  )}
+                  {wdoHudStatus.prevDayFormatted && (
+                    <div className="w-full pt-1 border-t border-[#1E2633]/80 flex items-center justify-between gap-3 text-[10px] text-gray-400">
+                      <span>Canal D-1: <span className="text-sky-300 font-semibold">{wdoHudStatus.prevDayFormatted}</span></span>
+                      <span>Pregão: <span className="text-gray-200">{wdoHudStatus.todayDayFormatted}</span></span>
                     </div>
                   )}
                 </div>
