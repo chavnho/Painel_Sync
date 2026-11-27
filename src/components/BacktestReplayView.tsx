@@ -121,6 +121,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
   const [loadingTicks, setLoadingTicks] = useState(false);
   const [dayTicks, setDayTicks] = useState<Array<[number, number, number]>>(new Array<[number, number, number]>());
   const [tickCursor, setTickCursor] = useState(0);
+  const [jumpTime, setJumpTime] = useState('10:00');
   const [isChartMaximized, setIsChartMaximized] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [savingRobot, setSavingRobot] = useState(false);
@@ -370,6 +371,64 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
   }, [isTickMode, dayTicks, tickCursor, selectedDay, replayDate, activeCandles, timeframe]);
 
   const effectiveCandles = tickDrivenCandles ?? activeCandles;
+
+  const handleJumpToTime = () => {
+    const clean = jumpTime.trim();
+    const parts = clean.split(':');
+    const hhNum = parts.length === 2 ? Number(parts.at(0)) : NaN;
+    const mmNum = parts.length === 2 ? Number(parts.at(1)) : NaN;
+    if (!Number.isInteger(hhNum) || !Number.isInteger(mmNum) || hhNum < 0 || hhNum > 23 || mmNum < 0 || mmNum > 59) {
+      setCandleStatus('Hor\u00e1rio inv\u00e1lido. Use HH:MM (ex: 10:15).');
+      return;
+    }
+    const targetHHMM = `${String(hhNum).padStart(2, '0')}:${String(mmNum).padStart(2, '0')}`;
+    const targetMin = hhNum * 60 + mmNum;
+    const targetDay = selectedDay !== 'ALL' ? selectedDay : replayDate;
+    setIsPlaying(false);
+
+    if (isTickMode && dayTicks.length > 0) {
+      let foundIdx = dayTicks.length;
+      for (let i = 0; i < dayTicks.length; i++) {
+        const tickRow = dayTicks.at(i);
+        if (!tickRow) continue;
+        const sec = Math.floor(Number(tickRow.at(0)) / 1000);
+        const iso = new Date(sec * 1000).toISOString();
+        const hh = Number(iso.slice(11, 13));
+        const mm = Number(iso.slice(14, 16));
+        if (hh * 60 + mm >= targetMin) {
+          foundIdx = i;
+          break;
+        }
+      }
+      setTickCursor(foundIdx);
+      setCandleStatus(`Salto Tick a Tick para ${targetHHMM} (tick ${foundIdx}/${dayTicks.length}).`);
+      return;
+    }
+
+    if (activeCandles.length > 0) {
+      let targetIdx = -1;
+      for (let i = 0; i < activeCandles.length; i++) {
+        const candleRow = activeCandles.at(i);
+        const cTime = Number(candleRow?.time || 0);
+        if (!cTime) continue;
+        const iso = new Date(cTime * 1000).toISOString();
+        const cDay = iso.slice(0, 10);
+        if (selectedDay !== 'ALL' && cDay !== targetDay) continue;
+        const hh = Number(iso.slice(11, 13));
+        const mm = Number(iso.slice(14, 16));
+        if (hh * 60 + mm <= targetMin) {
+          targetIdx = i + 1;
+        }
+      }
+      if (targetIdx < replayInitialBar) {
+        const firstDayIdx = activeCandles.findIndex((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) === targetDay);
+        targetIdx = firstDayIdx >= 0 ? Math.max(replayInitialBar, firstDayIdx + 1) : replayInitialBar;
+      }
+      const clamped = Math.min(activeCandles.length, Math.max(1, targetIdx));
+      setReplayBars(clamped);
+      setCandleStatus(`Salto para ${targetHHMM} (vela ${clamped}/${activeCandles.length}).`);
+    }
+  };
   const effectiveReplayBars = tickDrivenCandles ? tickDrivenCandles.length : replayBars;
 
   const simResult = useMemo(() => {
