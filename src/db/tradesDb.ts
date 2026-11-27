@@ -471,6 +471,7 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_managed_robots_channel ON managed_robots (channel_id, created_at DESC);
 `);
 
+try { db.exec("ALTER TABLE managed_robots ADD COLUMN environment TEXT NOT NULL DEFAULT 'SIMULATOR'"); } catch {}
 const insertManagedBotStmt = db.prepare(`
   INSERT INTO managed_robots (id, channel_id, name, magic_number, symbol, timeframe, enabled, strategy_type, params_json, risk_json, last_signal_bar, last_decision, created_at, updated_at, environment)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'Aguardando ativacao', ?, ?, ?)
