@@ -1287,7 +1287,7 @@ const markersPlugin = createSeriesMarkers(candleSeries, []);
               anchorRightTime: rightTc.utcTime,
               price: wl.price,
               color: wl.color,
-              label: wl.title,
+              label: wl.title.replace('EMA', '').replace(' H1', '').replace(' D1', '').replace(/^/, wl.title.endsWith('H1') ? 'H' : 'D') + ' - ' + wl.price.toFixed(1),
             });
           } else {
             nextPriceLines.push(
