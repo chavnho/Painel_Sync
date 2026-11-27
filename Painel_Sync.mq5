@@ -63,7 +63,7 @@ void SendFastFocusDelta(const string symbol, const string tfStr)
 {
    if(symbol == "" || tfStr == "") return;
    ENUM_TIMEFRAMES period = StringToTimeframe(tfStr);
-   MqlRates rates;
+   MqlRates rates[];
    ArraySetAsSeries(rates, false);
    int copied = CopyRates(symbol, period, 0, 3, rates);
    if(copied <= 0) return;
@@ -95,10 +95,10 @@ void SendFastFocusDelta(const string symbol, const string tfStr)
 
    string url = InpEndpointUrl + "/api/mt5-sync/" + InpChannelId;
    string headers = "Content-Type: application/json\r\nX-Sync-Token: " + InpToken + "\r\n";
-   char data;
+   char data[];
    int len = StringToCharArray(json, data, 0, WHOLE_ARRAY, CP_UTF8);
    if(len > 0) ArrayResize(data, len - 1);
-   char result;
+   char result[];
    string resultHeaders = "";
    WebRequest("POST", url, headers, 150, data, result, resultHeaders);
 }
