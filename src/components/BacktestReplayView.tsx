@@ -142,6 +142,7 @@ export const BacktestReplayView = memo(function BacktestReplayView({ creds, acti
   const lastRenderedLastTimeRef = useRef<number>(0);
   const lastPriceLinesSigRef = useRef<string>("");
   const lastMarkersSigRef = useRef<string>("");
+  const barTimesCacheRef = useRef<{ sig: string; times: UTCTimestamp[] }>({ sig: "", times: new Array<UTCTimestamp>() });
   const lastRenderedSeriesRef = useRef<LiveCandle[] | null>(null);
 
   useEffect(() => {
@@ -370,7 +371,7 @@ export const BacktestReplayView = memo(function BacktestReplayView({ creds, acti
             ) {
               return prev;
             }
-            if (!isInitial && prev.length === target.length && lastPrev?.time === lastNext?.time && (pollTickCount % 4 !== 0)) {
+            if (!isInitial && prev.length === target.length && lastPrev?.time === lastNext?.time && (pollTickCount % 10 !== 0)) {
               const series = candleSeriesRef.current;
               if (series && lastNext) {
                 series.update({
@@ -664,7 +665,12 @@ export const BacktestReplayView = memo(function BacktestReplayView({ creds, acti
     const targetCount = effectiveReplayBars > 0 ? Math.min(effectiveReplayBars, effectiveCandles.length) : effectiveCandles.length;
     const visibleCandles = effectiveCandles.slice(0, targetCount);
     const baseSec = Math.floor(Date.now() / 1000) - activeCandles.length * 60;
-    const barTimes = visibleCandles.map((c, idx) => toChartTime(c.time, baseSec + idx * 60));
+    const btSig = `${visibleCandles.length}|${visibleCandles.at(0)?.time ?? 0}|${visibleCandles.at(-1)?.time ?? 0}`;
+    let barTimes = barTimesCacheRef.current.times;
+    if (barTimesCacheRef.current.sig !== btSig) {
+      barTimes = visibleCandles.map((c, idx) => toChartTime(c.time, baseSec + idx * 60));
+      barTimesCacheRef.current = { sig: btSig, times: barTimes };
+    }
     const lastIdx = targetCount - 1;
     const lastBarTime = lastIdx >= 0 ? Number(barTimes.at(lastIdx) ?? 0) : 0;
     const isStepPlusOne =
