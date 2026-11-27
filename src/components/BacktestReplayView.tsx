@@ -28,7 +28,8 @@ import {
   X,
 } from 'lucide-react';
 import { runBacktestSimulation } from '../engine/backtestSimulator';
-import { TradeLinesPrimitive, type TradeSegmentItem } from '../utils/tradeLinesPrimitive';
+import { TradeLinesPrimitive, type TradeSegmentItem, type LocalLevelItem } from '../utils/tradeLinesPrimitive';
+import { computeWdoOpeningOverlayLines, computeWdoHudState } from '../utils/wdoChartOverlay';
 import type {
   LiveCandle,
   ManagedRobot,
@@ -303,6 +304,15 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     });
   }, [activeCandles, replayBars, botName, resolvedSymbol, timeframe, strategyType, maType, fastPeriod, slowPeriod, rsiPeriod, oversold, overbought, lookbackBars, onBullishSignal, onBearishSignal, risk]);
 
+  const wdoReplayHud = useMemo(() => {
+    if (strategyType !== 'wdo_opening_zones' || activeCandles.length === 0) return null;
+    const targetCount = replayBars > 0 ? Math.min(replayBars, activeCandles.length) : activeCandles.length;
+    const vis = activeCandles.slice(0, targetCount);
+    const chPts = Math.max(1, Number(7) || 7);
+    const rsiPer = Math.max(2, Number(rsiPeriod) || 7);
+    return computeWdoHudState(vis, chPts, rsiPer, new Array<LiveCandle>(), new Array<LiveCandle>(), true);
+  }, [strategyType, activeCandles, replayBars, 7, rsiPeriod]);
+
   useEffect(() => {
     const el = chartWrapRef.current;
     if (!el) return;
@@ -312,7 +322,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
       handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
       handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
       layout: { background: { type: ColorType.Solid, color: '#090D12' }, textColor: '#94A3B8' },
-      grid: { vertLines: { color: '#1E2633' }, horzLines: { color: '#1E2633' } },
+      grid: { vertLines: { visible: false }, horzLines: { visible: false } },
       crosshair: { mode: CrosshairMode.Normal },
       timeScale: { borderColor: '#1E2633', timeVisible: true, secondsVisible: false },
       rightPriceScale: { borderColor: '#1E2633' },
@@ -362,6 +372,38 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     lastRenderedCountRef.current = targetCount;
     for (const pl of priceLinesRef.current) { try { series.removePriceLine(pl); } catch {} }
     priceLinesRef.current = [];
+    const nextLocalLevels = new Array<LocalLevelItem>();
+    if (strategyType === 'wdo_opening_zones' && visibleCandles.length >= 10) {
+      const chPts = Math.max(1, Number(7) || 7);
+      const wdoLines = computeWdoOpeningOverlayLines(visibleCandles, chPts, new Array<LiveCandle>(), new Array<LiveCandle>(), true);
+      const leftT = barTimes.at(Math.max(0, barTimes.length - 6));
+      const rightT = barTimes.at(barTimes.length - 1);
+      for (const wl of wdoLines) {
+        if (wl.title.startsWith('EMA') && leftT !== undefined && rightT !== undefined) {
+          nextLocalLevels.push({
+            anchorLeftTime: leftT,
+            anchorRightTime: rightT,
+            price: wl.price,
+            color: wl.color,
+            label: wl.title.replace('EMA', '').replace(' H1', '').replace(' D1', '').replace(/^/, wl.title.endsWith('H1') ? 'H' : 'D') + ' - ' + wl.price.toFixed(1),
+          });
+        } else {
+          priceLinesRef.current.push(
+            series.createPriceLine({
+              price: wl.price,
+              color: wl.color,
+              lineWidth: wl.lineWidth,
+              lineStyle: wl.lineStyle,
+              axisLabelVisible: true,
+              axisLabelColor: '#18181B',
+              axisLabelTextColor: wl.color,
+              title: wl.title,
+            })
+          );
+        }
+      }
+    }
+    tradeLinesPrimitiveRef.current?.setLocalLevels(nextLocalLevels);
     const overlays = simResult?.overlays ?? [];
     while (overlaySeriesRef.current.length > overlays.length) {
       const removed = overlaySeriesRef.current.pop();
