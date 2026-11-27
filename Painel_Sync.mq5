@@ -908,6 +908,64 @@ int CopyAndRepairRates(const string symbol, const ENUM_TIMEFRAMES period, const 
    }
    return aggTotal;
 }
+void SendTicksData(const string symbol, const string requestId, const string targetDate)
+{
+   bool wasSelected = (bool)SymbolInfoInteger(symbol, SYMBOL_SELECT);
+   if(!wasSelected && !SymbolSelect(symbol, true)) return;
+
+   string useDate = (targetDate != "") ? targetDate : TimeToString(TimeCurrent(), TIME_DATE);
+   StringReplace(useDate, "-", ".");
+   datetime dStart = StringToTime(useDate + " 08:55:00");
+   datetime dEnd   = StringToTime(useDate + " 18:05:00");
+   if(dStart <= 0 || dEnd <= dStart) return;
+
+   MqlTick ticks[];
+   ArraySetAsSeries(ticks, false);
+   int total = CopyTicksRange(symbol, ticks, COPY_TICKS_TRADE, (ulong)dStart * 1000, (ulong)dEnd * 1000);
+   if(total <= 0)
+      total = CopyTicksRange(symbol, ticks, COPY_TICKS_ALL, (ulong)dStart * 1000, (ulong)dEnd * 1000);
+
+   int digits = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
+   string json = "{\"token\":\"" + InpSyncToken + "\""
+               + ",\"channelId\":\"" + InpChannelId + "\""
+               + ",\"symbol\":\"" + symbol + "\""
+               + ",\"date\":\"" + targetDate + "\"";
+   if(requestId != "")
+      json += ",\"requestId\":\"" + requestId + "\"";
+   json += ",\"ticks\":[";
+
+   long lastSec = -1;
+   double lastPrice = -1;
+   int emitted = 0;
+   for(int i = 0; i < total; i++)
+   {
+      double p = (ticks[i].last > 0) ? ticks[i].last : ((ticks[i].bid > 0) ? ticks[i].bid : ticks[i].ask);
+      if(p <= 0) continue;
+      long sec = (long)(ticks[i].time_msc / 1000);
+      if(sec == lastSec && MathAbs(p - lastPrice) < 1e-8) continue;
+      lastSec = sec;
+      lastPrice = p;
+      if(emitted > 0) json += ",";
+      json += "[" + IntegerToString((long)ticks[i].time_msc) + "," + DoubleToString(p, digits) + "," + IntegerToString((long)MathMax(1, (int)ticks[i].volume)) + "]";
+      emitted++;
+   }
+   json += "]}";
+   SendToTicksEndpoint(json);
+}
+
+void SendToTicksEndpoint(const string jsonPayload)
+{
+   string url = InpServerUrl;
+   int apiPos = StringFind(url, "/api/mt5-sync/");
+   if(apiPos > 0)
+      url = StringSubstr(url, 0, apiPos) + "/api/mt5-sync/" + InpChannelId + "/ticks";
+   char post[], result[];
+   string headers = "Content-Type: application/json\r\nAuthorization: Bearer " + InpSyncToken + "\r\n";
+   string resHeaders;
+   StringToCharArray(jsonPayload, post, 0, StringLen(jsonPayload), CP_UTF8);
+   WebRequest("POST", url, headers, 15000, post, result, resHeaders);
+}
+
 void SendCandlesData(const string symbol, const ENUM_TIMEFRAMES period, const string requestId, const int barsCount, const bool isDelta = false, const string targetDate = "")
 {
    // Verifica se o ativo jÃ¡ estava visÃ­vel na ObservaÃ§Ã£o do Mercado antes
