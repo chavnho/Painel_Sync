@@ -316,16 +316,16 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
       }
       try {
         pollTickCount += 1;
-        const shouldResyncFull = isInitial || pollTickCount % 10 === 0;
+        const shouldResyncFull = isInitial;
         const isWdoZones = strategyType === 'wdo_opening_zones';
         const [list, h1List, d1List] = await Promise.all([
           shouldResyncFull
             ? syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, timeframe, { force: true, isManualRequest: isInitial })
             : fetchCandles(creds.channelId, creds.token, resolvedSymbol, timeframe),
-          isWdoZones && shouldResyncFull
+          isWdoZones && (isInitial || replayMtfCandles.h1.length === 0)
             ? syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, 'H1', { force: true }).catch(() => new Array<LiveCandle>())
             : Promise.resolve(null),
-          isWdoZones && shouldResyncFull
+          isWdoZones && (isInitial || replayMtfCandles.d1.length === 0)
             ? syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, 'D1', { force: true }).catch(() => new Array<LiveCandle>())
             : Promise.resolve(null),
         ]);

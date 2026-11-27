@@ -96,25 +96,48 @@ const lastChannelSignature = new Map<string, string>();
 
 const REQUEST_TTL_MS = 30000;
 
+function fmtLogTs(ms = Date.now()): string {
+  return new Date(ms - 3 * 3600 * 1000).toISOString().slice(11, 23);
+}
+
 function pruneExpiredRequests(now = Date.now()) {
   for (let i = requestQueue.length - 1; i >= 0; i--) {
-    if (now - requestQueue.at(i)!.timestamp > REQUEST_TTL_MS) {
+    const r = requestQueue.at(i)!;
+    if (now - r.timestamp > REQUEST_TTL_MS) {
+      if (r.status === "pending" || r.status === "processing") {
+        console.log(`[${fmtLogTs(now)}] [Queue TIMEOUT] ${r.id} (${r.symbol} ${r.timeframe}${r.date ? ` date=${r.date}` : ""}) expirou apos ${now - r.timestamp}ms em status=${r.status}`);
+      }
       requestQueue.splice(i, 1);
     }
   }
+}
+
+function findActiveDuplicateRequest(channelId: string, symbol: string, timeframe: string, date?: string): PendingRequest | undefined {
+  pruneExpiredRequests();
+  return requestQueue.find(
+    (r) =>
+      (r.status === "pending" || r.status === "processing") &&
+      r.channelId === channelId &&
+      r.symbol === symbol &&
+      r.timeframe === timeframe &&
+      (r.date || "") === (date || "")
+  );
 }
 
 function addToQueue(request: PendingRequest) {
   pruneExpiredRequests();
   requestQueue.push(request);
   requestQueue.sort((a, b) => a.timestamp - b.timestamp);
-  console.log(`[Queue] Pedido adicionado: ${request.id} para ${request.symbol}`);
+  console.log(`[${fmtLogTs()}] [Front -> Server] ADD ${request.id} | ${request.symbol} ${request.timeframe}${request.date ? ` | date=${request.date}` : ""} | fila=${requestQueue.filter(r => r.status === "pending").length} pendentes`);
 }
 
 function getNextRequest(): PendingRequest | null {
+  pruneExpiredRequests();
   const request = requestQueue.find(r => r.status === "pending");
   if (request) {
     request.status = "processing";
+    const waitMs = Date.now() - request.timestamp;
+    console.log(`[${fmtLogTs()}] [Server -> EX5] PICK ${request.id} | ${request.symbol} ${request.timeframe}${request.date ? ` | date=${request.date}` : ""} | wait=${waitMs}ms`);
   }
   return request || null;
 }
@@ -124,7 +147,12 @@ function completeRequest(id: string, result: NormalizedCandle[]) {
   if (request) {
     request.status = "completed";
     request.result = result;
-    console.log(`[Queue] Pedido concluído: ${id}`);
+    const totalMs = Date.now() - request.timestamp;
+    const firstTs = result.at(0)?.time ? new Date(Number(result.at(0)!.time) * 1000).toISOString().slice(0, 16) : "-";
+    const lastTs = result.at(-1)?.time ? new Date(Number(result.at(-1)!.time) * 1000).toISOString().slice(0, 16) : "-";
+    console.log(`[${fmtLogTs()}] [EX5 -> Server] OK ${id} | ${request.symbol} ${request.timeframe} | ${result.length} velas (${firstTs} .. ${lastTs}) | total=${totalMs}ms`);
+  } else {
+    console.log(`[${fmtLogTs()}] [EX5 -> Server] ORPHAN ${id} | ${result.length} velas (pedido ja expirado ou inexistente)`);
   }
 }
 
@@ -133,10 +161,10 @@ function failRequest(id: string, reason: string) {
   if (request) {
     request.status = "failed";
     request.error = reason;
-    console.log(`[Queue] Pedido falhou: ${id} - ${reason}`);
+    const totalMs = Date.now() - request.timestamp;
+    console.log(`[${fmtLogTs()}] [EX5 -> Server] FAIL ${id} | ${request.symbol} ${request.timeframe} | motivo="${reason}" | total=${totalMs}ms`);
   }
 }
-
 function pushPairingEvent(
   channel: LiveSyncChannel,
   evt: Omit<PairingAttemptEvent, "id" | "timestamp">
@@ -1281,12 +1309,26 @@ async function startServer() {
       return;
     }
 
+    const cleanSym = String(symbol).trim();
+    const cleanTf = String(timeframe).trim();
+    const existingDup = findActiveDuplicateRequest(channelId, cleanSym, cleanTf, cleanDate);
+    if (existingDup) {
+      console.log(`[${fmtLogTs()}] [Front -> Server] DEDUP ${existingDup.id} | ${cleanSym} ${cleanTf}${cleanDate ? ` | date=${cleanDate}` : ""} (status=${existingDup.status})`);
+      res.json({
+        ok: true,
+        deduplicated: true,
+        requestId: existingDup.id,
+        message: "Solicitação idêntica já está em andamento."
+      });
+      return;
+    }
+
     const requestId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     const newRequest: PendingRequest = {
       id: requestId,
       channelId,
-      symbol: String(symbol).trim(),
-      timeframe: String(timeframe).trim(),
+      symbol: cleanSym,
+      timeframe: cleanTf,
       ...(cleanDate ? { date: cleanDate } : {}),
       timestamp: Date.now(),
       status: "pending"
