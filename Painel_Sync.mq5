@@ -972,12 +972,18 @@ int SendToTicksEndpoint(const string jsonPayload)
    int apiPos = StringFind(url, "/api/mt5-sync/");
    if(apiPos > 0)
       url = StringSubstr(url, 0, apiPos) + "/api/mt5-sync/" + InpChannelId + "/ticks";
+   else
+      url = url + "/api/mt5-sync/" + InpChannelId + "/ticks";
    char post[], result[];
    string headers = "Content-Type: application/json\r\nAuthorization: Bearer " + InpToken + "\r\n";
    string resHeaders;
+   ResetLastError();
    int len = StringToCharArray(jsonPayload, post, 0, StringLen(jsonPayload), CP_UTF8);
    if(len > 0 && post[len - 1] == 0) ArrayResize(post, len - 1);
-   return WebRequest("POST", url, headers, 15000, post, result, resHeaders);
+   int code = WebRequest("POST", url, headers, 15000, post, result, resHeaders);
+   string respPreview = (ArraySize(result) > 0) ? StringSubstr(CharArrayToString(result, 0, -1, CP_UTF8), 0, 140) : "(vazio)";
+   Print("PainelSync [TICKS POST] URL=", url, " | bytes=", ArraySize(post), " | HTTP=", code, " | err=", GetLastError(), " | resp=", respPreview);
+   return code;
 }
 
 void SendCandlesData(const string symbol, const ENUM_TIMEFRAMES period, const string requestId, const int barsCount, const bool isDelta = false, const string targetDate = "")
