@@ -785,8 +785,8 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
 
   return (
     <div className="flex-1 h-full min-h-0 flex flex-col overflow-hidden bg-[#090D12]">
-      <div className="flex-1 min-h-0 overflow-y-auto">
-      <div className="w-full px-6 py-4 space-y-4">
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+      <div className="flex-1 min-h-0 w-full px-4 py-2 flex flex-col gap-2 overflow-hidden">
         <div className="shrink-0 rounded-xl bg-[#0F141C] border border-[#1E2633] px-3 py-1.5 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 min-w-0">
             <select value={selectedBotId} onChange={(e) => handleSelectSavedBot(e.target.value)} className="max-w-[240px] px-2.5 py-1 rounded-lg bg-[#090D12] border border-[#1E2633] text-xs text-gray-100">
@@ -812,44 +812,55 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
           </div>
         </div>
 
-        {simResult && (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] p-3.5">
-              <div className="text-[11px] text-gray-400">Resultado Líquido</div>
-              <div className={`text-lg font-mono font-bold mt-1 ${simResult.summary.netPnlBrl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{formatBrl(simResult.summary.netPnlBrl)}</div>
-              <div className="text-[10px] font-mono text-gray-500">{simResult.summary.netPoints} pts</div>
+        <div className={isChartMaximized ? 'fixed top-0 inset-x-0 bottom-[50px] z-50 bg-[#090D12] px-4 pt-2 pb-0 flex flex-col gap-1.5' : 'flex-1 min-h-0 rounded-xl bg-[#0F141C] border border-[#1E2633] p-2.5 flex flex-col gap-1.5 overflow-hidden'}>
+          <div className="relative z-20 shrink-0 flex flex-wrap items-center justify-between gap-2 px-1">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs min-w-0">
+              <span className="text-[11px] text-gray-400 font-semibold">{resolvedSymbol} · {timeframe} · {botName}</span>
+              {simResult && (() => {
+                const sum = simResult.summary;
+                const gw = simResult.trades.filter((t) => t.pnlBrl > 0).reduce((a, t) => a + t.pnlBrl, 0);
+                const gl = Math.abs(simResult.trades.filter((t) => t.pnlBrl < 0).reduce((a, t) => a + t.pnlBrl, 0));
+                const pf = gl > 0 && sum.wins > 0 && sum.losses > 0 ? (gw / sum.wins) / (gl / sum.losses) : gw > 0 ? 99.9 : 0;
+                const zm = new Map<string, { zone: string; count: number; wins: number; pnl: number }>();
+                for (const t of simResult.trades) {
+                  const m = /\bZ[1-5]\b/i.exec(String(t.entryReason || ''));
+                  const k = m ? m.at(0)!.toUpperCase() : 'Geral';
+                  const cur = zm.get(k) || { zone: k, count: 0, wins: 0, pnl: 0 };
+                  cur.count += 1; if (t.pnlBrl > 0) cur.wins += 1; cur.pnl = Number((cur.pnl + t.pnlBrl).toFixed(2));
+                  zm.set(k, cur);
+                }
+                const zs = Array.from(zm.values()).sort((a, b) => a.zone.localeCompare(b.zone));
+                return (
+                  <>
+                    <span className="text-gray-700">|</span>
+                    <span><span className="text-gray-500 text-[10px]">Líq: </span><strong className={sum.netPnlBrl >= 0 ? 'text-emerald-400' : 'text-rose-400'}>{formatBrl(sum.netPnlBrl)}</strong> <span className="text-[10px] text-gray-500">({sum.netPoints >= 0 ? '+' : ''}{sum.netPoints.toFixed(1)}p)</span></span>
+                    <span><span className="text-gray-500 text-[10px]">Acerto: </span><strong className="text-gray-100">{sum.winRatePct.toFixed(1)}%</strong> <span className="text-[10px] text-gray-500">({sum.wins}W/{sum.losses}L)</span></span>
+                    <span><span className="text-gray-500 text-[10px]">PF: </span><strong className={sum.profitFactor >= 1.3 ? 'text-emerald-400' : sum.profitFactor >= 1 ? 'text-sky-400' : 'text-rose-400'}>{Number.isFinite(sum.profitFactor) ? sum.profitFactor.toFixed(2) : '∞'}</strong></span>
+                    <span><span className="text-gray-500 text-[10px]">Payoff: </span><strong className="text-amber-300">{pf.toFixed(2)}x</strong></span>
+                    <span><span className="text-gray-500 text-[10px]">DD: </span><strong className="text-rose-400">-{formatBrl(sum.maxDrawdownBrl)}</strong></span>
+                    <span><span className="text-gray-500 text-[10px]">Pos: </span><strong className="text-gray-200">{simResult.openPosition ? `${simResult.openPosition.side} ${simResult.openPosition.volume}x` : 'Zerado'}</strong></span>
+                    {zs.map((z) => (
+                      <span key={z.zone} className="px-1.5 py-0.5 rounded bg-[#090D12] border border-[#1E2633] inline-flex items-center gap-1 text-[10px]">
+                        <strong className="text-sky-300">{z.zone}</strong>
+                        <span className="text-gray-400">{z.count}({z.count > 0 ? Math.round((z.wins / z.count) * 100) : 0}%)</span>
+                        <span className={z.pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}>{z.pnl >= 0 ? '+' : ''}{formatBrl(z.pnl)}</span>
+                      </span>
+                    ))}
+                  </>
+                );
+              })()}
             </div>
-            <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] p-3.5">
-              <div className="text-[11px] text-gray-400">Taxa de Acerto</div>
-              <div className="text-lg font-mono font-bold text-gray-100 mt-1">{simResult.summary.winRatePct}%</div>
-              <div className="text-[10px] font-mono text-gray-500">{simResult.summary.wins}W / {simResult.summary.losses}L</div>
-            </div>
-            <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] p-3.5">
-              <div className="text-[11px] text-gray-400">Fator de Lucro</div>
-              <div className="text-lg font-mono font-bold text-sky-400 mt-1">{simResult.summary.profitFactor.toFixed(2)}</div>
-              <div className="text-[10px] font-mono text-gray-500">{simResult.summary.totalTrades} trades</div>
-            </div>
-            <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] p-3.5">
-              <div className="text-[11px] text-gray-400">Drawdown Máximo</div>
-              <div className="text-lg font-mono font-bold text-rose-400 mt-1">-{formatBrl(simResult.summary.maxDrawdownBrl)}</div>
-              <div className="text-[10px] font-mono text-gray-500">Pior trade: {formatBrl(simResult.summary.worstTradeBrl)}</div>
-            </div>
-            <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] p-3.5">
-              <div className="text-[11px] text-gray-400">Posição Aberta</div>
-              <div className="text-sm font-mono font-semibold text-gray-100 mt-1">{simResult.openPosition ? `${simResult.openPosition.side} ${simResult.openPosition.volume}x @ ${simResult.openPosition.entryPrice}` : 'Zerado'}</div>
-              <div className="text-[10px] font-mono text-gray-500 truncate">{simResult.lastDecision}</div>
+            <div className="shrink-0 flex items-center gap-1.5">
+              <button type="button" onClick={() => setIsTradesDrawerOpen((p) => !p)} className={isTradesDrawerOpen ? 'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-600/20 border border-sky-400/50 text-sky-300 text-xs font-medium cursor-pointer' : 'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-gray-200 text-xs font-medium cursor-pointer'}>
+                {isTradesDrawerOpen ? <ChevronRight className="w-3.5 h-3.5 text-sky-400" /> : <ChevronLeft className="w-3.5 h-3.5 text-sky-400" />}
+                <span>Operações ({simResult?.trades.length ?? 0})</span>
+              </button>
+              <button type="button" onClick={() => setIsChartMaximized((p) => !p)} className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-xs font-medium text-gray-100 cursor-pointer">
+                {isChartMaximized ? <><Minimize2 className="w-3.5 h-3.5 text-sky-400" /><span>Restaurar (ESC)</span></> : <><Maximize2 className="w-3.5 h-3.5 text-sky-400" /><span>Maximizar</span></>}
+              </button>
             </div>
           </div>
-        )}
-
-        <div className={isChartMaximized ? 'fixed top-0 inset-x-0 bottom-[50px] z-50 bg-[#090D12] px-4 pt-3 pb-0 flex flex-col gap-2' : 'rounded-xl bg-[#0F141C] border border-[#1E2633] p-3 flex flex-col gap-2'}>
-          <div className="relative z-20 shrink-0 flex items-center justify-between px-1">
-            <span className="text-[11px] font-mono text-gray-400">{resolvedSymbol} · {timeframe} · {botName}</span>
-            <button type="button" onClick={() => setIsChartMaximized((p) => !p)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-xs font-medium text-gray-100 cursor-pointer">
-              {isChartMaximized ? <><Minimize2 className="w-3.5 h-3.5 text-sky-400" /><span>Restaurar (ESC)</span></> : <><Maximize2 className="w-3.5 h-3.5 text-sky-400" /><span>Maximizar</span></>}
-            </button>
-          </div>
-          <div className={isChartMaximized ? 'relative flex-1 w-full min-h-0 overflow-hidden' : 'relative w-full h-[calc(100vh-370px)] min-h-[420px] overflow-hidden'}>
+          <div className="relative flex-1 w-full min-h-0 overflow-hidden">
             <div ref={chartWrapRef} className="absolute inset-0" />
             {wdoReplayHud && (
               <div className="absolute bottom-8 right-20 z-20 pointer-events-none flex flex-col items-end gap-1 px-2.5 py-1.5 rounded-lg bg-[#090D12]/85 backdrop-blur border border-[#1E2633] text-[11px] font-mono shadow-lg">
