@@ -398,7 +398,8 @@ export function RobotBuilderView({ creds, mt5Robots = [], magicColors = {}, onCy
               )}
 
 
-              <div className="grid grid-cols-2 gap-2.5 p-3 rounded-lg bg-[#090D12] border border-[#1E2633]">
+              {strategyType !== 'wdo_opening_zones' && (
+                <div className="grid grid-cols-2 gap-2.5 p-3 rounded-lg bg-[#090D12] border border-[#1E2633]">
                 <div>
                   <label className="block text-[10px] text-gray-400 mb-1">
                     {strategyType === 'ema_cross' ? 'Cruza para Cima' : strategyType === 'rsi_reversal' ? 'Sai de Sobrevenda' : 'Rompe Máxima'}
@@ -420,6 +421,7 @@ export function RobotBuilderView({ creds, mt5Robots = [], magicColors = {}, onCy
                   </select>
                 </div>
               </div>
+                )}
 
               <div className="pt-2 border-t border-[#1E2633] space-y-2.5">
                 <div className="flex items-center justify-between gap-2">
