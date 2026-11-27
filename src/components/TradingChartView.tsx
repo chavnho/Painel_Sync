@@ -253,6 +253,10 @@ export const TradingChartView = memo(function TradingChartView({
   const resolveCurrentSymbol = (rawSym?: string): string => {
     const up = (rawSym || '').toUpperCase().trim();
     if (!up) return '';
+    if (up.endsWith('@N') || up.endsWith('$')) {
+      const baseRoot = up.replace(/(@N|\$)$/, '');
+      if (baseRoot && activeContracts[baseRoot]) return activeContracts[baseRoot].toUpperCase();
+    }
     const m = /^(WDO|WIN|IND|DOL|BIT)[FGHJKMNQUVXZ]\d{2}$/.exec(up);
     const root = m?.at(1);
     if (root && activeContracts[root]) return activeContracts[root].toUpperCase();
@@ -373,12 +377,11 @@ export const TradingChartView = memo(function TradingChartView({
     if (selectedSymbol) return selectedSymbol;
     if (selectedRobotId !== 'ALL') {
       const found = robots.find((r) => r.robotId === selectedRobotId);
-      if (found) return found.symbol;
+      if (found) return resolveCurrentSymbol(found.symbol);
     }
     if (availableSymbols.length > 0) return availableSymbols[0];
     return '';
-  }, [availableSymbols, selectedSymbol, selectedRobotId,
-  robots]);
+  }, [availableSymbols, selectedSymbol, selectedRobotId, robots, activeContracts]);
 
   // Se um robô específico estiver selecionado, mostra apenas ele; se for 'ALL', consolida os do ativo
    const symbolRobots = useMemo(() => {
