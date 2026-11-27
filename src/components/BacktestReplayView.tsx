@@ -785,7 +785,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
 
   return (
     <div className="flex-1 h-full min-h-0 flex flex-col overflow-hidden bg-[#090D12]">
-      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+      <div className="flex-1 h-full min-h-0 flex flex-col overflow-hidden">
       <div className="flex-1 min-h-0 w-full px-4 py-2 flex flex-col gap-2 overflow-hidden">
         <div className="shrink-0 rounded-xl bg-[#0F141C] border border-[#1E2633] px-3 py-1.5 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 min-w-0">
@@ -860,7 +860,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
               </button>
             </div>
           </div>
-          <div className="relative flex-1 w-full min-h-0 overflow-hidden">
+          <div className="relative flex-1 w-full min-h-[340px] overflow-hidden">
             <div ref={chartWrapRef} className="absolute inset-0" />
             {wdoReplayHud && (
               <div className="absolute bottom-8 right-20 z-20 pointer-events-none flex flex-col items-end gap-1 px-2.5 py-1.5 rounded-lg bg-[#090D12]/85 backdrop-blur border border-[#1E2633] text-[11px] font-mono shadow-lg">
