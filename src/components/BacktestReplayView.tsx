@@ -141,6 +141,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
   const lastRenderedCountRef = useRef<number>(0);
   const lastRenderedLastTimeRef = useRef<number>(0);
   const lastPriceLinesSigRef = useRef<string>("");
+  const lastMarkersSigRef = useRef<string>("");
   const lastRenderedSeriesRef = useRef<LiveCandle[] | null>(null);
 
   useEffect(() => {
@@ -670,7 +671,10 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
         time: barTimes.at(idx)!, open: Number(c.open), high: Number(c.high), low: Number(c.low), close: Number(c.close),
       })));
     }
-    if (!(isStepPlusOne || isLiveTickIncremental)) lastPriceLinesSigRef.current = "";
+    if (!(isStepPlusOne || isLiveTickIncremental)) {
+      lastPriceLinesSigRef.current = "";
+      lastMarkersSigRef.current = "";
+    }
     lastRenderedSeriesRef.current = activeCandles;
     lastRenderedCountRef.current = targetCount;
     lastRenderedLastTimeRef.current = lastBarTime;
@@ -700,6 +704,12 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
           });
         }
       }
+    }
+    if (simResult?.openPosition) {
+      const op = simResult.openPosition;
+      pendingPriceLines.push({ price: op.entryPrice, color: op.side === 'COMPRA' ? '#10B981' : '#EF4444', lineWidth: 2, lineStyle: 0, title: `${op.side} ${op.volume}x` });
+      if (op.tp > 0) pendingPriceLines.push({ price: op.tp, color: '#38BDF8', lineWidth: 1, lineStyle: 2, title: 'TP' });
+      if (op.sl > 0) pendingPriceLines.push({ price: op.sl, color: '#F59E0B', lineWidth: 1, lineStyle: 2, title: 'SL' });
     }
     const plSig = pendingPriceLines.map((p) => `${p.title}:${p.price}:${p.color}:${p.lineStyle}`).join("|");
     if (plSig !== lastPriceLinesSigRef.current) {
@@ -735,12 +745,21 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
       } else {
         line.applyOptions({ color: ov.color, lineWidth: ov.lineWidth ?? 2, lineStyle: ov.dotted ? 1 : ov.dashed ? 2 : 0 });
       }
-      const pts: Array<{ time: UTCTimestamp; value: number }> = [];
-      visibleCandles.forEach((_, idx) => {
-        const val = ov.values.at(idx);
-        if (val !== null && val !== undefined) pts.push({ time: barTimes[idx], value: val });
-      });
-      line.setData(pts);
+      if ((isStepPlusOne || isLiveTickIncremental) && lastIdx >= 0) {
+        const lastVal = ov.values.at(lastIdx);
+        const lastT = barTimes.at(lastIdx);
+        if (lastVal !== null && lastVal !== undefined && lastT !== undefined) {
+          line.update({ time: lastT, value: lastVal });
+        }
+      } else {
+        const pts = new Array<{ time: UTCTimestamp; value: number }>();
+        visibleCandles.forEach((_, idx) => {
+          const val = ov.values.at(idx);
+          const t = barTimes.at(idx);
+          if (val !== null && val !== undefined && t !== undefined) pts.push({ time: t, value: val });
+        });
+        line.setData(pts);
+      }
     });
     if (simResult) {
       const markers: Array<SeriesMarker<Time>> = [];
@@ -792,18 +811,17 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
           });
         }
       }
-      tradeLinesPrimitiveRef.current?.setSegments(segments);
       markers.sort((a, b) => Number(a.time) - Number(b.time));
-      markersPluginRef.current?.setMarkers(markers);
-      if (simResult.openPosition) {
-        const op = simResult.openPosition;
-        priceLinesRef.current.push(series.createPriceLine({ price: op.entryPrice, color: op.side === 'COMPRA' ? '#10B981' : '#EF4444', lineWidth: 2, lineStyle: 0, axisLabelVisible: true, title: `${op.side} ${op.volume}x` }));
-        if (op.tp > 0) priceLinesRef.current.push(series.createPriceLine({ price: op.tp, color: '#38BDF8', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'TP' }));
-        if (op.sl > 0) priceLinesRef.current.push(series.createPriceLine({ price: op.sl, color: '#F59E0B', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'SL' }));
+      const mkSig = `${markers.length}|${segments.length}|${markers.at(-1)?.time ?? 0}|${markers.at(-1)?.text ?? ""}`;
+      if (mkSig !== lastMarkersSigRef.current) {
+        lastMarkersSigRef.current = mkSig;
+        tradeLinesPrimitiveRef.current?.setSegments(segments);
+        markersPluginRef.current?.setMarkers(markers);
       }
-    } else {
-      tradeLinesPrimitiveRef.current?.setSegments([]);
-      markersPluginRef.current?.setMarkers([]);
+    } else if (lastMarkersSigRef.current !== "EMPTY") {
+      lastMarkersSigRef.current = "EMPTY";
+      tradeLinesPrimitiveRef.current?.setSegments(new Array());
+      markersPluginRef.current?.setMarkers(new Array());
     }
   }, [effectiveCandles, effectiveReplayBars, simResult, strategyType, replayMtfCandles, selectedDay]);
 
