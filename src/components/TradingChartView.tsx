@@ -750,6 +750,57 @@ export function TradingChartView({
     });
   }, [symbolRobots.length, allCandles, symbolTrades, totalSymbolDailyPnl]);
 
+  const wdoHudStatus = useMemo(() => {
+    if (!isSelectedWdoZones || !targetRobot || allCandles.length < 10) return null;
+    const appBot = managedRobots.find((b) => b.magicNumber === targetRobot.magicNumber);
+    const rsiPeriod = Math.max(2, Number(appBot?.params?.rsiPeriod) || 7);
+    const chPts = Math.max(1, Number(appBot?.params?.channelPoints) || 7);
+
+    const closes = allCandles.map((c) => c.close);
+    let rsiVal: number | null = null;
+    if (closes.length > rsiPeriod) {
+      let g = 0, l = 0;
+      for (let i = 1; i <= rsiPeriod; i++) {
+        const d = closes.at(i)! - closes.at(i - 1)!;
+        if (d >= 0) g += d; else l += -d;
+      }
+      let ag = g / rsiPeriod, al = l / rsiPeriod;
+      for (let i = rsiPeriod + 1; i < closes.length; i++) {
+        const d = closes.at(i)! - closes.at(i - 1)!;
+        ag = (ag * (rsiPeriod - 1) + (d > 0 ? d : 0)) / rsiPeriod;
+        al = (al * (rsiPeriod - 1) + (d < 0 ? -d : 0)) / rsiPeriod;
+      }
+      rsiVal = Number((al === 0 ? 100 : 100 - 100 / (1 + ag / al)).toFixed(1));
+    }
+
+    const daysMap = new Map<string, Array<LiveCandle>>();
+    for (let i = 0; i < allCandles.length; i++) {
+      const c = allCandles.at(i)!;
+      const ts = Number(c.time) > 1e11 ? Math.floor(Number(c.time) / 1000) : Math.floor(Number(c.time) || i * 300);
+      const dk = new Date(ts * 1000).toISOString().slice(0, 10);
+      const arr = daysMap.get(dk) ?? new Array<LiveCandle>();
+      arr.push(c);
+      daysMap.set(dk, arr);
+    }
+    const days = Array.from(daysMap.keys()).sort();
+    let zoneLabel = '';
+    let zoneSide = '';
+    if (days.length >= 2) {
+      const todayBars = daysMap.get(days.at(days.length - 1)!)!;
+      const prevBars = daysMap.get(days.at(days.length - 2)!)!;
+      const prevHigh = Math.max(...prevBars.map((b) => b.high));
+      const prevLow = Math.min(...prevBars.map((b) => b.low));
+      const openP = todayBars.at(0)!.open;
+      if (openP > prevHigh) { zoneLabel = 'Z1'; zoneSide = 'Venda'; }
+      else if (openP >= prevHigh - chPts) { zoneLabel = 'Z2'; zoneSide = 'Venda'; }
+      else if (openP > prevLow + chPts) { zoneLabel = 'Z3'; zoneSide = 'Compra/Venda'; }
+      else if (openP >= prevLow) { zoneLabel = 'Z4'; zoneSide = 'Compra'; }
+      else { zoneLabel = 'Z5'; zoneSide = 'Compra'; }
+    }
+
+    return { rsiPeriod, rsiVal, zoneLabel, zoneSide };
+  }, [isSelectedWdoZones, targetRobot, managedRobots, allCandles]);
+
   // 1. Inicializa e destrói o gráfico TradingView Lightweight Charts por ativo/timeframe
   useEffect(() => {
     const container = containerRef.current;
