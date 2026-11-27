@@ -251,10 +251,10 @@ function computeWdoOpeningOverlayLines(
   const dnHigh = Number((prevLow + chPts).toFixed(2));
 
   const lines: Array<{ price: number; color: string; lineStyle: LineStyle; lineWidth?: number; title: string }> = [
-    { price: prevHigh, color: '#4169E1', lineStyle: LineStyle.Solid, lineWidth: 2, title: 'Max D-1' },
-    { price: upLow, color: '#4169E1', lineStyle: LineStyle.Dashed, lineWidth: 2, title: 'Max-' + chPts },
-    { price: dnHigh, color: '#4169E1', lineStyle: LineStyle.Dashed, lineWidth: 2, title: 'Min+' + chPts },
-    { price: prevLow, color: '#4169E1', lineStyle: LineStyle.Solid, lineWidth: 2, title: 'Min D-1' },
+    { price: prevHigh, color: '#2563EB', lineStyle: LineStyle.Solid, lineWidth: 2, title: 'Max D-1' },
+    { price: upLow, color: '#2563EB', lineStyle: LineStyle.Dashed, lineWidth: 2, title: 'Max-' + chPts },
+    { price: dnHigh, color: '#2563EB', lineStyle: LineStyle.Dashed, lineWidth: 2, title: 'Min+' + chPts },
+    { price: prevLow, color: '#2563EB', lineStyle: LineStyle.Solid, lineWidth: 2, title: 'Min D-1' },
   ];
 
   const firstTodayTs = Number(todayBars.at(0)?.time || 0);
