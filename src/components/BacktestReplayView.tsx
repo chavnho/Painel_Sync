@@ -913,34 +913,38 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
           </div>
         </div>
 
-        {simResult && simResult.trades.length > 0 && (
-          <div className="rounded-xl bg-[#0F141C] border border-[#1E2633] overflow-hidden">
-            <div className="px-4 py-3 border-b border-[#1E2633] text-xs font-semibold text-gray-200">Operações Simuladas ({simResult.trades.length})</div>
-            <div className="max-h-72 overflow-y-auto">
-              <table className="w-full text-left text-xs font-mono">
-                <thead className="bg-[#090D12] text-[10px] text-gray-400 uppercase">
-                  <tr><th className="px-4 py-2">#</th><th className="px-4 py-2">Lado</th><th className="px-4 py-2">Gatilho / Zona</th><th className="px-4 py-2">Entrada</th><th className="px-4 py-2">Saída</th><th className="px-4 py-2">Motivo</th><th className="px-4 py-2 text-right">Pts</th><th className="px-4 py-2 text-right">Resultado</th></tr>
-                </thead>
-                <tbody className="divide-y divide-[#1E2633]">
-                  {[...simResult.trades].reverse().map((t) => (
-                    <tr key={t.id} className="hover:bg-[#161C25]">
-                      <td className="px-4 py-2 text-gray-500">{t.id}</td>
-                      <td className={`px-4 py-2 font-semibold ${t.side === 'COMPRA' ? 'text-emerald-400' : 'text-rose-400'}`}>{t.side} {t.volume}x</td><td className="px-4 py-2">{t.entryReason ? <span className="px-1.5 py-0.5 rounded bg-sky-950/70 text-sky-300 border border-sky-500/30 text-[10px]">{t.entryReason}</span> : <span className="text-gray-600">-</span>}</td>
-                      <td className="px-4 py-2 text-gray-300">{t.entryLabel} @ {t.entryPrice}</td>
-                      <td className="px-4 py-2 text-gray-300">{t.exitLabel} @ {t.exitPrice}</td>
-                      <td className="px-4 py-2 text-gray-400">{t.exitReason}</td>
-                      <td className={`px-4 py-2 text-right ${t.points >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{t.points}</td>
-                      <td className={`px-4 py-2 text-right font-semibold ${t.pnlBrl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{formatBrl(t.pnlBrl)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            {isTradesDrawerOpen && (
+              <aside className="absolute top-0 right-0 bottom-0 z-30 w-[460px] max-w-[95vw] bg-[#0F141C]/95 backdrop-blur border-l border-[#1E2633] flex flex-col shadow-2xl">
+                <div className="shrink-0 px-3.5 py-2 border-b border-[#1E2633] flex items-center justify-between">
+                  <span className="text-xs font-semibold text-gray-100">Operações Simuladas ({simResult?.trades.length ?? 0})</span>
+                  <button type="button" onClick={() => setIsTradesDrawerOpen(false)} className="p-1 rounded hover:bg-[#1E2633] text-gray-400 hover:text-gray-200 cursor-pointer"><ChevronRight className="w-4 h-4" /></button>
+                </div>
+                <div className="flex-1 min-h-0 overflow-y-auto p-2.5 space-y-2 font-mono text-[11px]">
+                  {!simResult || simResult.trades.length === 0 ? (
+                    <div className="p-6 text-center text-xs text-gray-500 font-sans">Nenhuma operação executada até este ponto do replay.</div>
+                  ) : (
+                    [...simResult.trades].reverse().map((t) => (
+                      <div key={t.id} className="rounded-lg bg-[#090D12]/90 border border-[#1E2633] hover:border-[#2E3A4B] px-3 py-2 space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2"><span className="text-[10px] text-gray-500">#{t.id}</span><span className={`text-xs font-bold ${t.side === 'COMPRA' ? 'text-emerald-400' : 'text-rose-400'}`}>{t.side} {t.volume}x</span></div>
+                          <span className={`shrink-0 whitespace-nowrap text-xs font-bold ${t.pnlBrl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{t.pnlBrl >= 0 ? '+' : ''}{formatBrl(t.pnlBrl)} <span className="text-[10px] font-normal opacity-80">({t.points >= 0 ? '+' : ''}{t.points}p)</span></span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 min-w-0">
+                          {t.entryReason ? <span title={t.entryReason} className="truncate px-1.5 py-0.5 rounded bg-sky-950/70 text-sky-300 border border-sky-500/30 text-[10px]">{t.entryReason}</span> : <span className="text-[10px] text-gray-600">-</span>}
+                          <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] border ${t.exitReason.toLowerCase().includes('take') ? 'bg-emerald-950/50 text-emerald-300 border-emerald-500/30' : t.exitReason.toLowerCase().includes('stop') ? 'bg-rose-950/50 text-rose-300 border-rose-500/30' : 'bg-[#161C25] text-gray-300 border-[#2E3A4B]'}`}>{t.exitReason}</span>
+                        </div>
+                        <div className="pt-1 border-t border-[#1E2633]/70 flex items-center justify-between gap-2 text-[10px] text-gray-400">
+                          <span>In: <strong className="font-normal text-gray-200">{t.entryLabel} @ {t.entryPrice}</strong></span>
+                          <span>Out: <strong className="font-normal text-gray-200">{t.exitLabel} @ {t.exitPrice}</strong></span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </aside>
+            )}
           </div>
-        )}
-
         </div>
-      </div>
       <div className={isChartMaximized ? "fixed bottom-0 inset-x-0 z-50 h-[50px] bg-[#090D12]/95 backdrop-blur border-t border-[#1E2633] px-4 flex items-center justify-between gap-3 shadow-2xl overflow-hidden" : "shrink-0 z-30 w-full h-[50px] bg-[#090D12]/90 border-t border-[#1E2633] px-4 flex items-center justify-between gap-3 overflow-hidden"}>
           <div className="shrink-0 flex flex-nowrap items-center gap-1.5 whitespace-nowrap">
             <button type="button" disabled={candles.length === 0} onClick={() => { if (!isPlaying && replayBars >= candles.length) setReplayBars(replayInitialBar); setIsPlaying((p) => !p); }} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold cursor-pointer disabled:opacity-40">
