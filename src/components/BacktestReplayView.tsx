@@ -1,4 +1,4 @@
-import { memo, startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CandlestickSeries,
   ColorType,
@@ -29,9 +29,9 @@ import {
   SkipForward,
   X,
 } from 'lucide-react';
-import { runBacktestSimulation } from '../engine/backtestSimulator';
+import { useAsyncBacktest } from '../hooks/useAsyncBacktest';
 import { TradeLinesPrimitive, type TradeSegmentItem, type LocalLevelItem } from '../utils/tradeLinesPrimitive';
-import { computeWdoOpeningOverlayLines, computeWdoHudState } from '../utils/wdoChartOverlay';
+import { computeWdoOpeningOverlayLines } from '../utils/wdoChartOverlay';
 import type {
   LiveCandle,
   ManagedRobot,
@@ -372,7 +372,7 @@ export const BacktestReplayView = memo(function BacktestReplayView({ creds, acti
             ) {
               return prev;
             }
-            if (!isInitial && prev.length === target.length && lastPrev?.time === lastNext?.time && (isDraggingChartRef.current || pollTickCount % 10 !== 0)) {
+            if (!isInitial && prev.length === target.length && lastPrev?.time === lastNext?.time) {
               const series = candleSeriesRef.current;
               if (series && lastNext) {
                 series.update({
@@ -465,8 +465,6 @@ export const BacktestReplayView = memo(function BacktestReplayView({ creds, acti
   }, [isTickMode, dayTicks, tickCursor, selectedDay, replayDate, activeCandles, timeframe]);
 
   const effectiveCandles = tickDrivenCandles ?? activeCandles;
-  const deferredCandles = useDeferredValue(effectiveCandles);
-
   const handleJumpToTime = () => {
     const clean = jumpTime.trim();
     const parts = clean.split(':');
@@ -524,33 +522,32 @@ export const BacktestReplayView = memo(function BacktestReplayView({ creds, acti
       setCandleStatus(`Salto para ${targetHHMM} (vela ${clamped}/${activeCandles.length}).`);
     }
   };
+
   const effectiveReplayBars = tickDrivenCandles ? tickDrivenCandles.length : replayBars;
 
-  const simResult = useMemo(() => {
-    if (activeCandles.length < 6) return null;
-    const baseParams: ManagedRobotParams = strategyType === 'ema_cross'
-      ? { maType, fastPeriod, slowPeriod }
-      : strategyType === 'rsi_reversal'
-        ? { rsiPeriod, oversold, overbought }
-        : strategyType === 'wdo_opening_zones' ? { channelPoints: 7, rsiPeriod: 7, z1RsiMin: 86, z1RsiMax: 90, z5RsiMin: 10, z5RsiMax: 16 } : { lookbackBars };
-    const params: ManagedRobotParams = { ...baseParams, onBullishSignal, onBearishSignal };
-    return runBacktestSimulation({
-      robot: { name: botName, magicNumber: 9999, symbol: resolvedSymbol, timeframe, enabled: true, strategyType, params: params as Record<string, unknown>, risk },
-      candles: deferredCandles,
-      maxBars: effectiveReplayBars > 0 ? effectiveReplayBars : effectiveCandles.length,
-      startFromBar: strategyType === 'wdo_opening_zones' && selectedDay !== 'ALL' ? Math.max(4, replayInitialBar) : undefined,
-      isTickMode,
-    });
-  }, [deferredCandles, effectiveReplayBars, replayInitialBar, selectedDay, isTickMode, botName, resolvedSymbol, timeframe, strategyType, maType, fastPeriod, slowPeriod, rsiPeriod, oversold, overbought, lookbackBars, onBullishSignal, onBearishSignal, risk]);
-
-  const wdoReplayHud = useMemo(() => {
-    if (strategyType !== 'wdo_opening_zones' || activeCandles.length === 0) return null;
-    const targetCount = effectiveReplayBars > 0 ? Math.min(effectiveReplayBars, effectiveCandles.length) : effectiveCandles.length;
-    const vis = deferredCandles.slice(0, targetCount);
-    const chPts = Math.max(1, Number(7) || 7);
-    const rsiPer = Math.max(2, Number(rsiPeriod) || 7);
-    return computeWdoHudState(vis, chPts, rsiPer, replayMtfCandles.h1, replayMtfCandles.d1, true, selectedDay);
-  }, [strategyType, deferredCandles, effectiveReplayBars, rsiPeriod, replayMtfCandles, selectedDay]);
+  const { simResult, wdoReplayHud } = useAsyncBacktest({
+    candles: effectiveCandles,
+    effectiveReplayBars,
+    replayInitialBar,
+    selectedDay,
+    isTickMode,
+    botName,
+    resolvedSymbol,
+    timeframe,
+    strategyType,
+    maType,
+    fastPeriod,
+    slowPeriod,
+    rsiPeriod,
+    oversold,
+    overbought,
+    lookbackBars,
+    onBullishSignal,
+    onBearishSignal,
+    risk,
+    h1Candles: replayMtfCandles.h1,
+    d1Candles: replayMtfCandles.d1,
+  });
 
   const tickFetchAbortRef = useRef(0);
 
@@ -853,7 +850,7 @@ export const BacktestReplayView = memo(function BacktestReplayView({ creds, acti
       tradeLinesPrimitiveRef.current?.setSegments(new Array());
       markersPluginRef.current?.setMarkers(new Array());
     }
-  }, [deferredCandles, effectiveReplayBars, simResult, strategyType, replayMtfCandles, selectedDay]);
+  }, [effectiveCandles, effectiveReplayBars, simResult, strategyType, replayMtfCandles, selectedDay]);
 
   useEffect(() => {
     if (!isChartMaximized) return;
