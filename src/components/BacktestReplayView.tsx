@@ -341,23 +341,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
           const keepDays = new Set(uniqueDays.slice(-2));
           const recentWithPrevDay = list.filter((c) => keepDays.has(new Date(toSec(c.time) * 1000).toISOString().slice(0, 10)));
           const todayBars = list.filter((c) => new Date(toSec(c.time) * 1000).toISOString().slice(0, 10) === todayStr);
-          const baseList = recentWithPrevDay.length > 0 ? recentWithPrevDay : list;
-          const lastBar = baseList.at(-1);
-          const preOpenEpoch = Math.floor(Date.parse(`${todayStr}T09:00:00Z`) / 1000);
-          const incoming =
-            todayBars.length === 0 && lastBar && Number.isFinite(preOpenEpoch)
-              ? [
-                  ...baseList,
-                  {
-                    index: baseList.length, timeLabel: '09:00', time: preOpenEpoch,
-                    open: Number(lastBar.close),
-                    high: Number(lastBar.close),
-                    low: Number(lastBar.close),
-                    close: Number(lastBar.close),
-                    volume: 0,
-                  },
-                ]
-              : baseList;
+          const incoming = recentWithPrevDay.length > 0 ? recentWithPrevDay : list;
           setCandles((prev) => {
             const target = isInitial ? incoming : mergeBars(prev, incoming);
             const lastPrev = prev.at(-1);
