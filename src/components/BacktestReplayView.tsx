@@ -39,7 +39,7 @@ import type {
   ManagedStrategyType,
   Mt5SyncCredentials,
 } from '../types/trading';
-import { fetchCandles, fetchManagedRobots, syncCandlesWithMt5, updateManagedRobotApi } from '../utils/mt5Bridge';
+import { fetchCandles, fetchManagedRobots, fetchReplayTicks, syncCandlesWithMt5, updateManagedRobotApi } from '../utils/mt5Bridge';
 
 interface BacktestReplayViewProps {
   creds: Mt5SyncCredentials;
@@ -117,6 +117,11 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLiveMode, setIsLiveMode] = useState(false);
   const [speedMs, setSpeedMs] = useState(600);
+  const [isTickMode, setIsTickMode] = useState(false);
+  const [loadingTicks, setLoadingTicks] = useState(false);
+  const [dayTicks, setDayTicks] = useState<Array<[number, number, number]>>(new Array<[number, number, number]>());
+  const [tickCursor, setTickCursor] = useState(0);
+  const [jumpTime, setJumpTime] = useState('10:00');
   const [isChartMaximized, setIsChartMaximized] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [savingRobot, setSavingRobot] = useState(false);
@@ -190,7 +195,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
           const fallbackDay = new Date(Number(list.at(-1)?.time || 0) * 1000).toISOString().slice(0, 10);
           setSelectedDay(fallbackDay);
         }
-        if (strategyType === 'wdo_opening_zones') { const td = dayMatches.length > 0 ? replayDate : new Date(Number(list.at(-1)?.time || 0) * 1000).toISOString().slice(0, 10); const upTo = list.filter((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) <= td); const fIdx = upTo.findIndex((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) === td); setReplayBars(fIdx > 0 ? fIdx : 1); } else { setReplayBars(replayInitialBar); }
+        if (strategyType === 'wdo_opening_zones') { const td = dayMatches.length > 0 ? replayDate : new Date(Number(list.at(-1)?.time || 0) * 1000).toISOString().slice(0, 10); const upTo = list.filter((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) <= td); const fIdx = upTo.findIndex((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) === td); setReplayBars(fIdx > 0 ? fIdx : 1); } else { if (isTickMode) { setTickCursor(0); } else { setReplayBars(replayInitialBar); } }
         setCandleStatus(`Cache pronto (${dayMatches.length || list.length} velas). Clique em Play Replay ou 100%.`);
       } else {
         const brDate = replayDate.split('-').reverse().join('/');
@@ -313,7 +318,20 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
   }, [isLiveMode, creds.channelId, creds.token, resolvedSymbol, timeframe]);
 
   useEffect(() => {
-    if (!isPlaying || activeCandles.length === 0) return;
+    if (!isPlaying) return;
+    if (isTickMode && dayTicks.length > 0) {
+      if (tickCursor >= dayTicks.length) {
+        setIsPlaying(false);
+        return;
+      }
+      const step = speedMs <= 80 ? 4 : speedMs <= 200 ? 2 : 1;
+      const delay = Math.max(25, Math.min(250, Math.floor(speedMs / 3)));
+      const id = window.setTimeout(() => {
+        setTickCursor((prev) => Math.min(dayTicks.length, prev + step));
+      }, delay);
+      return () => window.clearTimeout(id);
+    }
+    if (activeCandles.length === 0) return;
     if (replayBars >= activeCandles.length) {
       setIsPlaying(false);
       return;
@@ -322,7 +340,96 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
       setReplayBars((prev) => (prev >= activeCandles.length ? activeCandles.length : prev + 1));
     }, speedMs);
     return () => window.clearTimeout(id);
-  }, [isPlaying, speedMs, replayBars, activeCandles.length]);
+  }, [isPlaying, speedMs, replayBars, activeCandles.length, isTickMode, dayTicks.length, tickCursor]);
+
+  const tickDrivenCandles = useMemo(() => {
+    if (!isTickMode || dayTicks.length === 0) return null;
+    const targetDay = selectedDay !== 'ALL' ? selectedDay : replayDate;
+    const prior = activeCandles.filter((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) < targetDay);
+    const limit = Math.max(0, Math.min(dayTicks.length, tickCursor));
+    const tfSec = timeframe === 'M1' ? 60 : timeframe === 'M15' ? 900 : timeframe === 'H1' ? 3600 : 300;
+    const built = new Array<LiveCandle>();
+    let curBucket = -1;
+    for (let i = 0; i < limit; i++) {
+      const t = dayTicks.at(i)!;
+      const sec = Math.floor(Number(t[0]) / 1000);
+      const price = Number(t[1]);
+      const vol = Number(t[2]) || 1;
+      const b = Math.floor(sec / tfSec) * tfSec;
+      if (b !== curBucket || built.length === 0) {
+        curBucket = b;
+        built.push({ index: prior.length + built.length, timeLabel: '', time: b, open: price, high: price, low: price, close: price, volume: vol });
+      } else {
+        const last = built.at(built.length - 1)!;
+        if (price > last.high) last.high = price;
+        if (price < last.low) last.low = price;
+        last.close = price;
+        last.volume = (last.volume || 0) + vol;
+      }
+    }
+    return prior.concat(built);
+  }, [isTickMode, dayTicks, tickCursor, selectedDay, replayDate, activeCandles, timeframe]);
+
+  const effectiveCandles = tickDrivenCandles ?? activeCandles;
+
+  const handleJumpToTime = () => {
+    const clean = jumpTime.trim();
+    const parts = clean.split(':');
+    const hhNum = parts.length === 2 ? Number(parts.at(0)) : NaN;
+    const mmNum = parts.length === 2 ? Number(parts.at(1)) : NaN;
+    if (!Number.isInteger(hhNum) || !Number.isInteger(mmNum) || hhNum < 0 || hhNum > 23 || mmNum < 0 || mmNum > 59) {
+      setCandleStatus('Hor\u00e1rio inv\u00e1lido. Use HH:MM (ex: 10:15).');
+      return;
+    }
+    const targetHHMM = `${String(hhNum).padStart(2, '0')}:${String(mmNum).padStart(2, '0')}`;
+    const targetMin = hhNum * 60 + mmNum;
+    const targetDay = selectedDay !== 'ALL' ? selectedDay : replayDate;
+    setIsPlaying(false);
+
+    if (isTickMode && dayTicks.length > 0) {
+      let foundIdx = dayTicks.length;
+      for (let i = 0; i < dayTicks.length; i++) {
+        const tickRow = dayTicks.at(i);
+        if (!tickRow) continue;
+        const sec = Math.floor(Number(tickRow.at(0)) / 1000);
+        const iso = new Date(sec * 1000).toISOString();
+        const hh = Number(iso.slice(11, 13));
+        const mm = Number(iso.slice(14, 16));
+        if (hh * 60 + mm >= targetMin) {
+          foundIdx = i;
+          break;
+        }
+      }
+      setTickCursor(foundIdx);
+      setCandleStatus(`Salto Tick a Tick para ${targetHHMM} (tick ${foundIdx}/${dayTicks.length}).`);
+      return;
+    }
+
+    if (activeCandles.length > 0) {
+      let targetIdx = -1;
+      for (let i = 0; i < activeCandles.length; i++) {
+        const candleRow = activeCandles.at(i);
+        const cTime = Number(candleRow?.time || 0);
+        if (!cTime) continue;
+        const iso = new Date(cTime * 1000).toISOString();
+        const cDay = iso.slice(0, 10);
+        if (selectedDay !== 'ALL' && cDay !== targetDay) continue;
+        const hh = Number(iso.slice(11, 13));
+        const mm = Number(iso.slice(14, 16));
+        if (hh * 60 + mm <= targetMin) {
+          targetIdx = i + 1;
+        }
+      }
+      if (targetIdx < replayInitialBar) {
+        const firstDayIdx = activeCandles.findIndex((c) => new Date(Number(c.time || 0) * 1000).toISOString().slice(0, 10) === targetDay);
+        targetIdx = firstDayIdx >= 0 ? Math.max(replayInitialBar, firstDayIdx + 1) : replayInitialBar;
+      }
+      const clamped = Math.min(activeCandles.length, Math.max(1, targetIdx));
+      setReplayBars(clamped);
+      setCandleStatus(`Salto para ${targetHHMM} (vela ${clamped}/${activeCandles.length}).`);
+    }
+  };
+  const effectiveReplayBars = tickDrivenCandles ? tickDrivenCandles.length : replayBars;
 
   const simResult = useMemo(() => {
     if (activeCandles.length < 6) return null;
@@ -334,20 +441,78 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     const params: ManagedRobotParams = { ...baseParams, onBullishSignal, onBearishSignal };
     return runBacktestSimulation({
       robot: { name: botName, magicNumber: 9999, symbol: resolvedSymbol, timeframe, enabled: true, strategyType, params: params as Record<string, unknown>, risk },
-      candles: activeCandles,
-      maxBars: replayBars > 0 ? replayBars : activeCandles.length,
-      startFromBar: strategyType === 'wdo_opening_zones' && selectedDay !== 'ALL' ? Math.max(4, replayInitialBar - 1) : undefined,
+      candles: effectiveCandles,
+      maxBars: effectiveReplayBars > 0 ? effectiveReplayBars : effectiveCandles.length,
+      startFromBar: strategyType === 'wdo_opening_zones' && selectedDay !== 'ALL' ? Math.max(4, replayInitialBar) : undefined,
+      isTickMode,
     });
-  }, [activeCandles, replayBars, replayInitialBar, selectedDay, botName, resolvedSymbol, timeframe, strategyType, maType, fastPeriod, slowPeriod, rsiPeriod, oversold, overbought, lookbackBars, onBullishSignal, onBearishSignal, risk]);
+  }, [effectiveCandles, effectiveReplayBars, replayInitialBar, selectedDay, isTickMode, botName, resolvedSymbol, timeframe, strategyType, maType, fastPeriod, slowPeriod, rsiPeriod, oversold, overbought, lookbackBars, onBullishSignal, onBearishSignal, risk]);
 
   const wdoReplayHud = useMemo(() => {
     if (strategyType !== 'wdo_opening_zones' || activeCandles.length === 0) return null;
-    const targetCount = replayBars > 0 ? Math.min(replayBars, activeCandles.length) : activeCandles.length;
-    const vis = activeCandles.slice(0, targetCount);
+    const targetCount = effectiveReplayBars > 0 ? Math.min(effectiveReplayBars, effectiveCandles.length) : effectiveCandles.length;
+    const vis = effectiveCandles.slice(0, targetCount);
     const chPts = Math.max(1, Number(7) || 7);
     const rsiPer = Math.max(2, Number(rsiPeriod) || 7);
     return computeWdoHudState(vis, chPts, rsiPer, replayMtfCandles.h1, replayMtfCandles.d1, true, selectedDay);
-  }, [strategyType, activeCandles, replayBars, rsiPeriod, replayMtfCandles, selectedDay]);
+  }, [strategyType, effectiveCandles, effectiveReplayBars, rsiPeriod, replayMtfCandles, selectedDay]);
+
+  const tickFetchAbortRef = useRef(0);
+
+  const handleToggleTickMode = async () => {
+    if (isTickMode) {
+      tickFetchAbortRef.current += 1;
+      setIsPlaying(false);
+      if (tickDrivenCandles && tickDrivenCandles.length > 0) {
+        setReplayBars(Math.min(activeCandles.length, tickDrivenCandles.length));
+      }
+      setIsTickMode(false);
+      return;
+    }
+    const targetDay = selectedDay !== 'ALL' ? selectedDay : replayDate;
+    if (!targetDay || !resolvedSymbol) return;
+    const runId = ++tickFetchAbortRef.current;
+    setIsPlaying(false);
+    setLoadingTicks(true);
+    const brDate = targetDay.split('-').reverse().join('/');
+    setCandleStatus(`Baixando pacote 09:00-10:00 (${brDate}) de ${resolvedSymbol}...`);
+
+    const hours = ['09', '10', '11', '12', '13', '14', '15', '16', '17'];
+    let accumulated = new Array<[number, number, number]>();
+
+    for (let idx = 0; idx < hours.length; idx++) {
+      if (tickFetchAbortRef.current !== runId) return;
+      const hh = hours.at(idx)!;
+      const res = await fetchReplayTicks(creds.channelId, creds.token, resolvedSymbol, targetDay, false, hh, hh);
+      if (tickFetchAbortRef.current !== runId) return;
+
+      if (res.ticks.length > 0) {
+        accumulated = accumulated.concat(res.ticks);
+        setDayTicks(accumulated);
+        if (idx === 0) {
+          const curCandleTime = Number(activeCandles.at(Math.max(0, Math.min(activeCandles.length - 1, replayBars - 1)))?.time || 0);
+          const curDayStr = curCandleTime > 0 ? new Date(curCandleTime * 1000).toISOString().slice(0, 10) : '';
+          let startCursor = 0;
+          if (curDayStr === targetDay && replayBars < activeCandles.length) {
+            const foundIdx = accumulated.findIndex((tk) => Math.floor(Number(tk[0]) / 1000) >= curCandleTime);
+            if (foundIdx >= 0) startCursor = foundIdx + 1;
+          }
+          setTickCursor(startCursor);
+          setIsTickMode(true);
+          setLoadingTicks(false);
+        }
+        setCandleStatus(`Ticks (${brDate}): ${accumulated.length.toLocaleString('pt-BR')} negócios carregados (até ${hh}:59)...`);
+      } else if (idx === 0) {
+        setLoadingTicks(false);
+        setCandleStatus(`Sem ticks reais para ${brDate} 09:00 (compile o Painel_Sync.mq5 no MT5 e reinicie o serviço).`);
+        return;
+      }
+    }
+    if (tickFetchAbortRef.current === runId) {
+      setLoadingTicks(false);
+      setCandleStatus(`Pregão ${brDate} completo em ticks (${accumulated.length.toLocaleString('pt-BR')} negócios em cache).`);
+    }
+  };
 
   const handleStepNextDay = () => {
     if (activeCandles.length === 0) return;
@@ -405,8 +570,8 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     const chart = chartRef.current;
     const series = candleSeriesRef.current;
     if (!chart || !series) return;
-    const targetCount = replayBars > 0 ? Math.min(replayBars, activeCandles.length) : activeCandles.length;
-    const visibleCandles = activeCandles.slice(0, targetCount);
+    const targetCount = effectiveReplayBars > 0 ? Math.min(effectiveReplayBars, effectiveCandles.length) : effectiveCandles.length;
+    const visibleCandles = effectiveCandles.slice(0, targetCount);
     const baseSec = Math.floor(Date.now() / 1000) - activeCandles.length * 60;
     const isStepPlusOne =
       lastRenderedSeriesRef.current === activeCandles &&
@@ -541,7 +706,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
       tradeLinesPrimitiveRef.current?.setSegments([]);
       markersPluginRef.current?.setMarkers([]);
     }
-  }, [activeCandles, replayBars, simResult, strategyType, replayMtfCandles, selectedDay]);
+  }, [effectiveCandles, effectiveReplayBars, simResult, strategyType, replayMtfCandles, selectedDay]);
 
   useEffect(() => {
     if (!isChartMaximized) return;
@@ -706,7 +871,7 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
           </div>
         )}
 
-        <div className={isChartMaximized ? 'fixed top-0 inset-x-0 bottom-[34px] z-50 bg-[#090D12] px-4 pt-3 pb-0 flex flex-col gap-2' : 'rounded-xl bg-[#0F141C] border border-[#1E2633] p-3 flex flex-col gap-2'}>
+        <div className={isChartMaximized ? 'fixed top-0 inset-x-0 bottom-[50px] z-50 bg-[#090D12] px-4 pt-3 pb-0 flex flex-col gap-2' : 'rounded-xl bg-[#0F141C] border border-[#1E2633] p-3 flex flex-col gap-2'}>
           <div className="relative z-20 shrink-0 flex items-center justify-between px-1">
             <span className="text-[11px] font-mono text-gray-400">{resolvedSymbol} · {timeframe} · {botName}</span>
             <button type="button" onClick={() => setIsChartMaximized((p) => !p)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-xs font-medium text-gray-100 cursor-pointer">
@@ -799,16 +964,19 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
             <button type="button" disabled={candles.length === 0} onClick={() => { if (!isPlaying && replayBars >= candles.length) setReplayBars(replayInitialBar); setIsPlaying((p) => !p); }} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold cursor-pointer disabled:opacity-40">
               {isPlaying ? <><Pause className="w-3.5 h-3.5" /><span>Pausar</span></> : <><Play className="w-3.5 h-3.5" /><span>Play Replay</span></>}
             </button>
-            <button type="button" disabled={activeCandles.length === 0 || replayBars >= activeCandles.length} onClick={() => { setIsPlaying(false); setReplayBars((p) => Math.min(activeCandles.length, p + 1)); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-gray-200 text-xs cursor-pointer disabled:opacity-40">
+            <button type="button" disabled={activeCandles.length === 0 || replayBars >= activeCandles.length} onClick={() => { setIsPlaying(false); if (isTickMode) { setTickCursor((p) => Math.min(dayTicks.length, p + 1)); } else { setReplayBars((p) => Math.min(activeCandles.length, p + 1)); } }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-gray-200 text-xs cursor-pointer disabled:opacity-40">
               <SkipForward className="w-3.5 h-3.5" /><span>+1 Vela</span>
             </button>
+              <button type="button" disabled={activeCandles.length === 0 || loadingTicks} onClick={handleToggleTickMode} title="Alternar entre Replay Vela a Vela e Tick a Tick Real do MT5 (CopyTicksRange)" className={isTickMode ? "inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-500/20 border border-amber-400/60 text-amber-300 text-xs font-semibold cursor-pointer disabled:opacity-40" : "inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-gray-300 text-xs cursor-pointer disabled:opacity-40"}>
+                <span>{loadingTicks ? 'Baixando Ticks...' : isTickMode ? `Tick (${tickCursor}/${dayTicks.length})` : 'Tick a Tick'}</span>
+              </button>
               <button type="button" disabled={activeCandles.length === 0 || replayBars >= activeCandles.length} onClick={handleStepNextDay} title="Avançar para o fim do pregão atual ou abertura do próximo dia" className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-sky-700/50 text-sky-300 text-xs font-medium cursor-pointer disabled:opacity-40">
                 <FastForward className="w-3.5 h-3.5" /><span>+1 Dia</span>
               </button>
-            <button type="button" disabled={candles.length === 0} onClick={() => { setIsPlaying(false); setReplayBars(replayInitialBar); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-gray-200 text-xs cursor-pointer disabled:opacity-40">
+            <button type="button" disabled={candles.length === 0} onClick={() => { setIsPlaying(false); if (isTickMode) { setTickCursor(0); } else { setReplayBars(replayInitialBar); } }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-gray-200 text-xs cursor-pointer disabled:opacity-40">
               <RotateCcw className="w-3.5 h-3.5" /><span>Zerar</span>
             </button>
-            <button type="button" disabled={activeCandles.length === 0} onClick={() => { setIsPlaying(false); setReplayBars(activeCandles.length); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-emerald-300 text-xs cursor-pointer disabled:opacity-40">
+            <button type="button" disabled={activeCandles.length === 0} onClick={() => { setIsPlaying(false); if (isTickMode) { setTickCursor(dayTicks.length); } else { setReplayBars(activeCandles.length); } }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161C25] hover:bg-[#1E2633] border border-[#2E3A4B] text-emerald-300 text-xs cursor-pointer disabled:opacity-40">
               <FastForward className="w-3.5 h-3.5" /><span>100%</span>
             </button>
           </div>

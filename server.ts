@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { createDatabaseBackup } from "./src/db/tradesDb";
 import "dotenv/config";
 import express from "express";
@@ -524,7 +525,7 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
-  app.use(express.json({ limit: "3mb" }));
+  app.use(express.json({ limit: "25mb" }));
 
   app.use(
     (
@@ -635,6 +636,80 @@ async function startServer() {
       subscribers: channel ? channel.subscribers.size : 0,
       serverTime: new Date().toISOString(),
     });
+  });
+
+  const ticksWaiters = new Map<string, Array<(ticks: Array<[number, number, number]>) => void>>();
+
+  app.post("/api/mt5-sync/:channelId/ticks", (req, res) => {
+    const channelId = String(req.params.channelId || "").trim();
+    const token = extractSyncToken(req);
+    const channel = mt5Channels.get(channelId);
+    if (!channel || channel.token !== token) {
+      res.status(403).json({ error: "Canal ou token inválido." });
+      return;
+    }
+    const body = req.body || {};
+    const symbol = String(body.symbol || "").trim().toUpperCase();
+    const date = String(body.date || "").trim().slice(0, 10);
+    const hourTag = String(body.fromHour || "ALL").trim();
+    const requestId = String(body.requestId || "").trim();
+    const ticks = Array.isArray(body.ticks) ? body.ticks : [];
+    if (symbol && date && ticks.length > 0) {
+      try {
+        fs.mkdirSync(path.join(process.cwd(), "data"), { recursive: true });
+        fs.writeFileSync(path.join(process.cwd(), "data", `ticks_${symbol.replace(/[^A-Z0-9_$@.-]/gi, "_")}_${date}_${hourTag}.json`), JSON.stringify(ticks), "utf8");
+      } catch {}
+    }
+    if (requestId) {
+      const idx = requestQueue.findIndex((r) => r.id === requestId);
+      if (idx >= 0) requestQueue.splice(idx, 1);
+      const waiters = ticksWaiters.get(requestId) || [];
+      ticksWaiters.delete(requestId);
+      for (const fn of waiters) fn(ticks);
+    }
+    res.json({ ok: true, count: ticks.length });
+  });
+
+  app.get("/api/mt5-sync/:channelId/ticks", async (req, res) => {
+    const channelId = String(req.params.channelId || "").trim();
+    const token = extractSyncToken(req);
+    const channel = mt5Channels.get(channelId);
+    if (!channel || channel.token !== token) {
+      res.status(403).json({ error: "Canal ou token inválido." });
+      return;
+    }
+    const symbol = String(req.query.symbol || "").trim().toUpperCase();
+    const date = String(req.query.date || "").trim().slice(0, 10);
+    const fromHour = String(req.query.fromHour || "").trim();
+    const toHour = String(req.query.toHour || "").trim();
+    const hourTag = fromHour || "ALL";
+    const force = String(req.query.force || "") === "true";
+    if (!symbol || !date) {
+      res.status(400).json({ error: "Informe symbol e date (YYYY-MM-DD)." });
+      return;
+    }
+    const cacheFile = path.join(process.cwd(), "data", `ticks_${symbol.replace(/[^A-Z0-9_$@.-]/gi, "_")}_${date}_${hourTag}.json`);
+    if (!force && fs.existsSync(cacheFile)) {
+      try {
+        const cached = JSON.parse(fs.readFileSync(cacheFile, "utf8"));
+        if (Array.isArray(cached) && cached.length > 0) {
+          res.json({ ticks: cached, source: "cache" });
+          return;
+        }
+      } catch {}
+    }
+    const reqId = `ticks_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    addToQueue({ id: reqId, channelId, symbol, timeframe: "TICKS", date, fromHour, toHour, timestamp: Date.now(), status: "pending" } as unknown as PendingRequest);
+    const resultTicks = await new Promise<Array<[number, number, number]>>((resolve) => {
+      const timer = setTimeout(() => {
+        ticksWaiters.delete(reqId);
+        resolve([]);
+      }, 15000);
+      const arr = ticksWaiters.get(reqId) || [];
+      arr.push((t) => { clearTimeout(timer); resolve(t); });
+      ticksWaiters.set(reqId, arr);
+    });
+    res.json({ ticks: resultTicks, source: resultTicks.length > 0 ? "mt5" : "empty" });
   });
 
   app.get("/api/mt5-sync/:channelId/candles", (req, res) => {

@@ -94,6 +94,7 @@ export function runBacktestSimulation(input: {
   candles: LiveCandle[];
   maxBars?: number;
   startFromBar?: number;
+  isTickMode?: boolean;
 }): BacktestRunResult {
   const allNorm = toNormalizedCandles(input.candles);
   const limit = input.maxBars && input.maxBars > 0 ? Math.min(allNorm.length, Math.trunc(input.maxBars)) : allNorm.length;
@@ -168,12 +169,15 @@ export function runBacktestSimulation(input: {
     }
 
     let closedOnThisBar = false; if (pos) {
+      const isLiveTickBar = Boolean(input.isTickMode && i === slice.length - 1);
+      const chkHigh = isLiveTickBar ? curBar.close : curBar.high;
+      const chkLow  = isLiveTickBar ? curBar.close : curBar.low;
       if (pos.side === "COMPRA") {
-        if (pos.sl > 0 && curBar.low <= pos.sl) { closedOnThisBar = true; closePos(pos.sl, barTs, fmt.label, "Stop Loss"); }
-        else if (pos.tp > 0 && curBar.high >= pos.tp) { closedOnThisBar = true; closePos(pos.tp, barTs, fmt.label, "Take Profit"); }
+        if (pos.sl > 0 && chkLow <= pos.sl) { closedOnThisBar = true; closePos(pos.sl, barTs, fmt.label, "Stop Loss"); }
+        else if (pos.tp > 0 && chkHigh >= pos.tp) { closedOnThisBar = true; closePos(pos.tp, barTs, fmt.label, "Take Profit"); }
       } else {
-        if (pos.sl > 0 && curBar.high >= pos.sl) { closedOnThisBar = true; closePos(pos.sl, barTs, fmt.label, "Stop Loss"); }
-        else if (pos.tp > 0 && curBar.low <= pos.tp) { closedOnThisBar = true; closePos(pos.tp, barTs, fmt.label, "Take Profit"); }
+        if (pos.sl > 0 && chkHigh >= pos.sl) { closedOnThisBar = true; closePos(pos.sl, barTs, fmt.label, "Stop Loss"); }
+        else if (pos.tp > 0 && chkLow <= pos.tp) { closedOnThisBar = true; closePos(pos.tp, barTs, fmt.label, "Take Profit"); }
       }
     }
 
@@ -233,7 +237,18 @@ export function runBacktestSimulation(input: {
           sl: calcSl,
           tp: calcTp,
         };
-        const bullishBar = curBar.close >= curBar.open;
+        if (input.isTickMode) {
+            if (i === slice.length - 1) {
+              if (pos.side === "COMPRA") {
+                if (pos.sl > 0 && curBar.close <= pos.sl) closePos(pos.sl, barTs, fmt.label, "Stop Loss");
+                else if (pos.tp > 0 && curBar.close >= pos.tp) closePos(pos.tp, barTs, fmt.label, "Take Profit");
+              } else {
+                if (pos.sl > 0 && curBar.close >= pos.sl) closePos(pos.sl, barTs, fmt.label, "Stop Loss");
+                else if (pos.tp > 0 && curBar.close <= pos.tp) closePos(pos.tp, barTs, fmt.label, "Take Profit");
+              }
+            }
+          } else {
+const bullishBar = curBar.close >= curBar.open;
         if (pos.side === "COMPRA") {
           if (bullishBar) {
             if (pos.sl > 0 && curBar.low <= pos.sl) closePos(pos.sl, barTs, fmt.label, "Stop Loss");
@@ -251,6 +266,7 @@ export function runBacktestSimulation(input: {
             else if (pos.tp > 0 && curBar.low <= pos.tp) closePos(pos.tp, barTs, fmt.label, "Take Profit");
           }
         }
+}
       }
     }
 

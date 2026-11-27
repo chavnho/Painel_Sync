@@ -56,7 +56,7 @@ datetime g_lastSymbolsReport = 0;
 
 void OnStart()
 {
-   Print("PainelSync Service v2.0: Iniciando monitoramento em segundo plano no canal ", InpChannelId, "...");
+   Print("PainelSync Service v2.1-TICKS: Iniciando monitoramento em segundo plano no canal ", InpChannelId, "...");
 
    g_lastSymbolsReport = TimeCurrent();
    SendSymbolsReport();
@@ -681,9 +681,19 @@ void FetchPendingRequest()
 
             if(reqSymbol != "")
             {
-               ENUM_TIMEFRAMES tf = StringToTimeframe(reqTimeframe);
                string reqDate = ExtractJsonString(obj, "date");
-               SendCandlesData(reqSymbol, tf, requestId, InpMaxChartBars, false, reqDate);
+               if(reqTimeframe == "TICKS")
+               {
+                  string reqFromH = ExtractJsonString(obj, "fromHour");
+                  string reqToH   = ExtractJsonString(obj, "toHour");
+                  Print("PainelSync [TICKS REQ] Pedido recebido -> symbol=", reqSymbol, " | date=", reqDate, " | janela=", (reqFromH != "" ? reqFromH : "ALL"), "-", (reqToH != "" ? reqToH : "ALL"), " | reqId=", requestId);
+                  SendTicksData(reqSymbol, requestId, reqDate, reqFromH, reqToH);
+               }
+               else
+               {
+                  ENUM_TIMEFRAMES tf = StringToTimeframe(reqTimeframe);
+                  SendCandlesData(reqSymbol, tf, requestId, InpMaxChartBars, false, reqDate);
+               }
             }
             pos = objEnd + 1;
          }
@@ -908,6 +918,84 @@ int CopyAndRepairRates(const string symbol, const ENUM_TIMEFRAMES period, const 
    }
    return aggTotal;
 }
+void SendTicksData(const string symbol, const string requestId, const string targetDate, const string fromHour = "", const string toHour = "")
+{
+   bool wasSelected = (bool)SymbolInfoInteger(symbol, SYMBOL_SELECT);
+   if(!wasSelected && !SymbolSelect(symbol, true))
+   {
+      Print("PainelSync [TICKS] Falha ao selecionar simbolo: ", symbol);
+      return;
+   }
+
+   string useDate = (targetDate != "") ? targetDate : TimeToString(TimeCurrent(), TIME_DATE);
+   StringReplace(useDate, "-", ".");
+   string startClock = (fromHour != "") ? (fromHour + ":00:00") : "00:00:00";
+   string endClock   = (toHour != "")   ? (toHour + ":59:59")   : "23:59:59";
+   datetime dStart = StringToTime(useDate + " " + startClock);
+   datetime dEnd   = StringToTime(useDate + " " + endClock);
+   if(dStart <= 0 || dEnd <= dStart)
+   {
+      Print("PainelSync [TICKS] Janela invalida: ", useDate, " ", startClock, "-", endClock);
+      return;
+   }
+
+   MqlTick ticks[];
+   ArraySetAsSeries(ticks, false);
+   ResetLastError();
+   int total = CopyTicksRange(symbol, ticks, COPY_TICKS_TRADE, (ulong)dStart * 1000, (ulong)dEnd * 1000);
+   if(total <= 0)
+      total = CopyTicksRange(symbol, ticks, COPY_TICKS_ALL, (ulong)dStart * 1000, (ulong)dEnd * 1000);
+
+   int digits = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
+   string json = "{\"token\":\"" + InpToken + "\""
+               + ",\"channelId\":\"" + InpChannelId + "\""
+               + ",\"symbol\":\"" + symbol + "\""
+               + ",\"date\":\"" + targetDate + "\""
+               + ",\"fromHour\":\"" + fromHour + "\"";
+   if(requestId != "")
+      json += ",\"requestId\":\"" + requestId + "\"";
+   json += ",\"ticks\":[";
+
+   long lastSec = -1;
+   double lastPrice = -1;
+   int emitted = 0;
+   for(int i = 0; i < total; i++)
+   {
+      double p = (ticks[i].last > 0) ? ticks[i].last : ((ticks[i].bid > 0) ? ticks[i].bid : ticks[i].ask);
+      if(p <= 0) continue;
+      long sec = (long)(ticks[i].time_msc / 1000);
+      if(sec == lastSec && MathAbs(p - lastPrice) < 1e-8) continue;
+      lastSec = sec;
+      lastPrice = p;
+      if(emitted > 0) json += ",";
+      json += "[" + IntegerToString((long)ticks[i].time_msc) + "," + DoubleToString(p, digits) + "," + IntegerToString((long)MathMax(1, (int)ticks[i].volume)) + "]";
+      emitted++;
+   }
+   json += "]}";
+   int httpCode = SendToTicksEndpoint(json);
+   Print("PainelSync [TICKS] ", symbol, " (", useDate, " ", startClock, "-", endClock, ") -> brutos=", total, " | enviados=", emitted, " | HTTP=", httpCode, " | err=", GetLastError());
+}
+
+int SendToTicksEndpoint(const string jsonPayload)
+{
+   string url = InpEndpointUrl;
+   int apiPos = StringFind(url, "/api/mt5-sync/");
+   if(apiPos > 0)
+      url = StringSubstr(url, 0, apiPos) + "/api/mt5-sync/" + InpChannelId + "/ticks";
+   else
+      url = url + "/api/mt5-sync/" + InpChannelId + "/ticks";
+   char post[], result[];
+   string headers = "Content-Type: application/json\r\nAuthorization: Bearer " + InpToken + "\r\n";
+   string resHeaders;
+   ResetLastError();
+   int len = StringToCharArray(jsonPayload, post, 0, StringLen(jsonPayload), CP_UTF8);
+   if(len > 0 && post[len - 1] == 0) ArrayResize(post, len - 1);
+   int code = WebRequest("POST", url, headers, 15000, post, result, resHeaders);
+   string respPreview = (ArraySize(result) > 0) ? StringSubstr(CharArrayToString(result, 0, -1, CP_UTF8), 0, 140) : "(vazio)";
+   Print("PainelSync [TICKS POST] URL=", url, " | bytes=", ArraySize(post), " | HTTP=", code, " | err=", GetLastError(), " | resp=", respPreview);
+   return code;
+}
+
 void SendCandlesData(const string symbol, const ENUM_TIMEFRAMES period, const string requestId, const int barsCount, const bool isDelta = false, const string targetDate = "")
 {
    // Verifica se o ativo jÃ¡ estava visÃ­vel na ObservaÃ§Ã£o do Mercado antes
