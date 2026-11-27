@@ -908,19 +908,30 @@ int CopyAndRepairRates(const string symbol, const ENUM_TIMEFRAMES period, const 
    }
    return aggTotal;
 }
-void SendTicksData(const string symbol, const string requestId, const string targetDate)
+void SendTicksData(const string symbol, const string requestId, const string targetDate, const string fromHour = "", const string toHour = "")
 {
    bool wasSelected = (bool)SymbolInfoInteger(symbol, SYMBOL_SELECT);
-   if(!wasSelected && !SymbolSelect(symbol, true)) return;
+   if(!wasSelected && !SymbolSelect(symbol, true))
+   {
+      Print("PainelSync [TICKS] Falha ao selecionar simbolo: ", symbol);
+      return;
+   }
 
    string useDate = (targetDate != "") ? targetDate : TimeToString(TimeCurrent(), TIME_DATE);
    StringReplace(useDate, "-", ".");
-   datetime dStart = StringToTime(useDate + " 08:55:00");
-   datetime dEnd   = StringToTime(useDate + " 18:05:00");
-   if(dStart <= 0 || dEnd <= dStart) return;
+   string startClock = (fromHour != "") ? (fromHour + ":00:00") : "00:00:00";
+   string endClock   = (toHour != "")   ? (toHour + ":59:59")   : "23:59:59";
+   datetime dStart = StringToTime(useDate + " " + startClock);
+   datetime dEnd   = StringToTime(useDate + " " + endClock);
+   if(dStart <= 0 || dEnd <= dStart)
+   {
+      Print("PainelSync [TICKS] Janela invalida: ", useDate, " ", startClock, "-", endClock);
+      return;
+   }
 
    MqlTick ticks[];
    ArraySetAsSeries(ticks, false);
+   ResetLastError();
    int total = CopyTicksRange(symbol, ticks, COPY_TICKS_TRADE, (ulong)dStart * 1000, (ulong)dEnd * 1000);
    if(total <= 0)
       total = CopyTicksRange(symbol, ticks, COPY_TICKS_ALL, (ulong)dStart * 1000, (ulong)dEnd * 1000);
@@ -929,7 +940,8 @@ void SendTicksData(const string symbol, const string requestId, const string tar
    string json = "{\"token\":\"" + InpToken + "\""
                + ",\"channelId\":\"" + InpChannelId + "\""
                + ",\"symbol\":\"" + symbol + "\""
-               + ",\"date\":\"" + targetDate + "\"";
+               + ",\"date\":\"" + targetDate + "\""
+               + ",\"fromHour\":\"" + fromHour + "\"";
    if(requestId != "")
       json += ",\"requestId\":\"" + requestId + "\"";
    json += ",\"ticks\":[";
@@ -950,10 +962,11 @@ void SendTicksData(const string symbol, const string requestId, const string tar
       emitted++;
    }
    json += "]}";
-   SendToTicksEndpoint(json);
+   int httpCode = SendToTicksEndpoint(json);
+   Print("PainelSync [TICKS] ", symbol, " (", useDate, " ", startClock, "-", endClock, ") -> brutos=", total, " | enviados=", emitted, " | HTTP=", httpCode, " | err=", GetLastError());
 }
 
-void SendToTicksEndpoint(const string jsonPayload)
+int SendToTicksEndpoint(const string jsonPayload)
 {
    string url = InpEndpointUrl;
    int apiPos = StringFind(url, "/api/mt5-sync/");
@@ -962,8 +975,9 @@ void SendToTicksEndpoint(const string jsonPayload)
    char post[], result[];
    string headers = "Content-Type: application/json\r\nAuthorization: Bearer " + InpToken + "\r\n";
    string resHeaders;
-   StringToCharArray(jsonPayload, post, 0, StringLen(jsonPayload), CP_UTF8);
-   WebRequest("POST", url, headers, 15000, post, result, resHeaders);
+   int len = StringToCharArray(jsonPayload, post, 0, StringLen(jsonPayload), CP_UTF8);
+   if(len > 0 && post[len - 1] == 0) ArrayResize(post, len - 1);
+   return WebRequest("POST", url, headers, 15000, post, result, resHeaders);
 }
 
 void SendCandlesData(const string symbol, const ENUM_TIMEFRAMES period, const string requestId, const int barsCount, const bool isDelta = false, const string targetDate = "")

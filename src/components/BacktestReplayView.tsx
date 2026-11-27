@@ -397,26 +397,50 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
     return computeWdoHudState(vis, chPts, rsiPer, replayMtfCandles.h1, replayMtfCandles.d1, true, selectedDay);
   }, [strategyType, effectiveCandles, effectiveReplayBars, rsiPeriod, replayMtfCandles, selectedDay]);
 
+  const tickFetchAbortRef = useRef(0);
+
   const handleToggleTickMode = async () => {
     if (isTickMode) {
+      tickFetchAbortRef.current += 1;
       setIsPlaying(false);
       setIsTickMode(false);
       return;
     }
     const targetDay = selectedDay !== 'ALL' ? selectedDay : replayDate;
     if (!targetDay || !resolvedSymbol) return;
+    const runId = ++tickFetchAbortRef.current;
     setIsPlaying(false);
     setLoadingTicks(true);
-    setCandleStatus(`Carregando ticks reais (${targetDay.split('-').reverse().join('/')}) de ${resolvedSymbol}...`);
-    const res = await fetchReplayTicks(creds.channelId, creds.token, resolvedSymbol, targetDay, false);
-    setLoadingTicks(false);
-    if (res.ticks.length > 0) {
-      setDayTicks(res.ticks);
-      setTickCursor(1);
-      setIsTickMode(true);
-      setCandleStatus(`Ticks reais prontos (${res.ticks.length.toLocaleString('pt-BR')} negócios via ${res.source}).`);
-    } else {
-      setCandleStatus(`Sem ticks reais para ${targetDay.split('-').reverse().join('/')} (compile o Painel_Sync.mq5 no MT5 e tente novamente).`);
+    const brDate = targetDay.split('-').reverse().join('/');
+    setCandleStatus(`Baixando pacote 09:00-10:00 (${brDate}) de ${resolvedSymbol}...`);
+
+    const hours = ['09', '10', '11', '12', '13', '14', '15', '16', '17'];
+    let accumulated = new Array<[number, number, number]>();
+
+    for (let idx = 0; idx < hours.length; idx++) {
+      if (tickFetchAbortRef.current !== runId) return;
+      const hh = hours.at(idx)!;
+      const res = await fetchReplayTicks(creds.channelId, creds.token, resolvedSymbol, targetDay, false, hh, hh);
+      if (tickFetchAbortRef.current !== runId) return;
+
+      if (res.ticks.length > 0) {
+        accumulated = accumulated.concat(res.ticks);
+        setDayTicks(accumulated);
+        if (idx === 0) {
+          setTickCursor(1);
+          setIsTickMode(true);
+          setLoadingTicks(false);
+        }
+        setCandleStatus(`Ticks (${brDate}): ${accumulated.length.toLocaleString('pt-BR')} negócios carregados (até ${hh}:59)...`);
+      } else if (idx === 0) {
+        setLoadingTicks(false);
+        setCandleStatus(`Sem ticks reais para ${brDate} 09:00 (compile o Painel_Sync.mq5 no MT5 e reinicie o serviço).`);
+        return;
+      }
+    }
+    if (tickFetchAbortRef.current === runId) {
+      setLoadingTicks(false);
+      setCandleStatus(`Pregão ${brDate} completo em ticks (${accumulated.length.toLocaleString('pt-BR')} negócios em cache).`);
     }
   };
 

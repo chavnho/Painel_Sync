@@ -525,7 +525,7 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
-  app.use(express.json({ limit: "3mb" }));
+  app.use(express.json({ limit: "25mb" }));
 
   app.use(
     (
@@ -651,12 +651,13 @@ async function startServer() {
     const body = req.body || {};
     const symbol = String(body.symbol || "").trim().toUpperCase();
     const date = String(body.date || "").trim().slice(0, 10);
+    const hourTag = String(body.fromHour || "ALL").trim();
     const requestId = String(body.requestId || "").trim();
     const ticks = Array.isArray(body.ticks) ? body.ticks : [];
     if (symbol && date && ticks.length > 0) {
       try {
         fs.mkdirSync(path.join(process.cwd(), "data"), { recursive: true });
-        fs.writeFileSync(path.join(process.cwd(), "data", `ticks_${symbol.replace(/[^A-Z0-9_$@.-]/gi, "_")}_${date}.json`), JSON.stringify(ticks), "utf8");
+        fs.writeFileSync(path.join(process.cwd(), "data", `ticks_${symbol.replace(/[^A-Z0-9_$@.-]/gi, "_")}_${date}_${hourTag}.json`), JSON.stringify(ticks), "utf8");
       } catch {}
     }
     if (requestId) {
@@ -679,12 +680,15 @@ async function startServer() {
     }
     const symbol = String(req.query.symbol || "").trim().toUpperCase();
     const date = String(req.query.date || "").trim().slice(0, 10);
+    const fromHour = String(req.query.fromHour || "").trim();
+    const toHour = String(req.query.toHour || "").trim();
+    const hourTag = fromHour || "ALL";
     const force = String(req.query.force || "") === "true";
     if (!symbol || !date) {
       res.status(400).json({ error: "Informe symbol e date (YYYY-MM-DD)." });
       return;
     }
-    const cacheFile = path.join(process.cwd(), "data", `ticks_${symbol.replace(/[^A-Z0-9_$@.-]/gi, "_")}_${date}.json`);
+    const cacheFile = path.join(process.cwd(), "data", `ticks_${symbol.replace(/[^A-Z0-9_$@.-]/gi, "_")}_${date}_${hourTag}.json`);
     if (!force && fs.existsSync(cacheFile)) {
       try {
         const cached = JSON.parse(fs.readFileSync(cacheFile, "utf8"));
@@ -695,7 +699,7 @@ async function startServer() {
       } catch {}
     }
     const reqId = `ticks_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    addToQueue({ id: reqId, symbol, timeframe: "TICKS", date, timestamp: Date.now(), status: "pending" } as unknown as PendingRequest);
+    addToQueue({ id: reqId, symbol, timeframe: "TICKS", date, fromHour, toHour, timestamp: Date.now(), status: "pending" } as unknown as PendingRequest);
     const resultTicks = await new Promise<Array<[number, number, number]>>((resolve) => {
       const timer = setTimeout(() => {
         ticksWaiters.delete(reqId);
