@@ -685,6 +685,54 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
           </div>
           <div className={isChartMaximized ? 'relative flex-1 w-full min-h-0 overflow-hidden' : 'relative w-full h-[calc(100vh-370px)] min-h-[420px] overflow-hidden'}>
             <div ref={chartWrapRef} className="absolute inset-0" />
+            {wdoReplayHud && (
+              <div className="absolute bottom-8 right-20 z-20 pointer-events-none flex flex-col items-end gap-1 px-2.5 py-1.5 rounded-lg bg-[#090D12]/85 backdrop-blur border border-[#1E2633] text-[11px] font-mono shadow-lg">
+                <div className="flex items-center gap-2">
+                  {wdoReplayHud.zoneLabel && (
+                    <span className="inline-flex items-center gap-1 text-[#60A5FA] font-semibold">
+                      <span>{wdoReplayHud.zoneLabel}</span>
+                      <span className="text-gray-400 font-normal">({wdoReplayHud.zoneSide})</span>
+                    </span>
+                  )}
+                  {wdoReplayHud.zoneLabel && <span className="text-gray-600">|</span>}
+                  <span className="inline-flex items-center gap-1">
+                    <span className="text-gray-400">IFR({wdoReplayHud.rsiPeriod}):</span>
+                    <span className={`font-bold ${
+                      wdoReplayHud.rsiVal === null ? 'text-gray-400'
+                      : wdoReplayHud.rsiVal >= 86 ? 'text-rose-400'
+                      : wdoReplayHud.rsiVal <= 16 ? 'text-emerald-400'
+                      : 'text-gray-100'
+                    }`}>
+                      {wdoReplayHud.rsiVal !== null ? wdoReplayHud.rsiVal.toFixed(1) : '--'}
+                    </span>
+                  </span>
+                </div>
+                {(wdoReplayHud.d1Emas.length > 0 || wdoReplayHud.h1Emas.length > 0) && (
+                  <div className="grid grid-cols-2 gap-x-3 text-[10px] leading-tight pt-1 border-t border-[#1E2633]/80 w-full">
+                    <div className="flex flex-col gap-0.5">
+                      {[...wdoReplayHud.d1Emas].reverse().map((e) => (
+                        <div key={e.title} className="text-green-500 whitespace-nowrap">
+                          D{e.title.replace('EMA', '').replace(' D1', '')} - <span className="text-gray-200">{e.price.toFixed(1)}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex flex-col gap-0.5 text-right">
+                      {[...wdoReplayHud.h1Emas].reverse().map((e) => (
+                        <div key={e.title} className="text-purple-400 whitespace-nowrap">
+                          H{e.title.replace('EMA', '').replace(' H1', '')} - <span className="text-gray-200">{e.price.toFixed(1)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {wdoReplayHud.prevDayFormatted && (
+                  <div className="w-full pt-1 border-t border-[#1E2633]/80 flex items-center justify-between gap-3 text-[10px] text-gray-400">
+                    <span>Canal D-1: <span className="text-[#60A5FA] font-semibold">{wdoReplayHud.prevDayFormatted}</span></span>
+                    <span>Pregão: <span className="text-gray-200">{wdoReplayHud.todayDayFormatted}</span></span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
