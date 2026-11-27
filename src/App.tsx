@@ -217,7 +217,7 @@ export default function App() {
         if (existingMagics.has(appBot.magicNumber)) continue;
         const alias = magicAliases[appBot.magicNumber];
         mapped.push({
-          robotId: `_`,
+          robotId: String(appBot.magicNumber) + "_" + appBot.symbol,
           name: alias || appBot.name,
           magicNumber: appBot.magicNumber,
           symbol: appBot.symbol,
@@ -241,9 +241,7 @@ export default function App() {
     }, [telemetry?.robots, managedRobots, magicAliases]);
 
   useEffect(() => {
-    if (managedLoaded && selectedRobotId !== 'ALL' && !robots.some((r) => r.robotId === selectedRobotId)) {
-      setSelectedRobotId('ALL');
-    }
+    if (managedLoaded && selectedRobotId !== 'ALL' && !robots.some((r) => r.robotId === selectedRobotId)) { const magicPrefix = selectedRobotId.split("_")[0]; const byMagic = magicPrefix ? robots.find((r) => String(r.magicNumber) === magicPrefix) : null; if (byMagic) { setSelectedRobotId(byMagic.robotId); } else { setSelectedRobotId('ALL'); } }
   }, [managedLoaded, robots, selectedRobotId]);
 
   const handleClearSession = useCallback(async () => {
