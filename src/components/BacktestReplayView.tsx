@@ -315,13 +315,33 @@ export function BacktestReplayView({ creds, activeContracts }: BacktestReplayVie
         setCandleStatus(`Conectando pregão ao vivo de ${resolvedSymbol} (${timeframe})...`);
       }
       try {
-        pollTickCount += 1; const shouldResyncFull = isInitial || pollTickCount % 10 === 0; const list = shouldResyncFull
-          ? await syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, timeframe, { force: true })
-          : await fetchCandles(creds.channelId, creds.token, resolvedSymbol, timeframe);
+        pollTickCount += 1;
+        const shouldResyncFull = isInitial || pollTickCount % 10 === 0;
+        const isWdoZones = strategyType === 'wdo_opening_zones';
+        const [list, h1List, d1List] = await Promise.all([
+          shouldResyncFull
+            ? syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, timeframe, { force: true, isManualRequest: isInitial })
+            : fetchCandles(creds.channelId, creds.token, resolvedSymbol, timeframe),
+          isWdoZones && shouldResyncFull
+            ? syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, 'H1', { force: true }).catch(() => new Array<LiveCandle>())
+            : Promise.resolve(null),
+          isWdoZones && shouldResyncFull
+            ? syncCandlesWithMt5(creds.channelId, creds.token, resolvedSymbol, 'D1', { force: true }).catch(() => new Array<LiveCandle>())
+            : Promise.resolve(null),
+        ]);
         if (cancelled) return;
+        if (isWdoZones && (Array.isArray(h1List) || Array.isArray(d1List))) {
+          setReplayMtfCandles((prev) => ({
+            h1: Array.isArray(h1List) && h1List.length > 0 ? h1List : prev.h1,
+            d1: Array.isArray(d1List) && d1List.length > 0 ? d1List : prev.d1,
+          }));
+        }
         if (list && list.length > 0) {
+          const uniqueDays = Array.from(new Set(list.map((c) => new Date(toSec(c.time) * 1000).toISOString().slice(0, 10)))).sort();
+          const keepDays = new Set(uniqueDays.slice(-2));
+          const recentWithPrevDay = list.filter((c) => keepDays.has(new Date(toSec(c.time) * 1000).toISOString().slice(0, 10)));
           const todayBars = list.filter((c) => new Date(toSec(c.time) * 1000).toISOString().slice(0, 10) === todayStr);
-          const incoming = todayBars.length > 0 ? todayBars : list;
+          const incoming = recentWithPrevDay.length > 0 ? recentWithPrevDay : list;
           setCandles((prev) => {
             const target = isInitial ? incoming : mergeBars(prev, incoming);
             const lastPrev = prev.at(-1);
